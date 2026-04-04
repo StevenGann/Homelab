@@ -1,0 +1,12 @@
+# Local overrides
+*.local.yaml
+.env
+
+# Packer build artifacts
+packer/output/
+*.img
+*.iso
+
+# Ansible retry files
+*.retry
+
