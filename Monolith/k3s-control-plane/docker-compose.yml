@@ -1,0 +1,39 @@
+services:
+  k3s-server:
+    image: rancher/k3s:v1.35.3-k3s1
+    command: server
+    privileged: true
+    restart: unless-stopped
+    environment:
+      - K3S_TOKEN=${K3S_TOKEN}
+      - K3S_KUBECONFIG_OUTPUT=/output/kubeconfig.yaml
+      - K3S_KUBECONFIG_MODE=666
+    volumes:
+      - k3s-server:/var/lib/rancher/k3s
+      - /mnt/App-Storage/Container-Data/k3s-control-plane/kubeconfig:/output
+    ports:
+      - "6443:6443"      # Kubernetes API
+      - "8472:8472/udp"  # Flannel VXLAN
+
+  dnsmasq:
+    image: jpillora/dnsmasq
+    restart: unless-stopped
+    volumes:
+      - /mnt/App-Storage/Container-Data/k3s-control-plane/dnsmasq.conf:/etc/dnsmasq.conf:ro
+      - /mnt/App-Storage/Container-Data/k3s-control-plane/tftp:/srv/tftp:ro
+    ports:
+      - "69:69/udp"      # TFTP
+    cap_add:
+      - NET_ADMIN
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - /mnt/App-Storage/Container-Data/k3s-control-plane/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /mnt/App-Storage/Container-Data/k3s-control-plane/images:/srv/images:ro
+    ports:
+      - "50011:8080"     # Image serving
+
+volumes:
+  k3s-server:

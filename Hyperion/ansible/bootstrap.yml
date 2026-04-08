@@ -1,0 +1,72 @@
+---
+- name: Bootstrap node base configuration
+  hosts: k3s_agents
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Set timezone to UTC
+      timezone:
+        name: UTC
+
+    - name: Ensure cgroup parameters are set in cmdline.txt
+      lineinfile:
+        path: /boot/firmware/cmdline.txt
+        backrefs: true
+        regexp: '^((?!.*cgroup_memory=1)(?!.*cgroup_enable=memory).*)$'
+        line: '\1 cgroup_memory=1 cgroup_enable=memory'
+      register: cmdline
+
+    - name: Reboot if cmdline.txt changed
+      reboot:
+        reboot_timeout: 120
+      when: cmdline.changed
+
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - jq
+          - git
+          - nfs-common
+          - open-iscsi
+        state: present
+
+    - name: Disable password authentication in sshd
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+      notify: Restart sshd
+
+    - name: Disable root login via SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+      notify: Restart sshd
+
+    - name: Ensure /var/lib/node-local exists
+      file:
+        path: /var/lib/node-local
+        state: directory
+        mode: '0755'
+
+  handlers:
+    - name: Restart sshd
+      service:
+        name: ssh
+        state: restarted

@@ -1,0 +1,1 @@
+console=tty0 console=ttyAMA0,115200 root=/dev/nfs nfsroot=192.168.10.247:/mnt/App-Storage/Container-Data/k3s-control-plane/netboot-root,vers=3,tcp rw ip=dhcp rootwait init=/init

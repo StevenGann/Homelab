@@ -1,0 +1,40 @@
+---
+- name: Install and configure k3s agent
+  hosts: k3s_agents
+  become: true
+  gather_facts: true
+
+  vars:
+    k3s_server_url: "https://192.168.10.247:6443"
+    k3s_token_file: /etc/k3s-token
+
+  tasks:
+    - name: Check if k3s is already installed
+      stat:
+        path: /usr/local/bin/k3s
+      register: k3s_binary
+
+    - name: Install k3s agent
+      shell: |
+        curl -sfL https://get.k3s.io | \
+          K3S_URL={{ k3s_server_url }} \
+          K3S_TOKEN=$(cat {{ k3s_token_file }}) \
+          sh -
+      when: not k3s_binary.stat.exists
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Ensure k3s-agent service is enabled and running
+      service:
+        name: k3s-agent
+        enabled: true
+        state: started
+
+    - name: Apply storage node label (if HDD present)
+      shell: |
+        if [ -f /etc/node-has-storage-hdd ]; then
+          kubectl label node {{ inventory_hostname }} storage=local --overwrite \
+            --kubeconfig /etc/rancher/k3s/k3s.yaml 2>/dev/null || true
+        fi
+      delegate_to: 192.168.10.247
+      ignore_errors: true
