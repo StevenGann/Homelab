@@ -1,5 +1,3 @@
 creation_rules:
   - path_regex: k8s/.*secret.*\.yaml
     age: age1hmxzj58j4vlr7w7kffx9k5dvx8kgp4dtq3235vt4lwjxlrp8u53sjkv2cx
-  - path_regex: cloud-init/.*user-data.*
-    age: age1hmxzj58j4vlr7w7kffx9k5dvx8kgp4dtq3235vt4lwjxlrp8u53sjkv2cx

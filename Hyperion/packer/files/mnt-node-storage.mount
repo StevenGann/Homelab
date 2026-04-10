@@ -1,0 +1,12 @@
+[Unit]
+Description=Node-local storage
+After=detect-node-storage.service
+
+[Mount]
+What=LABEL=node-storage
+Where=/mnt/node-storage
+Type=ext4
+Options=defaults,nofail
+
+[Install]
+WantedBy=multi-user.target

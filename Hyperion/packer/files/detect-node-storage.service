@@ -1,0 +1,12 @@
+[Unit]
+Description=Detect node-storage device (USB HDD or NVMe p3)
+Before=mnt-node-storage.mount
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/detect-node-storage.sh
+
+[Install]
+WantedBy=multi-user.target

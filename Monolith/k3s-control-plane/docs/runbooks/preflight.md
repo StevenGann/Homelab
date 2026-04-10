@@ -2,19 +2,24 @@
 
 Before running `docker compose up` for the first time:
 
-## 1. Create the kubeconfig output directory
-
-Docker will create the kubeconfig mount target as root if it doesn't exist, which
-prevents k3s from writing into it. Create it manually first:
+## 1. Create required directories
 
 ```bash
-mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/kubeconfig
+mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/{images,kubeconfig}
 ```
 
-## 2. Create the .env file
+- `images/` — nginx image root (Node IMG and Bootstrap IMG served from here)
+- `kubeconfig/` — k3s writes kubeconfig here on startup
 
-The compose file expects `K3S_TOKEN` from a `.env` file (never committed). Generate
-and write it once:
+## 2. Create image subdirectories
+
+```bash
+mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/images/{node,bootstrap}
+```
+
+## 3. Create the .env file
+
+The compose file expects `K3S_TOKEN` from a `.env` file (never committed):
 
 ```bash
 echo "K3S_TOKEN=$(openssl rand -hex 32)" > .env
@@ -22,33 +27,57 @@ echo "K3S_TOKEN=$(openssl rand -hex 32)" > .env
 
 Keep a SOPS-encrypted copy in the repo — see the top-level `.sops.yaml`.
 
-## 3. Verify host paths exist
+## 4. Install the CI deploy handler
 
-The compose file mounts the following paths from the TrueNAS dataset:
-
-```
-/mnt/App-Storage/Container-Data/k3s-control-plane/tftp/      → dnsmasq TFTP root
-/mnt/App-Storage/Container-Data/k3s-control-plane/images/    → nginx image root
-/mnt/App-Storage/Container-Data/k3s-control-plane/kubeconfig/ → k3s kubeconfig output
-```
-
-Create any that don't exist before bringing the stack up:
+GitHub Actions uploads images and updates the manifest via a restricted SSH key.
+Install the handler script that enforces what the CI key can do:
 
 ```bash
-mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/{tftp,images,kubeconfig}
+sudo tee /usr/local/bin/ci-deploy-handler.sh > /dev/null << 'EOF'
+#!/bin/bash
+case "$SSH_ORIGINAL_COMMAND" in
+  rsync\ --server*)
+    exec rsync --server "$@"
+    ;;
+  "update-manifest node "*)
+    MANIFEST="${SSH_ORIGINAL_COMMAND#update-manifest node }"
+    echo "$MANIFEST" > ~/images/node/manifest.json
+    ;;
+  "update-symlink node "*)
+    IMG="${SSH_ORIGINAL_COMMAND#update-symlink node }"
+    ln -sf "$IMG" ~/images/node/rpi-node-latest.img.zst
+    ;;
+  prune-node-images)
+    ls -t ~/images/node/*.img.zst 2>/dev/null | tail -n +4 | xargs -r rm -f
+    ;;
+  *)
+    echo "Forbidden command" >&2; exit 1
+    ;;
+esac
+EOF
+sudo chmod +x /usr/local/bin/ci-deploy-handler.sh
 ```
 
-## 4. Bring up the stack
+Add the CI deploy key to `~/.ssh/authorized_keys`:
 
 ```bash
+echo "command=\"/usr/local/bin/ci-deploy-handler.sh\",no-pty,no-port-forwarding,no-X11-forwarding,no-agent-forwarding <CI_PUBLIC_KEY>" >> ~/.ssh/authorized_keys
+```
+
+Replace `<CI_PUBLIC_KEY>` with the contents of the `MONOLITH_SSH_KEY` public key
+(the key generated for GitHub Actions).
+
+## 5. Bring up the stack
+
+```bash
+cd /mnt/App-Storage/Container-Data/k3s-control-plane
 docker compose up -d
 ```
 
-## 5. Copy kubeconfig to your workstation
+## 6. Copy kubeconfig to your workstation
 
 ```bash
-scp monolith:/path/to/k3s-control-plane/kubeconfig/kubeconfig.yaml ~/.kube/config
+scp truenas_admin@192.168.10.247:/mnt/App-Storage/Container-Data/k3s-control-plane/kubeconfig/kubeconfig.yaml ~/.kube/config
 ```
 
-Update the `server:` field in the kubeconfig if it shows `127.0.0.1` — replace
-with `192.168.10.247`.
+Update the `server:` field if it shows `127.0.0.1` — replace with `192.168.10.247`.

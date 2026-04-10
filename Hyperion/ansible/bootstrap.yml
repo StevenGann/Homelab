@@ -5,26 +5,10 @@
   gather_facts: true
 
   tasks:
-    - name: Set hostname
-      hostname:
-        name: "{{ inventory_hostname }}"
-
-    - name: Set timezone to UTC
-      timezone:
-        name: UTC
-
-    - name: Ensure cgroup parameters are set in cmdline.txt
-      lineinfile:
-        path: /boot/firmware/cmdline.txt
-        backrefs: true
-        regexp: '^((?!.*cgroup_memory=1)(?!.*cgroup_enable=memory).*)$'
-        line: '\1 cgroup_memory=1 cgroup_enable=memory'
-      register: cmdline
-
-    - name: Reboot if cmdline.txt changed
-      reboot:
-        reboot_timeout: 120
-      when: cmdline.changed
+    # Hostname is set by apply-identity.service from the identity USB on first boot.
+    # cgroup parameters are baked into cmdline.txt by the Node IMG Packer build.
+    # Required packages (curl, jq, git, nfs-common, open-iscsi) are pre-installed in the image.
+    # Timezone is set to UTC by the Node IMG Packer build.
 
     - name: Update apt cache
       apt:
@@ -34,16 +18,6 @@
     - name: Upgrade all packages
       apt:
         upgrade: dist
-
-    - name: Install required packages
-      apt:
-        name:
-          - curl
-          - jq
-          - git
-          - nfs-common
-          - open-iscsi
-        state: present
 
     - name: Disable password authentication in sshd
       lineinfile:

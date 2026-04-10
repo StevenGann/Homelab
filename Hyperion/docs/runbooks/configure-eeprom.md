@@ -1,39 +1,55 @@
 # Runbook: Configure Pi 5 EEPROM Boot Order
 
-One-time step per node. Sets the boot order so each Pi 5 tries NVMe first, falls
-back to network boot for provisioning, and falls back further to SD/USB if needed.
+One-time step per node. Sets the boot order so each Pi 5 tries SD card first
+(Bootstrap IMG), then falls back to NVMe (production OS), then loops.
 
-Must be done while the node is running its existing OS (before wiping).
-
----
-
-## Boot Order
-
-`BOOT_ORDER=0xf416` — right to left:
-
-| Digit | Mode | Meaning |
-|-------|------|---------|
-| `4` | 1st | NVMe (PCIe SSD via M.2 HAT) |
-| `1` | 2nd | SD card |
-| `6` | 3rd | USB mass storage |
-| `f` | 4th | Loop (restart from beginning) |
-
-After imaging, nodes boot from NVMe. If the NVMe has no bootable OS (e.g. during
-reprovisioning), the loop continues to network boot — **but network boot is not
-in this order**. To trigger network boot, temporarily set `BOOT_ORDER=0xf21`
-(network → SD → loop) or hold SHIFT during boot if supported.
-
-> **Reprovisioning approach:** To re-image a node, boot it with `BOOT_ORDER=0xf21`
-> (network first), let the imaging script run, then restore `BOOT_ORDER=0xf416`.
+This is safe to run while nodes are running from NVMe — EEPROM lives in SPI flash
+and is unaffected by re-imaging.
 
 ---
 
-## Steps
+## Target boot order
+
+`BOOT_ORDER=0xf61` — nibbles read right-to-left:
+
+| Nibble | Mode | Meaning |
+|--------|------|---------|
+| `1` | 1st | SD card (Bootstrap IMG when inserted; skipped when absent) |
+| `6` | 2nd | NVMe (production OS) |
+| `f` | 3rd | Loop (restart from beginning) |
+
+**Normal operation (no SD card inserted):** Pi skips SD (no bootable media), boots
+NVMe directly. Bootstrap SD only takes effect when physically inserted.
+
+---
+
+## Configure all nodes via script
+
+```bash
+cd ~/GitHub/Homelab/Hyperion
+./configure-eeprom.sh --reboot
+```
+
+Default SSH user is `pi` (fresh Pi OS). For nodes already provisioned with the
+Node IMG, use `--user owner`:
+
+```bash
+./configure-eeprom.sh --user owner --reboot
+```
+
+To configure a single node:
+```bash
+./configure-eeprom.sh hyperion-alpha --user owner --reboot
+```
+
+---
+
+## Configure manually (one node)
 
 SSH into the node:
 
 ```bash
-ssh pi@192.168.10.10x  # replace with node's IP
+ssh owner@192.168.10.10x
 ```
 
 Edit the EEPROM config:
@@ -42,13 +58,12 @@ Edit the EEPROM config:
 sudo rpi-eeprom-config --edit
 ```
 
-Add or update the `BOOT_ORDER` line:
-
+Set:
 ```
-BOOT_ORDER=0xf416
+BOOT_ORDER=0xf61
 ```
 
-Save and exit (`Ctrl+O`, `Ctrl+X` in nano). The change takes effect on next reboot:
+Save and reboot:
 
 ```bash
 sudo reboot
@@ -56,50 +71,23 @@ sudo reboot
 
 ---
 
-## Do All Nodes via Ansible
-
-Once SSH access is confirmed on all nodes, run from your workstation:
-
-```bash
-cd ~/GitHub/Homelab/Hyperion
-ansible-playbook ansible/configure-eeprom.yml
-```
-
-> **Note:** The `configure-eeprom.yml` playbook is yet to be written. For now,
-> do this step manually per node as above.
-
----
-
 ## Verify
 
-After reboot, confirm the EEPROM setting took effect:
+After reboot:
 
 ```bash
 sudo rpi-eeprom-config | grep BOOT_ORDER
-```
-
-Expected output:
-```
-BOOT_ORDER=0xf416
+# Expected: BOOT_ORDER=0xf61
 ```
 
 ---
 
-## Reprovisioning a Node
+## Re-imaging a node
 
-To re-image a node from scratch:
+No EEPROM changes needed for re-imaging. Simply:
 
-1. SSH in and temporarily change boot order to network-first:
-   ```bash
-   sudo rpi-eeprom-config --edit
-   # Set: BOOT_ORDER=0xf21
-   sudo reboot
-   ```
-2. Node boots from network → imaging script runs → NVMe is re-flashed
-3. Node reboots from NVMe → cloud-init runs → rejoins cluster
-4. SSH back in and restore permanent boot order:
-   ```bash
-   sudo rpi-eeprom-config --edit
-   # Set: BOOT_ORDER=0xf416
-   sudo reboot
-   ```
+1. Insert the Bootstrap SD card
+2. Run `./reimage.sh hyperion-<name>` to reboot the node
+
+The Pi will find the SD card (BOOT_ORDER tries SD first) and Bootstrap takes over.
+Remove the SD card after the node reboots into NVMe.

@@ -5,8 +5,12 @@
 # Packer build artifacts
 packer/output/
 *.img
+*.img.zst
 *.iso
 
 # Ansible retry files
 *.retry
+
+# Imaging SSH key (private — never commit)
+imaging_ed25519
 

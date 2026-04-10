@@ -1,0 +1,15 @@
+[Unit]
+Description=Hyperion Bootstrap — flash NVMe from USB cache
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/bootstrap.sh
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=3600
+
+[Install]
+WantedBy=multi-user.target

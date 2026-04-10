@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply node identity from HYPERION-ID USB
+ConditionPathExists=!/etc/hyperion-identity-applied
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/apply-identity.sh
+
+[Install]
+WantedBy=multi-user.target

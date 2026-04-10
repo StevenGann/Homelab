@@ -1,0 +1,100 @@
+name: Build and publish Node IMG
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Hyperion/packer/rpi-node.pkr.hcl'
+      - 'Hyperion/packer/files/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-to-monolith
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Pi OS base image
+        uses: actions/cache@v4
+        with:
+          path: ~/.packer-cache
+          key: pios-node-${{ hashFiles('Hyperion/packer/rpi-node.pkr.hcl') }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-user-static binfmt-support zstd curl jq
+
+      - name: Register QEMU binfmt handlers
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+      - name: Install Packer
+        run: |
+          curl -fsSL https://apt.releases.hashicorp.com/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq packer
+          packer plugins install github.com/solo-io/arm-image
+
+      - name: Generate version (Unix epoch)
+        run: echo "VERSION=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Build Node IMG
+        working-directory: Hyperion/packer
+        run: |
+          packer build \
+            -var "image_version=${{ env.VERSION }}" \
+            -var "ssh_public_key=${{ secrets.NODE_SSH_PUBLIC_KEY }}" \
+            rpi-node.pkr.hcl
+
+      - name: Compress with zstd
+        run: |
+          IMG_FILE="rpi-node-${{ env.VERSION }}.img.zst"
+          echo "IMG_FILE=$IMG_FILE" >> "$GITHUB_ENV"
+          zstd -19 -T0 Hyperion/packer/output/rpi-node.img -o "$IMG_FILE"
+          echo "IMG_SHA256=$(sha256sum "$IMG_FILE" | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "IMG_SIZE=$(stat -c%s "$IMG_FILE")"                     >> "$GITHUB_ENV"
+
+      - name: Write SSH known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.MONOLITH_HOST_KEY }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Write deploy key
+        run: |
+          printf '%s\n' "${{ secrets.MONOLITH_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+      - name: Upload image to Monolith
+        run: |
+          rsync -av -e "ssh -i /tmp/deploy_key" \
+            "${{ env.IMG_FILE }}" \
+            "truenas_admin@${{ secrets.MONOLITH_HOST }}:."
+
+      - name: Update manifest and symlink on Monolith
+        run: |
+          MANIFEST=$(jq -n \
+            --argjson ver  "${{ env.VERSION }}" \
+            --arg     file "${{ env.IMG_FILE }}" \
+            --arg     sha  "${{ env.IMG_SHA256 }}" \
+            --argjson size "${{ env.IMG_SIZE }}" \
+            --arg     ts   "$(date -Iseconds)" \
+            '{current_version:$ver,image_file:$file,image_sha256:$sha,image_size_bytes:$size,published_at:$ts}')
+          ssh -i /tmp/deploy_key "truenas_admin@${{ secrets.MONOLITH_HOST }}" \
+            "update-manifest node $MANIFEST"
+          ssh -i /tmp/deploy_key "truenas_admin@${{ secrets.MONOLITH_HOST }}" \
+            "update-symlink node ${{ env.IMG_FILE }}"
+          ssh -i /tmp/deploy_key "truenas_admin@${{ secrets.MONOLITH_HOST }}" \
+            "prune-node-images"
+
+      - name: Cleanup deploy key
+        if: always()
+        run: rm -f /tmp/deploy_key

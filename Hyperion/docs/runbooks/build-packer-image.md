@@ -1,145 +1,129 @@
-# Runbook: Build and Deploy Packer Base Image
+# Runbook: Build and Publish Node and Bootstrap Images
 
-Builds the Hyperion base OS image from `Hyperion/packer/rpi-base.pkr.hcl` and
-deploys it to Monolith's nginx image server. Every Pi node is provisioned from
-this image via netboot.
+Hyperion nodes use two Packer-built images:
+
+| Image | Packer template | Purpose |
+|-------|----------------|---------|
+| **Bootstrap IMG** | `rpi-bootstrap.pkr.hcl` | Flashed to a microSD card; boots Pi, flashes NVMe, reboots |
+| **Node IMG** | `rpi-node.pkr.hcl` | The production OS, flashed to NVMe by Bootstrap |
+
+Both are built automatically by GitHub Actions on every push to `main` that touches
+`Hyperion/packer/`. For manual builds (e.g. first time before CI is configured),
+use `Hyperion/publish-image.sh`.
 
 ---
 
-## What the Image Contains
+## What the Node IMG contains
 
-Starting from Raspberry Pi OS Lite 64-bit (Debian Trixie), the Packer build bakes in:
+Starting from Raspberry Pi OS Lite 64-bit (Debian Trixie, arm64):
 
 | What | Why |
 |------|-----|
-| SSH enabled | Allows Ansible and manual access post-boot |
-| `id_ed25519.pub` in `pi` authorized_keys | Passwordless SSH from workstation |
-| `cloud-init` | Reads cidata USB stick on first boot for node identity and k3s join |
-| `cloud-init` NoCloud datasource configured | Tells cloud-init to read from USB, not a cloud provider |
-| `curl`, `jq`, `git`, `nfs-common`, `open-iscsi` | k3s dependencies and general utilities |
-| cgroup kernel parameters | Required for k3s to manage container resources |
-| Auto-expand disabled | Prevents raspi-config from fighting the imaging script's partition layout |
-| `/mnt/node-storage` created | Mount point for node-local storage partition |
-| k3s binary pre-downloaded | Speeds up node provisioning |
+| `owner` user (sudo, no password) | Replaces the default `pi` user |
+| SSH authorized key for `owner` | Key is injected at build time via `NODE_SSH_PUBLIC_KEY` variable |
+| `curl`, `jq`, `git`, `nfs-common`, `open-iscsi`, `zstd` | k3s and utility dependencies |
+| k3s binary (not enabled) | Pre-installed; k3s is started by Ansible post-imaging |
+| cgroup kernel parameters in `cmdline.txt` | Required for k3s container resource management |
+| Auto-expansion suppressed | Bootstrap handles explicit NVMe partitioning |
+| `apply-identity.service` | Sets hostname from HYPERION-ID USB stick on first NVMe boot |
+| `detect-node-storage.service` + `mnt-node-storage.mount` | Mounts best available storage device to `/mnt/node-storage` |
+| PCIe Gen 3 + NVMe `config.txt` entries | Enables M.2 HAT NVMe at full speed |
 | Timezone: UTC | Consistent timestamps across all nodes |
+| Version stamp in `/boot/firmware/node-img.ver` | Bootstrap uses this to decide whether to reflash |
+
+## What the Bootstrap IMG contains
+
+Minimal Pi OS Lite with:
+- `curl`, `jq`, `parted`, `e2fsprogs`, `dosfstools`, `util-linux`, `zstd`
+- `bootstrap.sh` + `hyperion-bootstrap.service` (runs on every boot)
+- SSH enabled (emergency access)
 
 ---
 
-## Prerequisites
+## Prerequisites (one-time per workstation)
 
-These only need to be set up once per workstation.
-
-### 1. Install Packer
+### Install Packer
 
 ```bash
-wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+curl -fsSL https://apt.releases.hashicorp.com/gpg \
+  | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/hashicorp.list
 sudo apt-get update && sudo apt-get install -y packer
+packer plugins install github.com/solo-io/arm-image
 ```
 
-### 2. Install the ARM image plugin
-
-The plugin must be installed for both the regular user and root (since the build
-requires `sudo`):
-
-```bash
-cd ~/GitHub/Homelab/Hyperion/packer
-packer init rpi-base.pkr.hcl
-sudo packer init rpi-base.pkr.hcl
-```
-
-Plugin is sourced from `github.com/solo-io/arm-image` v0.2.7+. It uses QEMU and
-loopback mounts to run provisioners inside the ARM image on an x86 host.
-
-### 3. Install QEMU and register binfmt handlers
-
-QEMU is needed to execute ARM64 binaries during the chroot provisioning steps:
+### Install QEMU and register binfmt handlers
 
 ```bash
 sudo apt-get install -y qemu-user-static binfmt-support
 docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 ```
 
-> The binfmt handlers are reset on reboot. If the build fails with exec format
-> errors, re-run the `docker run` command above before retrying.
+> binfmt handlers reset on reboot. Re-run the `docker run` command if builds fail
+> with "exec format error".
 
 ---
 
-## Build
+## Build and publish (manual)
 
 ```bash
-cd ~/GitHub/Homelab/Hyperion/packer
-mkdir -p output
-sudo packer build -var "ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)" rpi-base.pkr.hcl
+cd ~/GitHub/Homelab/Hyperion
+export NODE_SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)"
+
+# Publish Node IMG (builds, compresses, uploads, updates manifest)
+./publish-image.sh node
+
+# Publish Bootstrap IMG (builds and uploads raw .img)
+./publish-image.sh bootstrap
 ```
 
-**Expected duration:** ~7–10 minutes (downloads ~500MB image, runs all provisioners).
+**Expected duration:** ~10–15 min for Node IMG, ~5 min for Bootstrap IMG.
 
-**Output:** `packer/output/rpi-base.img` (~4GB)
-
-### Expected warnings (safe to ignore)
-
-| Warning | Reason |
-|---------|--------|
-| `raspberrypi-sys-mods-firstboot.service does not exist` | Trixie removed this service; auto-expand is already handled by `sed` on `cmdline.txt` |
-| `resize2fs_once.service does not exist` | Same as above |
-| `System has not been booted with systemd as init system` | `timedatectl` doesn't work in chroot; timezone is set on first boot |
+To build without uploading:
+```bash
+./publish-image.sh node --dry-run
+# Output: Hyperion/packer/output/rpi-node.img
+```
 
 ---
 
-## Deploy to Monolith
+## Build and publish (CI — normal workflow)
 
-After a successful build, copy the image to Monolith's nginx image server:
+Push any change to `main` touching these paths:
+
+| Path | Triggers |
+|------|---------|
+| `Hyperion/packer/rpi-node.pkr.hcl` | Node IMG build |
+| `Hyperion/packer/files/**` | Node IMG build (and Bootstrap IMG if bootstrap files changed) |
+| `Hyperion/packer/rpi-bootstrap.pkr.hcl` | Bootstrap IMG build |
+| `Hyperion/packer/files/bootstrap.sh` | Bootstrap IMG build |
+| `Hyperion/packer/files/bootstrap.service` | Bootstrap IMG build |
+
+CI compresses the Node IMG with `zstd -19`, uploads to Monolith, and updates
+`~/images/node/manifest.json` automatically.
+
+---
+
+## When to rebuild
+
+| Trigger | Which image |
+|---------|------------|
+| Raspberry Pi OS base image version updated | Both |
+| Changes to `files/bootstrap.sh` or `bootstrap.service` | Bootstrap IMG |
+| Changes to any other file under `files/` | Node IMG |
+| k3s version update | Node IMG |
+| SSH key rotation | Node IMG |
+
+---
+
+## Flashing the Bootstrap SD card
+
+The Bootstrap IMG is a raw `.img` file (not compressed):
 
 ```bash
-rsync -av --progress \
-  output/rpi-base.img \
-  truenas_admin@192.168.10.247:/mnt/App-Storage/Container-Data/k3s-control-plane/images/
+# Download from Monolith or use local build output
+sudo dd if=rpi-bootstrap.img of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
-Nginx serves this at `http://192.168.10.247:50011/rpi-base.img`, which is the URL
-hardcoded in `Monolith/k3s-control-plane/netboot/imaging.sh`.
-
----
-
-## When to Rebuild
-
-Rebuild and redeploy whenever:
-
-- The Raspberry Pi OS base image version is updated in `rpi-base.pkr.hcl`
-- Packages baked into the image are changed
-- The k3s binary version needs updating (currently pulled as `latest` at build time)
-- Any provisioner step is modified
-
-After rebuilding, nodes will use the new image on their next netboot provisioning cycle.
-
----
-
-## Future Automation
-
-This process is a candidate for full automation. The intended end state:
-
-1. A CI job (e.g. GitHub Actions) detects a new Raspberry Pi OS release
-2. Triggers a Packer build on a self-hosted runner with QEMU/Docker available
-3. On success, rsync the new image to Monolith automatically
-4. Optionally re-run `setup-netboot-root.sh` if the TFTP boot files also changed
-
-Tracked in `docs/todo.md`.
-
----
-
-## Full End-to-End Command Reference
-
-```bash
-# One-time setup
-packer init rpi-base.pkr.hcl
-sudo packer init rpi-base.pkr.hcl
-docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
-# Build
-mkdir -p output
-sudo packer build -var "ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)" rpi-base.pkr.hcl
-
-# Deploy
-rsync -av --progress output/rpi-base.img truenas_admin@192.168.10.247:/mnt/App-Storage/Container-Data/k3s-control-plane/images/
-```
+This SD card is shared across all nodes — identity comes from the per-node HYPERION-ID USB stick.

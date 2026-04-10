@@ -1,0 +1,70 @@
+name: Build Bootstrap IMG
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Hyperion/packer/rpi-bootstrap.pkr.hcl'
+      - 'Hyperion/packer/files/bootstrap.sh'
+      - 'Hyperion/packer/files/bootstrap.service'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-to-monolith
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Pi OS base image
+        uses: actions/cache@v4
+        with:
+          path: ~/.packer-cache
+          key: pios-bootstrap-${{ hashFiles('Hyperion/packer/rpi-bootstrap.pkr.hcl') }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-user-static binfmt-support curl
+
+      - name: Register QEMU binfmt handlers
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+      - name: Install Packer
+        run: |
+          curl -fsSL https://apt.releases.hashicorp.com/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq packer
+          packer plugins install github.com/solo-io/arm-image
+
+      - name: Build Bootstrap IMG
+        working-directory: Hyperion/packer
+        run: packer build rpi-bootstrap.pkr.hcl
+
+      - name: Write SSH known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.MONOLITH_HOST_KEY }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Write deploy key
+        run: |
+          printf '%s\n' "${{ secrets.MONOLITH_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+      - name: Upload Bootstrap IMG to Monolith
+        run: |
+          rsync -av -e "ssh -i /tmp/deploy_key" \
+            Hyperion/packer/output/rpi-bootstrap.img \
+            "truenas_admin@${{ secrets.MONOLITH_HOST }}:."
+
+      - name: Cleanup deploy key
+        if: always()
+        run: rm -f /tmp/deploy_key
