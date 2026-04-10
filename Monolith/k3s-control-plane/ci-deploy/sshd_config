@@ -1,0 +1,11 @@
+Port 22
+PermitRootLogin no
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile /home/ci/.ssh/authorized_keys
+AllowUsers ci
+UsePAM no
+PrintMotd no
+# Log to stderr (visible via docker logs)
+LogLevel INFO

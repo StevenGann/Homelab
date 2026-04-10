@@ -101,7 +101,7 @@ Push any change to `main` touching these paths:
 | `Hyperion/packer/files/bootstrap.service` | Bootstrap IMG build |
 
 CI compresses the Node IMG with `zstd -19`, uploads to Monolith, and updates
-`~/images/node/manifest.json` automatically.
+`/mnt/Media-Storage/Infra-Storage/images/node/manifest.json` automatically.
 
 ---
 

@@ -20,9 +20,19 @@ services:
     restart: unless-stopped
     volumes:
       - /mnt/App-Storage/Container-Data/k3s-control-plane/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - /mnt/App-Storage/Container-Data/k3s-control-plane/images:/srv/images:ro
+      - /mnt/Media-Storage/Infra-Storage/images:/srv/images:ro
     ports:
       - "50011:50011"    # Image serving
+
+  ci-deploy:
+    image: ghcr.io/stevengann/homelab-ci-deploy:latest
+    restart: unless-stopped
+    environment:
+      - CI_PUBLIC_KEY=${CI_PUBLIC_KEY}
+    volumes:
+      - /mnt/Media-Storage/Infra-Storage/images:/images
+    ports:
+      - "2222:22"        # CI deploy SSH
 
 volumes:
   k3s-server:

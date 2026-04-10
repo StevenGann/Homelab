@@ -547,7 +547,7 @@ XZ decompression at 37–43 MB/s on Cortex-A76 is the bottleneck — well below 
 **One-time setup (before first CI run):**
 ```bash
 ssh truenas_admin@192.168.10.247 \
-    "mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/images/{node,bootstrap}"
+    "mkdir -p /mnt/Media-Storage/Infra-Storage/images/{node,bootstrap}"
 ```
 
 ### `nginx.conf`
@@ -690,7 +690,7 @@ The CI deploy key must be **restricted** to the images directory. Use `rrsync` (
 cat > /usr/local/bin/ci-deploy-handler.sh << 'EOF'
 #!/bin/bash
 # Restricts CI SSH key to safe operations on the images directory
-IMAGES="/mnt/App-Storage/Container-Data/k3s-control-plane/images"
+IMAGES="/mnt/Media-Storage/Infra-Storage/images"
 case "$SSH_ORIGINAL_COMMAND" in
     rsync\ --server*)
         # rrsync handles path restriction
@@ -938,7 +938,7 @@ Insert Bootstrap SD + identity USB (with cached image) → power-cycle. Bootstra
    Set up CI deploy key on Monolith (see §13 — ci-deploy-handler.sh + authorized_keys)
    Create image directories on Monolith:
      ssh truenas_admin@192.168.10.247 \
-       "mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/images/{node,bootstrap}"
+       "mkdir -p /mnt/Media-Storage/Infra-Storage/images/{node,bootstrap}"
 
 2. Update EEPROM firmware on all nodes (requires a Pi OS SD card — stock Pi OS works):
      sudo rpi-eeprom-update -a && sudo reboot

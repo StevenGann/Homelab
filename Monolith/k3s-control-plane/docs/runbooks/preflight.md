@@ -5,76 +5,56 @@ Before running `docker compose up` for the first time:
 ## 1. Create required directories
 
 ```bash
-mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/{images,kubeconfig}
+mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/kubeconfig
+mkdir -p /mnt/Media-Storage/Infra-Storage/images/{node,bootstrap}
 ```
 
-- `images/` — nginx image root (Node IMG and Bootstrap IMG served from here)
 - `kubeconfig/` — k3s writes kubeconfig here on startup
+- `images/node/` — Node IMG files served by nginx; written by the ci-deploy container
+- `images/bootstrap/` — Bootstrap IMG files served by nginx; written by the ci-deploy container
 
-## 2. Create image subdirectories
+## 2. Create the .env file
 
-```bash
-mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/images/{node,bootstrap}
-```
-
-## 3. Create the .env file
-
-The compose file expects `K3S_TOKEN` from a `.env` file (never committed):
+The compose file expects `K3S_TOKEN` and `CI_PUBLIC_KEY` from a `.env` file (never committed):
 
 ```bash
-echo "K3S_TOKEN=$(openssl rand -hex 32)" > .env
+# Generate k3s token
+echo "K3S_TOKEN=$(openssl rand -hex 32)" >> .env
+
+# Add the CI deploy public key (the public half of MONOLITH_SSH_KEY)
+# Derive it from the private key if you have it locally:
+#   ssh-keygen -y -f ~/.ssh/hyperion-ci-deploy
+echo "CI_PUBLIC_KEY=<paste public key here>" >> .env
 ```
 
-Keep a SOPS-encrypted copy in the repo — see the top-level `.sops.yaml`.
+Keep a SOPS-encrypted copy of `K3S_TOKEN` in the repo — see the top-level `.sops.yaml`.
+`CI_PUBLIC_KEY` is not sensitive (it's a public key) but keep it out of the repo regardless.
 
-## 4. Install the CI deploy handler
+## 3. Build and bring up the stack
 
-GitHub Actions uploads images and updates the manifest via a restricted SSH key.
-Install the handler script that enforces what the CI key can do:
-
-```bash
-sudo tee /usr/local/bin/ci-deploy-handler.sh > /dev/null << 'EOF'
-#!/bin/bash
-case "$SSH_ORIGINAL_COMMAND" in
-  rsync\ --server*)
-    exec rsync --server "$@"
-    ;;
-  "update-manifest node "*)
-    MANIFEST="${SSH_ORIGINAL_COMMAND#update-manifest node }"
-    echo "$MANIFEST" > ~/images/node/manifest.json
-    ;;
-  "update-symlink node "*)
-    IMG="${SSH_ORIGINAL_COMMAND#update-symlink node }"
-    ln -sf "$IMG" ~/images/node/rpi-node-latest.img.zst
-    ;;
-  prune-node-images)
-    ls -t ~/images/node/*.img.zst 2>/dev/null | tail -n +4 | xargs -r rm -f
-    ;;
-  *)
-    echo "Forbidden command" >&2; exit 1
-    ;;
-esac
-EOF
-sudo chmod +x /usr/local/bin/ci-deploy-handler.sh
-```
-
-Add the CI deploy key to `~/.ssh/authorized_keys`:
-
-```bash
-echo "command=\"/usr/local/bin/ci-deploy-handler.sh\",no-pty,no-port-forwarding,no-X11-forwarding,no-agent-forwarding <CI_PUBLIC_KEY>" >> ~/.ssh/authorized_keys
-```
-
-Replace `<CI_PUBLIC_KEY>` with the contents of the `MONOLITH_SSH_KEY` public key
-(the key generated for GitHub Actions).
-
-## 5. Bring up the stack
+The `ci-deploy` service is built locally from `Monolith/k3s-control-plane/ci-deploy/`:
 
 ```bash
 cd /mnt/App-Storage/Container-Data/k3s-control-plane
 docker compose up -d
 ```
 
-## 6. Copy kubeconfig to your workstation
+Services started:
+- `k3s-server` — Kubernetes control plane (port 6443)
+- `nginx` — Image HTTP server (port 50011), serves `/mnt/Media-Storage/Infra-Storage/images/`
+- `ci-deploy` — Restricted SSH endpoint for CI uploads (port 2222)
+
+## 4. Verify ci-deploy is accepting connections
+
+```bash
+# Should print the SSH banner and exit (not "connection refused")
+ssh -p 2222 ci@192.168.10.247 echo ok
+```
+
+If the key isn't set up yet, you'll get "Permission denied" — that's correct behaviour.
+"Connection refused" means the container isn't running.
+
+## 5. Copy kubeconfig to your workstation
 
 ```bash
 scp truenas_admin@192.168.10.247:/mnt/App-Storage/Container-Data/k3s-control-plane/kubeconfig/kubeconfig.yaml ~/.kube/config

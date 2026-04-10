@@ -21,7 +21,8 @@
 set -euo pipefail
 
 MONOLITH_HOST="${MONOLITH_HOST:-192.168.10.247}"
-MONOLITH_USER="truenas_admin"
+MONOLITH_USER="ci"
+MONOLITH_PORT="${MONOLITH_PORT:-2222}"
 PACKER_DIR="$(cd "$(dirname "$0")/packer" && pwd)"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -117,9 +118,9 @@ if [ "$IMAGE_TYPE" = "node" ]; then
     fi
 
     log "Uploading $IMG_FILE to Monolith..."
-    rsync -av -e "ssh -o StrictHostKeyChecking=accept-new" \
+    rsync -av -e "ssh -o StrictHostKeyChecking=accept-new -p ${MONOLITH_PORT}" \
         "$IMG_FILE" \
-        "${MONOLITH_USER}@${MONOLITH_HOST}:."
+        "${MONOLITH_USER}@${MONOLITH_HOST}:/images/node/"
 
     log "Updating manifest and symlink on Monolith..."
     MANIFEST=$(jq -n \
@@ -129,11 +130,11 @@ if [ "$IMAGE_TYPE" = "node" ]; then
         --argjson size "$IMG_SIZE" \
         --arg     ts   "$(date -Iseconds)" \
         '{current_version:$ver,image_file:$file,image_sha256:$sha,image_size_bytes:$size,published_at:$ts}')
-    ssh -o StrictHostKeyChecking=accept-new "${MONOLITH_USER}@${MONOLITH_HOST}" \
+    ssh -o StrictHostKeyChecking=accept-new -p "${MONOLITH_PORT}" "${MONOLITH_USER}@${MONOLITH_HOST}" \
         "update-manifest node $MANIFEST"
-    ssh -o StrictHostKeyChecking=accept-new "${MONOLITH_USER}@${MONOLITH_HOST}" \
+    ssh -o StrictHostKeyChecking=accept-new -p "${MONOLITH_PORT}" "${MONOLITH_USER}@${MONOLITH_HOST}" \
         "update-symlink node $IMG_FILE"
-    ssh -o StrictHostKeyChecking=accept-new "${MONOLITH_USER}@${MONOLITH_HOST}" \
+    ssh -o StrictHostKeyChecking=accept-new -p "${MONOLITH_PORT}" "${MONOLITH_USER}@${MONOLITH_HOST}" \
         "prune-node-images"
 
     rm -f "$IMG_FILE"
@@ -151,9 +152,9 @@ elif [ "$IMAGE_TYPE" = "bootstrap" ]; then
     fi
 
     log "Uploading Bootstrap IMG to Monolith..."
-    rsync -av -e "ssh -o StrictHostKeyChecking=accept-new" \
+    rsync -av -e "ssh -o StrictHostKeyChecking=accept-new -p ${MONOLITH_PORT}" \
         "$RAW_IMG" \
-        "${MONOLITH_USER}@${MONOLITH_HOST}:."
+        "${MONOLITH_USER}@${MONOLITH_HOST}:/images/bootstrap/"
 fi
 
 echo ""

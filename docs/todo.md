@@ -44,53 +44,36 @@ ssh-keygen -t ed25519 -f ~/.ssh/hyperion-ci-deploy -N "" -C "hyperion-ci"
 
 ## Step 3 — One-time Monolith setup
 
-SSH to Monolith and run:
-
 ```bash
 ssh truenas_admin@192.168.10.247
 
 # Create image directories
-mkdir -p ~/images/node ~/images/bootstrap
+mkdir -p /mnt/Media-Storage/Infra-Storage/images/{node,bootstrap}
 
-# Install ci-deploy-handler.sh (allows CI to rsync images and update manifest/symlink)
-# Script content: see docs/runbooks/monolith-setup.md (to be written)
-sudo tee /usr/local/bin/ci-deploy-handler.sh > /dev/null << 'EOF'
-#!/bin/bash
-# Restricted SSH command wrapper for the CI deploy key.
-# Allows: rsync (scp-server), update-manifest, update-symlink, prune-node-images
-case "$SSH_ORIGINAL_COMMAND" in
-  rsync\ --server*)
-    exec rsync --server "$@"
-    ;;
-  "update-manifest node "*)
-    MANIFEST="${SSH_ORIGINAL_COMMAND#update-manifest node }"
-    echo "$MANIFEST" > ~/images/node/manifest.json
-    ;;
-  "update-symlink node "*)
-    IMG="${SSH_ORIGINAL_COMMAND#update-symlink node }"
-    ln -sf "$IMG" ~/images/node/rpi-node-latest.img.zst
-    ;;
-  prune-node-images)
-    # Keep the 3 most recent .img.zst files
-    ls -t ~/images/node/*.img.zst 2>/dev/null | tail -n +4 | xargs -r rm -f
-    ;;
-  *)
-    echo "Forbidden command" >&2; exit 1
-    ;;
-esac
-EOF
-sudo chmod +x /usr/local/bin/ci-deploy-handler.sh
-
-# Add CI deploy key to authorized_keys with restricted command
-echo "command=\"/usr/local/bin/ci-deploy-handler.sh\",no-pty,no-port-forwarding,no-X11-forwarding,no-agent-forwarding $(cat ~/.ssh/hyperion-ci-deploy.pub)" >> ~/.ssh/authorized_keys
+# Create kubeconfig output directory
+mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/kubeconfig
 ```
 
-Also ensure nginx is exposing port 50011 in `Monolith/k3s-control-plane/docker-compose.yml`:
-```yaml
-ports:
-  - "50011:50011"
+Create the `.env` file in the compose directory:
+
+```bash
+cd /mnt/App-Storage/Container-Data/k3s-control-plane
+
+# k3s cluster token
+echo "K3S_TOKEN=$(openssl rand -hex 32)" >> .env
+
+# Public key for the CI deploy key (derive from the private key on your workstation)
+# Run on workstation: ssh-keygen -y -f ~/.ssh/hyperion-ci-deploy
+echo "CI_PUBLIC_KEY=<paste public key here>" >> .env
 ```
-Then `docker compose up -d` from `Monolith/k3s-control-plane/`.
+
+Start the stack via Dockge (pulls `ghcr.io/stevengann/homelab-ci-deploy:latest` automatically):
+
+```bash
+docker compose up -d
+```
+
+See `Monolith/k3s-control-plane/docs/runbooks/preflight.md` for full details.
 
 ---
 

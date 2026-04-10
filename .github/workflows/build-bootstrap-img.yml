@@ -61,9 +61,9 @@ jobs:
 
       - name: Upload Bootstrap IMG to Monolith
         run: |
-          rsync -av -e "ssh -i /tmp/deploy_key" \
+          rsync -av -e "ssh -i /tmp/deploy_key -p 2222" \
             Hyperion/packer/output/rpi-bootstrap.img \
-            "truenas_admin@${{ secrets.MONOLITH_HOST }}:."
+            "ci@${{ secrets.MONOLITH_HOST }}:/images/bootstrap/"
 
       - name: Cleanup deploy key
         if: always()
