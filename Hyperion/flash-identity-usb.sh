@@ -56,9 +56,8 @@ read -r -p "Type YES to confirm: " confirm
 echo ""
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
-command -v mkfs.fat >/dev/null \
-    || die "mkfs.fat not found. Install dosfstools: sudo apt-get install dosfstools"
-command -v mlabel    >/dev/null 2>&1 || true   # optional, used if available
+command -v mkfs.exfat >/dev/null \
+    || die "mkfs.exfat not found. Install exfatprogs: sudo apt-get install exfatprogs"
 
 # ── Unmount any existing partitions ──────────────────────────────────────────
 log "Unmounting any mounted partitions on $DEVICE..."
@@ -68,12 +67,13 @@ for part in "${DEVICE}"?*; do
     fi
 done
 
-# ── Partition table: single FAT32 partition ───────────────────────────────────
+# ── Partition table: single exFAT partition ───────────────────────────────────
+# exFAT is used instead of FAT32 to avoid the 4GB per-file limit — the node
+# image cache can hold a ~4GB uncompressed .img file.
 log "Writing partition table..."
-# Wipe any existing signatures first so parted doesn't prompt
 wipefs -a "$DEVICE" >/dev/null 2>&1 || true
-parted -s "$DEVICE" mklabel msdos
-parted -s "$DEVICE" mkpart primary fat32 1MiB 100%
+parted -s "$DEVICE" mklabel gpt
+parted -s "$DEVICE" mkpart HYPERION-ID 1MiB 100%
 udevadm settle --timeout=10
 
 PARTITION="${DEVICE}1"
@@ -81,8 +81,8 @@ PARTITION="${DEVICE}1"
 [ -b "$PARTITION" ] || PARTITION="${DEVICE}p1"
 [ -b "$PARTITION" ] || die "Partition ${DEVICE}1 / ${DEVICE}p1 not found after partitioning"
 
-log "Formatting $PARTITION as FAT32 (label HYPERION-ID)..."
-mkfs.fat -F 32 -n "HYPERION-ID" "$PARTITION"
+log "Formatting $PARTITION as exFAT (label HYPERION-ID)..."
+mkfs.exfat -L "HYPERION-ID" "$PARTITION"
 udevadm settle --timeout=5
 
 # ── Mount and write files ─────────────────────────────────────────────────────

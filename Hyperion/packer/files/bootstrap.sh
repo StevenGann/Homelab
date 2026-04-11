@@ -5,7 +5,7 @@
 # Runs on every boot from the Bootstrap SD card via hyperion-bootstrap.service.
 #
 # Boot flow (USB-authoritative):
-#   0. Ensure EEPROM BOOT_ORDER=0xf61 (SD → NVMe → loop) — staged if wrong, takes effect on reboot
+#   0. Ensure EEPROM BOOT_ORDER=0xf641 (SD → USB → NVMe → loop) — staged if wrong, takes effect on reboot
 #   1. Update identity USB cache from Monolith if a newer Node IMG is available
 #      (network is optional — gracefully skipped if Monolith is unreachable)
 #   2. Flash NVMe from USB cache if NVMe is behind USB version
@@ -60,7 +60,7 @@ if [ "$ATTEMPT" -gt "$MAX_BOOT_ATTEMPTS" ]; then
 fi
 
 # ── 0. Ensure correct EEPROM boot order ──────────────────────────────────────
-TARGET_BOOT_ORDER="0xf61"
+TARGET_BOOT_ORDER="0xf641"
 if command -v rpi-eeprom-config >/dev/null 2>&1; then
     CURRENT_ORDER=$(rpi-eeprom-config 2>/dev/null | grep '^BOOT_ORDER=' | cut -d= -f2 || true)
     if [ "${CURRENT_ORDER:-}" != "$TARGET_BOOT_ORDER" ]; then

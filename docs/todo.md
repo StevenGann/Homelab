@@ -90,14 +90,15 @@ CI builds automatically.
 ## Step 5 — Configure EEPROM on nodes
 
 **This is handled automatically by the Bootstrap IMG.** On every boot, `bootstrap.sh`
-checks `BOOT_ORDER` and stages a correction to `0xf61` (SD → NVMe → loop) if needed.
-The update takes effect on the reboot that bootstrap performs at the end of its run.
+checks `BOOT_ORDER` and stages a correction to `0xf641` (SD → USB → NVMe → loop) if
+needed. The update takes effect on the reboot that bootstrap performs at the end of its run.
 
 No manual action required — skip to Step 6.
 
-> If a node's EEPROM is so misconfigured that it won't boot the Bootstrap SD at all
-> (e.g. `BOOT_ORDER=0xf6`, NVMe-only), run `./configure-eeprom.sh` manually first
-> to get it into a state where the SD card is tried.
+> If a node's EEPROM is so misconfigured that it won't boot the Bootstrap SD **or USB**
+> at all (e.g. `BOOT_ORDER=0xf6`, NVMe-only), run `./configure-eeprom.sh` manually first.
+> The `0xf641` order means either an SD card **or** a USB stick with the Bootstrap IMG
+> will trigger imaging — whichever is more convenient.
 
 ---
 
@@ -112,14 +113,14 @@ cd ~/GitHub/Homelab/Hyperion
 # ... repeat for all 10 nodes
 ```
 
-Each stick gets: FAT32 label `HYPERION-ID`, a `hostname` file, and an empty
+Each stick gets: exFAT label `HYPERION-ID`, a `hostname` file, and an empty
 `node-image/` cache directory that bootstrap populates on first run.
 
 ---
 
-## Step 7 — Flash Bootstrap SD card
+## Step 7 — Flash Bootstrap media (SD card or USB stick)
 
-Flash once; this SD card is shared across all 10 nodes during imaging.
+Flash once; one piece of bootstrap media can be shared across all 10 nodes during imaging.
 Download `rpi-bootstrap.img` from `http://192.168.10.247:50011/bootstrap/rpi-bootstrap.img`
 (ci-deploy decompresses it automatically after syncing from GitHub Releases).
 
@@ -128,13 +129,15 @@ sudo dd if=rpi-bootstrap.img of=/dev/sdX bs=4M conv=fsync status=progress
 # or use Balena Etcher
 ```
 
+The EEPROM boot order (`0xf641`) tries SD first, then USB — either medium works.
+
 ---
 
 ## Step 8 — Image nodes (one at a time or all at once)
 
 For each node:
 1. Insert identity USB (HYPERION-ID, hostname written)
-2. Insert Bootstrap SD card
+2. Insert Bootstrap media (SD card or USB stick)
 3. Power on
 
 Bootstrap will:
@@ -149,7 +152,7 @@ Monitor via serial cable (ttyAMA10, 115200 baud) or:
 tail -f <usb-mount>/node-image/bootstrap.log
 ```
 
-4. Once node boots into NVMe → remove Bootstrap SD card (identity USB stays in)
+4. Once node boots into NVMe → remove Bootstrap media (identity USB stays in)
 
 ---
 
@@ -177,13 +180,13 @@ ansible-playbook -i inventory bootstrap.yml
 ## Re-imaging a node (ongoing)
 
 ```bash
-# 1. Insert Bootstrap SD card into target node
+# 1. Insert Bootstrap media (SD card or USB stick) into target node
 # 2. Trigger reboot:
 cd ~/GitHub/Homelab/Hyperion
 ./reimage.sh hyperion-alpha     # or: ./reimage.sh all
 
 # Bootstrap handles the rest automatically.
-# 3. Remove Bootstrap SD after node is back on NVMe.
+# 3. Remove Bootstrap media after node is back on NVMe.
 ```
 
 CI publishes a new Node IMG automatically on every push to `main` that touches

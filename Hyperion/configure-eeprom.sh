@@ -20,7 +20,7 @@ set -euo pipefail
 
 NODES=(alpha beta gamma delta epsilon zeta eta theta iota kappa)
 SSH_USER="pi"
-TARGET_BOOT_ORDER="0xf61"
+TARGET_BOOT_ORDER="0xf641"
 
 declare -A NODE_IPS=(
     [alpha]=192.168.10.101
@@ -79,7 +79,7 @@ command -v sshpass >/dev/null \
 echo ""
 log "=== Hyperion EEPROM Boot Order Configuration ==="
 log "Nodes:      ${TARGET_NODES[*]}"
-log "Boot order: $TARGET_BOOT_ORDER  (SD card → NVMe → loop)"
+log "Boot order: $TARGET_BOOT_ORDER  (SD card → USB → NVMe → loop)"
 echo ""
 
 read -r -s -p "SSH password for $SSH_USER@hyperion-*: " PI_PASSWORD
