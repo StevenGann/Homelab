@@ -32,7 +32,8 @@ if RAW_DEV=$(blkid -L node-storage-usb 2>/dev/null); then
     exit 0
 fi
 
-# 2. Size-based fallback: any block device on a USB bus larger than 200 GB
+# 2. Size-based fallback: any /dev/sd? block device larger than 200 GB
+#    (On Pi 5, all sd? devices are USB-attached — no native SATA controller)
 for dev in /dev/sd?; do
     [ -b "$dev" ] || continue
     size_bytes=$(lsblk -bdn -o SIZE "$dev" 2>/dev/null) || continue

@@ -7,6 +7,10 @@ on:
       - 'Monolith/k3s-control-plane/healthcheck/**'
   workflow_dispatch:
 
+concurrency:
+  group: build-healthcheck
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest

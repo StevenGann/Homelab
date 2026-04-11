@@ -135,16 +135,21 @@ if [ "$NETWORK_UP" = "true" ] && [ -n "$IMG_FILE" ] && [ "$NET_VER" -gt "$USB_VE
     curl -f --progress-bar "$IMAGE_BASE_URL/$IMG_FILE" -o "$DOWNLOAD_PATH.tmp" \
         || die "Download of $IMG_FILE failed."
 
-    ACTUAL_SHA=$(sha256sum "$DOWNLOAD_PATH.tmp" | awk '{print $1}')
-    [ "$ACTUAL_SHA" = "$IMG_SHA256" ] \
-        || die "SHA256 mismatch — expected $IMG_SHA256, got $ACTUAL_SHA. Aborting."
+    if [ -n "$IMG_SHA256" ] && [ "$IMG_SHA256" != "unknown" ] && [ "$IMG_SHA256" != "null" ]; then
+        ACTUAL_SHA=$(sha256sum "$DOWNLOAD_PATH.tmp" | awk '{print $1}')
+        [ "$ACTUAL_SHA" = "$IMG_SHA256" ] \
+            || die "SHA256 mismatch — expected $IMG_SHA256, got $ACTUAL_SHA. Aborting."
+        log "SHA256 verified."
+    else
+        warn "No valid SHA256 in manifest — skipping integrity verification."
+    fi
 
     # Commit the new image, then clean up old ones
     mv "$DOWNLOAD_PATH.tmp" "$DOWNLOAD_PATH"
     find "$CACHE_DIR" -name '*.img' ! -name "$(basename "$DOWNLOAD_PATH")" \
         -delete 2>/dev/null || true
 
-    # Write version atomically (FAT32: tmp+mv is safer than in-place write)
+    # Write version atomically (exFAT: tmp+mv is safer than in-place write)
     echo "$NET_VER" > "$CACHE_DIR/version.tmp"
     sync
     mv "$CACHE_DIR/version.tmp" "$CACHE_DIR/version"
@@ -169,6 +174,7 @@ log "USB image : $(basename "$USB_IMG")  (version $USB_VER)"
 NVME_VER=0
 if [ -b "${NVME}p1" ]; then
     TMPBOOT=$(mktemp -d)
+    MOUNTS_TO_CLEAN+=("$TMPBOOT")
     if mount -o ro "${NVME}p1" "$TMPBOOT" 2>/dev/null; then
         NVME_VER_RAW=$(cat "$TMPBOOT/node-img.ver" 2>/dev/null | tr -d '[:space:]' || echo 0)
         is_int "$NVME_VER_RAW" && NVME_VER="$NVME_VER_RAW" || NVME_VER=0
@@ -196,6 +202,7 @@ udevadm settle --timeout=10
 # If repartition fails mid-way, NVME_VER reads as 0 on next boot and re-flash
 # is triggered — prevents booting into a partially-repartitioned NVMe.
 TMPBOOT=$(mktemp -d)
+MOUNTS_TO_CLEAN+=("$TMPBOOT")
 mount "${NVME}p1" "$TMPBOOT"
 rm -f "$TMPBOOT/node-img.ver"
 sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||g' \
@@ -222,6 +229,7 @@ mkfs.ext4 -L node-storage "${NVME}p3"
 # Node IMG) is the sole mount mechanism. Writing fstab here would create a
 # duplicate unit and an ordering conflict.
 TMPROOT=$(mktemp -d)
+MOUNTS_TO_CLEAN+=("$TMPROOT")
 mount "${NVME}p2" "$TMPROOT"
 mkdir -p "$TMPROOT/mnt/node-storage"
 umount "$TMPROOT"

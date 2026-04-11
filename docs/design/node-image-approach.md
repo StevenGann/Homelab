@@ -1,6 +1,19 @@
 # Hyperion Node Image Approach — Design Document
 
-> **Status:** Implementation-ready — pending answers to questions in §17.
+> **Status:** IMPLEMENTED — this design doc is now a historical reference.
+> The implementation diverges from this document in several places (listed below).
+> For current behavior, read the code and operational docs in `Hyperion/docs/runbooks/`.
+>
+> **Known divergences from implementation:**
+> - §3: BOOT_ORDER is `0xf641` (SD→USB→NVMe→loop), not `0xf61` as written here
+> - §5: Identity USB uses exFAT, not FAT32
+> - §8: Bootstrap uses plain `dd` (ci-deploy decompresses on Monolith); USB cache stores `.img`, not `.img.zst`
+> - §11: nginx listens on port `50011`, not `8080`
+> - §12.1: `dtparam=pciex1_gen=3` (Gen 3), not `dtparam=pciex1`
+> - §12.2: Bootstrap IMG `target_image_size` is 3 GiB, not 2 GiB
+> - §13: CI publishes to GitHub Releases; ci-deploy polls GitHub API. The SSH+rsync approach described here was never implemented.
+> - §13 secrets: Only `NODE_SSH_PUBLIC_KEY` is needed. `MONOLITH_SSH_KEY`, `MONOLITH_HOST_KEY`, `MONOLITH_HOST` do not exist.
+>
 > **Replaces:** TFTP netboot + initramfs approach (abandoned; Pi 5 compatibility issues).
 > **Reviews completed:** linux-expert, sysadmin-expert, pi-expert, fact-checker.
 

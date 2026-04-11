@@ -28,7 +28,7 @@ HOSTNAME=$(tr -d '[:space:]' < "$ID_MNT/hostname")
 [ -n "$HOSTNAME" ] || { echo "apply-identity: hostname file empty" >&2; exit 1; }
 
 hostnamectl set-hostname "$HOSTNAME"
-grep -q "$HOSTNAME" /etc/hosts || echo "127.0.1.1  $HOSTNAME" >> /etc/hosts
+grep -qF "$HOSTNAME" /etc/hosts || echo "127.0.1.1  $HOSTNAME" >> /etc/hosts
 
 touch "$GUARD"
 echo "apply-identity: hostname set to $HOSTNAME"

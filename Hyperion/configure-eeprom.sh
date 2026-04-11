@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # configure-eeprom.sh
-# Sets BOOT_ORDER=0xf61 (SD → NVMe → loop) on Hyperion Pi 5 nodes via SSH.
+# Sets BOOT_ORDER=0xf641 (SD → USB → NVMe → loop) on Hyperion Pi 5 nodes via SSH.
 # Run once per node (or after replacing the EEPROM SPI flash).
 #
 # Requires: sshpass  (sudo apt-get install sshpass)
@@ -11,11 +11,11 @@
 #   --reboot            → reboot each node after applying (no prompt)
 #   --no-reboot         → skip reboot after applying (no prompt)
 #   --user <name>       → SSH username (default: pi)
-#   --boot-order <hex>  → target BOOT_ORDER value (default: 0xf61)
+#   --boot-order <hex>  → target BOOT_ORDER value (default: 0xf641)
 #
 # Boot order nibbles are read right-to-left:
-#   0xf61   SD(1) → NVMe(6) → loop(f)  ← normal operating mode
-#   0xf612  network(2) → SD(1) → NVMe(6) → loop(f)  ← use to configure via netboot
+#   0xf641  SD(1) → USB(4) → NVMe(6) → loop(f)  ← normal operating mode
+#   0xf6412 network(2) → SD(1) → USB(4) → NVMe(6) → loop(f)  ← use to configure via netboot
 set -euo pipefail
 
 NODES=(alpha beta gamma delta epsilon zeta eta theta iota kappa)

@@ -1,8 +1,16 @@
 # Hyperion Cluster — Infrastructure as Code Guide
 
-> **Goal:** A fully reproducible k3s cluster where every node's state is defined in code,
+> **ARCHIVED — OBSOLETE.** This document describes the original PXE/TFTP/cloud-init
+> approach, which was abandoned due to Pi 5 compatibility issues. The current
+> implementation uses a two-image SD-card-based approach (Bootstrap IMG + Node IMG)
+> with identity USB sticks. See `docs/design/node-image-approach.md` for the design
+> that was actually implemented, and `docs/todo.md` for the current operational workflow.
+>
+> This file is retained for historical context only. **Do not follow these instructions.**
+
+> ~~**Goal:** A fully reproducible k3s cluster where every node's state is defined in code,
 > stored in GitHub, and recoverable from scratch. The only irreplaceable elements are the
-> data pools on Monolith.
+> data pools on Monolith.~~
 
 ---
 

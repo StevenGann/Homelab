@@ -30,6 +30,8 @@ Homelab/
     └── k3s-control-plane/       # k3s server + nginx image server
         ├── docker-compose.yml
         ├── nginx.conf
+        ├── ci-deploy/           # GitHub Releases poller (downloads images to Monolith)
+        ├── healthcheck/         # IaC integration test runner (HTTP API on port 50012)
         └── docs/runbooks/
 ```
 
@@ -47,10 +49,12 @@ Workstation
 
 Monolith (TrueNAS Scale — 192.168.10.247)
   ├── k3s server (Docker Compose)
-  └── nginx → HTTP image server (port 50011)
-        ├── /node/manifest.json         (current Node IMG version + SHA256)
-        ├── /node/rpi-node-<ver>.img.zst  (compressed Node IMGs, 3 kept)
-        └── /bootstrap/rpi-bootstrap.img  (Bootstrap SD card image)
+  ├── nginx → HTTP image server (port 50011)
+  │     ├── /node/manifest.json         (current Node IMG version + SHA256)
+  │     ├── /node/rpi-node-<ver>.img    (decompressed Node IMGs, 3 kept)
+  │     └── /bootstrap/rpi-bootstrap.img  (Bootstrap SD card image)
+  ├── ci-deploy → polls GitHub Releases, downloads + decompresses images
+  └── healthcheck → IaC integration tests (port 50012)
 
 Hyperion Cluster (k3s)
   ├── Control plane: k3s server on Monolith

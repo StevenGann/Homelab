@@ -109,7 +109,7 @@ if [ "$IMAGE_TYPE" = "node" ]; then
         "$IMG_FILE"
 
     rm -f "$IMG_FILE"
-    log "Published. The ci-deploy container on Monolith will download it within $(( POLL_INTERVAL / 60 )) minutes."
+    log "Published. The ci-deploy container on Monolith will download it within ~5 minutes."
 
 elif [ "$IMAGE_TYPE" = "bootstrap" ]; then
     log "Building Bootstrap IMG..."
@@ -135,5 +135,5 @@ elif [ "$IMAGE_TYPE" = "bootstrap" ]; then
         --prerelease \
         "$COMPRESSED_IMG"
 
-    log "Published. The ci-deploy container on Monolith will download it within ${POLL_INTERVAL:-300} seconds."
+    log "Published. The ci-deploy container on Monolith will download it within ~5 minutes."
 fi

@@ -56,7 +56,8 @@ build {
   sources = ["source.arm-image.rpi_node"]
 
   # ── 1. Create owner user ───────────────────────────────────────────────────
-  # Pi OS ships with user "pi". Create "owner", delete "pi".
+  # Pi OS Trixie no longer ships with a default "pi" user (changed in Bookworm).
+  # Create "owner" as the primary user; delete "pi" if it exists (no-op on Trixie).
   provisioner "shell" {
     inline = [
       "useradd -m -s /bin/bash -G sudo owner",
@@ -118,6 +119,16 @@ build {
   }
 
   # ── 8. Update config.txt for Pi 5 NVMe boot ──────────────────────────────
+  # The [pi5] conditional section targets Pi 5 (BCM2712) only.
+  # - kernel=kernel_2712.img: redundant on Trixie (firmware auto-selects), kept
+  #   for explicitness and backward compat with Bookworm.
+  # - auto_initramfs=1: required for initramfs-based boot on Pi 5.
+  # - dtparam=pciex1_gen=3: overclocks PCIe from Gen 2 (spec) to Gen 3.
+  #   NOT guaranteed by the BCM2712 datasheet — may fail link training on some
+  #   NVMe drives. If a node fails to detect its NVMe, try removing this line.
+  #   Validated drive model(s): (TODO: document the specific NVMe model in use)
+  # - dtparam=nvme: redundant on Trixie (NVMe driver loads automatically via
+  #   device tree), kept for backward compat with Bookworm.
   provisioner "shell" {
     inline = [
       # Ensure [pi5] section exists, then append NVMe boot directives.
@@ -131,6 +142,10 @@ build {
   }
 
   # ── 9. cgroup parameters for k3s ─────────────────────────────────────────
+  # NOTE: Pi OS Trixie (kernel 6.6+) uses cgroup v2 unified hierarchy by
+  # default. These cgroup v1 parameters are silently ignored on cgroup v2 —
+  # memory cgroup is always enabled. Kept for backward compatibility if the
+  # base image is ever switched to Bookworm (cgroup v1).
   provisioner "shell" {
     inline = [
       "grep -q 'cgroup_memory=1' /boot/firmware/cmdline.txt || sed -i '$ s/$/ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline.txt",
@@ -138,13 +153,19 @@ build {
   }
 
   # ── 10. Disable root partition auto-expansion ─────────────────────────────
-  # Bootstrap handles partitioning explicitly — suppress raspi-config resize.
+  # Bootstrap handles partitioning explicitly (p2=32 GiB, p3=remainder).
+  # Suppress ALL auto-expansion mechanisms:
+  # - Legacy: init_resize.sh (Jessie–Bullseye), resize2fs_once (Stretch–Bullseye)
+  # - Modern: systemd-repart (Trixie) — masks the service AND removes repart
+  #   config files to prevent first-boot partition expansion on NVMe.
   provisioner "shell" {
     inline = [
       "sed -i 's| init=/usr/lib/raspi-config/init_resize\\.sh||g' /boot/firmware/cmdline.txt",
       "systemctl disable raspberrypi-sys-mods-firstboot.service 2>/dev/null || true",
       "systemctl disable resize2fs_once.service 2>/dev/null || true",
       "rm -f /etc/init.d/resize2fs_once",
+      "systemctl mask systemd-repart.service 2>/dev/null || true",
+      "rm -rf /usr/lib/repart.d/",
     ]
   }
 

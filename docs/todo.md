@@ -146,7 +146,8 @@ Bootstrap will:
 - Resize p2 → 32 GiB, create p3 (~220 GiB ext4, label `node-storage`)
 - Reboot into NVMe automatically
 
-Monitor via serial cable (ttyAMA10, 115200 baud) or:
+Monitor via serial cable (115200 baud — use `ttyAMA0` for a USB-to-serial adapter
+on GPIO 14/15, or `ttyAMA10` for a Pi Debug Probe on the 3-pin debug header) or:
 ```bash
 # After USB is accessible from another machine:
 tail -f <usb-mount>/node-image/bootstrap.log

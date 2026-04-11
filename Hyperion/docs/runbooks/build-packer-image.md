@@ -27,7 +27,7 @@ Starting from Raspberry Pi OS Lite 64-bit (Debian Trixie, arm64):
 | Auto-expansion suppressed | Bootstrap handles explicit NVMe partitioning |
 | `apply-identity.service` | Sets hostname from HYPERION-ID USB stick on first NVMe boot |
 | `detect-node-storage.service` + `mnt-node-storage.mount` | Mounts best available storage device to `/mnt/node-storage` |
-| PCIe Gen 3 + NVMe `config.txt` entries | Enables M.2 HAT NVMe at full speed |
+| `[pi5]` config.txt section: `kernel=kernel_2712.img`, `auto_initramfs=1`, `dtparam=pciex1_gen=3`, `dtparam=nvme` | Pi 5 NVMe boot directives. Gen 3 PCIe is overclocked (spec is Gen 2) — see comment in `rpi-node.pkr.hcl` for validated drive models. `kernel=` and `dtparam=nvme` are redundant on Trixie but kept for Bookworm compat. |
 | Timezone: UTC | Consistent timestamps across all nodes |
 | Version stamp in `/boot/firmware/node-img.ver` | Bootstrap uses this to decide whether to reflash |
 

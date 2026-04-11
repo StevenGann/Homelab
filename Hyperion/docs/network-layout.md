@@ -36,5 +36,5 @@ All Hyperion infrastructure lives here.
 
 | Host | IP | Role |
 |------|----|------|
-| Monolith | 192.168.10.247 | TrueNAS Scale — k3s control plane, TFTP, image server |
+| Monolith | 192.168.10.247 | TrueNAS Scale — k3s control plane, HTTP image server (nginx:50011), ci-deploy, healthcheck |
 | UCG | 192.168.10.1 | Router, DHCP server for all VLANs |

@@ -33,9 +33,11 @@
         line: 'PermitRootLogin no'
       notify: Restart sshd
 
-    - name: Ensure /var/lib/node-local exists
+    # /mnt/node-storage is created by detect-node-storage.service + mnt-node-storage.mount
+    # at boot. This task only ensures the mount point exists if the service hasn't run yet.
+    - name: Ensure /mnt/node-storage mount point exists
       file:
-        path: /var/lib/node-local
+        path: /mnt/node-storage
         state: directory
         mode: '0755'
 

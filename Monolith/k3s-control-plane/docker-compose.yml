@@ -7,13 +7,19 @@ services:
     environment:
       - K3S_TOKEN=${K3S_TOKEN}
       - K3S_KUBECONFIG_OUTPUT=/output/kubeconfig.yaml
-      - K3S_KUBECONFIG_MODE=666
+      - K3S_KUBECONFIG_MODE=644
     volumes:
       - k3s-server:/var/lib/rancher/k3s
       - /mnt/App-Storage/Container-Data/k3s-control-plane/kubeconfig:/output
     ports:
       - "6443:6443"      # Kubernetes API
       - "8472:8472/udp"  # Flannel VXLAN
+    healthcheck:
+      test: ["CMD", "k3s", "kubectl", "get", "--raw", "/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   nginx:
     image: nginx:alpine
@@ -23,6 +29,11 @@ services:
       - /mnt/Media-Storage/Infra-Storage/images:/srv/images:ro
     ports:
       - "50011:50011"    # Image serving
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:50011/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   ci-deploy:
     image: ghcr.io/stevengann/homelab-ci-deploy:latest
@@ -33,6 +44,13 @@ services:
       - POLL_INTERVAL=300
     volumes:
       - /mnt/Media-Storage/Infra-Storage/images:/images
+    healthcheck:
+      # Verify the status file was written within the last 15 minutes (3× poll interval)
+      test: ["CMD-SHELL", "test -f /images/ci-deploy-status.json && test $$(( $(date +%s) - $(date -d $(jq -r .last_poll /images/ci-deploy-status.json) +%s) )) -lt 900"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   healthcheck:
     image: ghcr.io/stevengann/homelab-healthcheck:latest
@@ -44,6 +62,16 @@ services:
       - /mnt/Media-Storage/Infra-Storage/images:/images:ro
     ports:
       - "50012:8080"    # IaC health API
+    depends_on:
+      nginx:
+        condition: service_healthy
+      ci-deploy:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8080/summary || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   k3s-server:

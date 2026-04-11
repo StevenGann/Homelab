@@ -5,7 +5,7 @@
 # Prerequisites before running:
 #   1. The Bootstrap SD card is physically inserted in the target node(s).
 #   2. The node's identity USB (HYPERION-ID) is also inserted.
-#   3. EEPROM BOOT_ORDER is 0xf61 (SD → NVMe → loop).
+#   3. EEPROM BOOT_ORDER is 0xf641 (SD → USB → NVMe → loop).
 #
 # On reboot the Pi will find the SD card first and run the Bootstrap IMG,
 # which will update the identity USB cache if a newer Node IMG is available,

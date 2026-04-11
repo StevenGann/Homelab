@@ -5,10 +5,25 @@
   gather_facts: true
 
   vars:
-    k3s_server_url: "https://192.168.10.247:6443"
+    k3s_server_url: "https://{{ k3s_server_host }}:6443"
+    k3s_server_host: "192.168.10.247"
     k3s_token_file: /etc/k3s-token
+    # Set via --extra-vars or ansible-vault. Example:
+    #   ansible-playbook k3s-agent.yml --extra-vars "k3s_token=<token>"
+    # For production, encrypt with ansible-vault:
+    #   ansible-vault encrypt_string '<token>' --name 'k3s_token'
+    k3s_token: "{{ vault_k3s_token | default('CHANGEME') }}"
 
   tasks:
+    - name: Deploy k3s token
+      copy:
+        content: "{{ k3s_token }}"
+        dest: "{{ k3s_token_file }}"
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+
     - name: Check if k3s is already installed
       stat:
         path: /usr/local/bin/k3s
@@ -30,11 +45,15 @@
         enabled: true
         state: started
 
-    - name: Apply storage node label (if HDD present)
+    - name: Check if node has local storage
+      stat:
+        path: /mnt/node-storage
+      register: node_storage
+
+    - name: Apply storage node label (if local storage mounted)
       shell: |
-        if [ -f /etc/node-has-storage-hdd ]; then
-          kubectl label node {{ inventory_hostname }} storage=local --overwrite \
-            --kubeconfig /etc/rancher/k3s/k3s.yaml 2>/dev/null || true
-        fi
-      delegate_to: 192.168.10.247
+        kubectl label node {{ inventory_hostname }} storage=local --overwrite \
+          --kubeconfig /etc/rancher/k3s/k3s.yaml 2>/dev/null || true
+      delegate_to: "{{ k3s_server_host }}"
+      when: node_storage.stat.exists and node_storage.stat.isdir
       ignore_errors: true

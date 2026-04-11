@@ -7,6 +7,10 @@ on:
       - 'Monolith/k3s-control-plane/ci-deploy/**'
   workflow_dispatch:
 
+concurrency:
+  group: build-ci-deploy
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest

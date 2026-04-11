@@ -126,15 +126,22 @@ check_node() {
     mv "${img_path}.tmp" "$img_path"
     rm -f "$zst_tmp"
 
-    local img_size
+    local img_size img_sha256
     img_size=$(stat -c%s "$img_path")
+
+    # Compute SHA256 of the decompressed .img — this is what bootstrap.sh
+    # will verify after downloading. The compressed-file hash from the GitHub
+    # Release body was used to verify the download above; the manifest must
+    # store the decompressed hash since nginx serves the .img, not the .zst.
+    img_sha256=$(sha256sum "$img_path" | awk '{print $1}')
+    log "Decompressed SHA256: $img_sha256"
 
     # Write manifest (image_file references the decompressed .img)
     cat > "$IMAGES_ROOT/node/manifest.json" <<EOF
 {
   "current_version": $remote_version,
   "image_file": "$img_name",
-  "image_sha256": "${sha256:-unknown}",
+  "image_sha256": "$img_sha256",
   "image_size_bytes": $img_size,
   "published_at": "$(date -Iseconds)"
 }
