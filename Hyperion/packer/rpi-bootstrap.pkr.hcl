@@ -30,8 +30,9 @@ source "arm-image" "rpi_bootstrap" {
 
   image_mounts = ["/boot/firmware", "/"]
 
-  # 2 GB is sufficient for a minimal Pi OS Lite + bootstrap tooling.
-  target_image_size = 2147483648
+  # Must be >= the uncompressed base image size (~2.79 GiB for Pi OS Trixie Lite).
+  # The arm-image plugin cannot shrink partitions, only grow them.
+  target_image_size = 3221225472  # 3 GiB
 
   output_filename = "output/rpi-bootstrap.img"
 
