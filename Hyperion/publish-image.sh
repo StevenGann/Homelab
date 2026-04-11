@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # publish-image.sh
-# Builds a Node IMG or Bootstrap IMG locally with Packer and publishes it to Monolith.
-# Use this for manual builds before GitHub Actions CI is wired up, or for one-off
-# out-of-band publishes.
+# Builds a Node IMG or Bootstrap IMG locally with Packer and publishes it as a
+# GitHub Release. The ci-deploy container on Monolith will detect and download it.
 #
 # Prerequisites:
 #   - packer installed (https://developer.hashicorp.com/packer/install)
@@ -10,37 +9,31 @@
 #   - qemu-aarch64-static + binfmt-support (sudo apt-get install qemu-user-static binfmt-support)
 #   - docker (for: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes)
 #   - zstd (for node image compression)
-#   - SSH access to Monolith (key-based, user truenas_admin)
+#   - gh CLI authenticated (gh auth login)
 #   - NODE_SSH_PUBLIC_KEY environment variable set (for node image builds)
 #
 # Usage:
 #   ./publish-image.sh node                # build and publish Node IMG
 #   ./publish-image.sh bootstrap           # build and publish Bootstrap IMG
-#   ./publish-image.sh node --dry-run      # build only, skip upload
-#   ./publish-image.sh node --monolith <host>  # override Monolith host (default: 192.168.10.247)
+#   ./publish-image.sh node --dry-run      # build only, skip GitHub Release
 set -euo pipefail
 
-MONOLITH_HOST="${MONOLITH_HOST:-192.168.10.247}"
-MONOLITH_USER="ci"
-MONOLITH_PORT="${MONOLITH_PORT:-2222}"
 PACKER_DIR="$(cd "$(dirname "$0")/packer" && pwd)"
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 log()  { echo -e "${GREEN}[$(date '+%T')]${NC} $*"; }
 warn() { echo -e "${YELLOW}[$(date '+%T')] WARN:${NC} $*"; }
 die()  { echo -e "${RED}[$(date '+%T')] ERROR:${NC} $*" >&2; exit 1; }
 
 usage() {
-    echo "Usage: $0 <node|bootstrap> [--dry-run] [--monolith <host>]"
+    echo "Usage: $0 <node|bootstrap> [--dry-run]"
     echo ""
     echo "  node            Build and publish the Node IMG"
     echo "  bootstrap       Build and publish the Bootstrap IMG"
-    echo "  --dry-run       Build only — skip upload to Monolith"
-    echo "  --monolith <h>  Override Monolith host (default: 192.168.10.247)"
+    echo "  --dry-run       Build only — skip GitHub Release creation"
     echo ""
     echo "Environment variables:"
     echo "  NODE_SSH_PUBLIC_KEY   SSH public key baked into the Node IMG (required for 'node')"
-    echo "  MONOLITH_HOST         Monolith hostname/IP (can also be set via --monolith)"
     exit 1
 }
 
@@ -52,20 +45,9 @@ DRY_RUN=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        node|bootstrap)
-            IMAGE_TYPE="$1"
-            ;;
-        --dry-run)
-            DRY_RUN=true
-            ;;
-        --monolith)
-            shift
-            [ $# -gt 0 ] || die "--monolith requires a host argument"
-            MONOLITH_HOST="$1"
-            ;;
-        *)
-            die "Unknown argument: $1"
-            ;;
+        node|bootstrap) IMAGE_TYPE="$1" ;;
+        --dry-run)      DRY_RUN=true ;;
+        *)              die "Unknown argument: $1" ;;
     esac
     shift
 done
@@ -73,13 +55,18 @@ done
 [ -n "$IMAGE_TYPE" ] || usage
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
-command -v packer  >/dev/null || die "packer not found. See: https://developer.hashicorp.com/packer/install"
-command -v docker  >/dev/null || die "docker not found"
-command -v zstd    >/dev/null || die "zstd not found. Install: sudo apt-get install zstd"
+command -v packer >/dev/null || die "packer not found. See: https://developer.hashicorp.com/packer/install"
+command -v docker >/dev/null || die "docker not found"
+command -v gh     >/dev/null || die "gh CLI not found. See: https://cli.github.com"
 
 if [ "$IMAGE_TYPE" = "node" ]; then
+    command -v zstd >/dev/null || die "zstd not found. Install: sudo apt-get install zstd"
     [ -n "${NODE_SSH_PUBLIC_KEY:-}" ] \
         || die "NODE_SSH_PUBLIC_KEY is not set. Export the public key before running."
+fi
+
+if [ "$DRY_RUN" = false ]; then
+    gh auth status >/dev/null 2>&1 || die "gh CLI is not authenticated. Run: gh auth login"
 fi
 
 # ── Register QEMU binfmt handlers ─────────────────────────────────────────────
@@ -107,37 +94,22 @@ if [ "$IMAGE_TYPE" = "node" ]; then
     IMG_FILE="rpi-node-${VERSION}.img.zst"
     zstd -19 -T0 "$RAW_IMG" -o "$IMG_FILE"
     IMG_SHA256=$(sha256sum "$IMG_FILE" | awk '{print $1}')
-    IMG_SIZE=$(stat -c%s "$IMG_FILE")
     log "  File  : $IMG_FILE"
     log "  SHA256: $IMG_SHA256"
-    log "  Size  : $IMG_SIZE bytes"
 
     if [ "$DRY_RUN" = true ]; then
-        log "Dry run — skipping upload."
+        log "Dry run — skipping GitHub Release. Image at: $IMG_FILE"
         exit 0
     fi
 
-    log "Uploading $IMG_FILE to Monolith..."
-    rsync -av -e "ssh -o StrictHostKeyChecking=accept-new -p ${MONOLITH_PORT}" \
-        "$IMG_FILE" \
-        "${MONOLITH_USER}@${MONOLITH_HOST}:/images/node/"
-
-    log "Updating manifest and symlink on Monolith..."
-    MANIFEST=$(jq -n \
-        --argjson ver  "$VERSION" \
-        --arg     file "$IMG_FILE" \
-        --arg     sha  "$IMG_SHA256" \
-        --argjson size "$IMG_SIZE" \
-        --arg     ts   "$(date -Iseconds)" \
-        '{current_version:$ver,image_file:$file,image_sha256:$sha,image_size_bytes:$size,published_at:$ts}')
-    ssh -o StrictHostKeyChecking=accept-new -p "${MONOLITH_PORT}" "${MONOLITH_USER}@${MONOLITH_HOST}" \
-        "update-manifest node $MANIFEST"
-    ssh -o StrictHostKeyChecking=accept-new -p "${MONOLITH_PORT}" "${MONOLITH_USER}@${MONOLITH_HOST}" \
-        "update-symlink node $IMG_FILE"
-    ssh -o StrictHostKeyChecking=accept-new -p "${MONOLITH_PORT}" "${MONOLITH_USER}@${MONOLITH_HOST}" \
-        "prune-node-images"
+    log "Creating GitHub Release node-v${VERSION}..."
+    gh release create "node-v${VERSION}" \
+        --title "Node IMG v${VERSION}" \
+        --notes "SHA256: ${IMG_SHA256}" \
+        "$IMG_FILE"
 
     rm -f "$IMG_FILE"
+    log "Published. The ci-deploy container on Monolith will download it within $(( POLL_INTERVAL / 60 )) minutes."
 
 elif [ "$IMAGE_TYPE" = "bootstrap" ]; then
     log "Building Bootstrap IMG..."
@@ -147,15 +119,17 @@ elif [ "$IMAGE_TYPE" = "bootstrap" ]; then
     [ -f "$RAW_IMG" ] || die "Packer build completed but $RAW_IMG not found"
 
     if [ "$DRY_RUN" = true ]; then
-        log "Dry run — skipping upload. Image at: $RAW_IMG"
+        log "Dry run — skipping GitHub Release. Image at: $RAW_IMG"
         exit 0
     fi
 
-    log "Uploading Bootstrap IMG to Monolith..."
-    rsync -av -e "ssh -o StrictHostKeyChecking=accept-new -p ${MONOLITH_PORT}" \
-        "$RAW_IMG" \
-        "${MONOLITH_USER}@${MONOLITH_HOST}:/images/bootstrap/"
-fi
+    log "Publishing Bootstrap IMG as bootstrap-latest release..."
+    gh release delete bootstrap-latest --yes --cleanup-tag 2>/dev/null || true
+    gh release create bootstrap-latest \
+        --title "Bootstrap IMG (latest)" \
+        --notes "Bootstrap SD card image. Rebuilt automatically on changes." \
+        --prerelease \
+        "$RAW_IMG"
 
-echo ""
-log "Published $IMAGE_TYPE image (version $VERSION) to $MONOLITH_HOST."
+    log "Published. The ci-deploy container on Monolith will download it within ${POLL_INTERVAL:-300} seconds."
+fi

@@ -28,17 +28,10 @@ In the repo Settings → Secrets → Actions, add:
 
 | Secret | Value |
 |--------|-------|
-| `MONOLITH_HOST` | `192.168.10.247` |
-| `MONOLITH_HOST_KEY` | Output of `ssh-keyscan 192.168.10.247` |
-| `MONOLITH_SSH_KEY` | Private key for the CI deploy key (generate below) |
-| `NODE_SSH_PUBLIC_KEY` | SSH public key to bake into Node IMGs (e.g. `~/.ssh/id_ed25519.pub`) |
+| `NODE_SSH_PUBLIC_KEY` | SSH public key baked into Node IMGs (e.g. `cat ~/.ssh/id_ed25519.pub`) |
 
-Generate the CI deploy key (run once):
-```bash
-ssh-keygen -t ed25519 -f ~/.ssh/hyperion-ci-deploy -N "" -C "hyperion-ci"
-# MONOLITH_SSH_KEY = contents of ~/.ssh/hyperion-ci-deploy
-# Install the public key on Monolith (Step 3)
-```
+That's it. CI uses `GITHUB_TOKEN` (automatically provided by Actions) to publish releases.
+No Monolith credentials needed — Monolith pulls from GitHub rather than CI pushing to Monolith.
 
 ---
 
@@ -62,9 +55,10 @@ cd /mnt/App-Storage/Container-Data/k3s-control-plane
 # k3s cluster token
 echo "K3S_TOKEN=$(openssl rand -hex 32)" >> .env
 
-# Public key for the CI deploy key (derive from the private key on your workstation)
-# Run on workstation: ssh-keygen -y -f ~/.ssh/hyperion-ci-deploy
-echo "CI_PUBLIC_KEY=<paste public key here>" >> .env
+# GitHub token for ci-deploy poller (only needed if repo is private)
+# Create a fine-grained PAT with read-only Contents access at:
+# https://github.com/settings/personal-access-tokens
+echo "GITHUB_TOKEN=<paste token here>" >> .env
 ```
 
 Start the stack via Dockge (pulls `ghcr.io/stevengann/homelab-ci-deploy:latest` automatically):

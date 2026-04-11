@@ -10,8 +10,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-to-monolith
+  group: build-images
   cancel-in-progress: false
+
+permissions:
+  contents: write   # required to create GitHub Releases
 
 jobs:
   build:
@@ -48,23 +51,14 @@ jobs:
         working-directory: Hyperion/packer
         run: sudo packer build rpi-bootstrap.pkr.hcl
 
-      - name: Write SSH known_hosts
+      - name: Publish to GitHub Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.MONOLITH_HOST_KEY }}" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
-      - name: Write deploy key
-        run: |
-          printf '%s\n' "${{ secrets.MONOLITH_SSH_KEY }}" > /tmp/deploy_key
-          chmod 600 /tmp/deploy_key
-
-      - name: Upload Bootstrap IMG to Monolith
-        run: |
-          rsync -av -e "ssh -i /tmp/deploy_key -p 2222" \
-            Hyperion/packer/output/rpi-bootstrap.img \
-            "ci@${{ secrets.MONOLITH_HOST }}:/images/bootstrap/"
-
-      - name: Cleanup deploy key
-        if: always()
-        run: rm -f /tmp/deploy_key
+          # Delete and recreate the fixed bootstrap-latest tag/release
+          gh release delete bootstrap-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create bootstrap-latest \
+            --title "Bootstrap IMG (latest)" \
+            --notes "Bootstrap SD card image. Rebuilt automatically on changes." \
+            --prerelease \
+            Hyperion/packer/output/rpi-bootstrap.img

@@ -15,20 +15,19 @@ mkdir -p /mnt/Media-Storage/Infra-Storage/images/{node,bootstrap}
 
 ## 2. Create the .env file
 
-The compose file expects `K3S_TOKEN` and `CI_PUBLIC_KEY` from a `.env` file (never committed):
+The compose file expects `K3S_TOKEN` and optionally `GITHUB_TOKEN` from a `.env` file (never committed):
 
 ```bash
 # Generate k3s token
 echo "K3S_TOKEN=$(openssl rand -hex 32)" >> .env
 
-# Add the CI deploy public key (the public half of MONOLITH_SSH_KEY)
-# Derive it from the private key if you have it locally:
-#   ssh-keygen -y -f ~/.ssh/hyperion-ci-deploy
-echo "CI_PUBLIC_KEY=<paste public key here>" >> .env
+# GitHub token for the ci-deploy poller (only needed if the repo is private)
+# Create a fine-grained PAT with read access to Contents at:
+# https://github.com/settings/personal-access-tokens
+echo "GITHUB_TOKEN=<paste token here>" >> .env
 ```
 
 Keep a SOPS-encrypted copy of `K3S_TOKEN` in the repo — see the top-level `.sops.yaml`.
-`CI_PUBLIC_KEY` is not sensitive (it's a public key) but keep it out of the repo regardless.
 
 ## 3. Build and bring up the stack
 

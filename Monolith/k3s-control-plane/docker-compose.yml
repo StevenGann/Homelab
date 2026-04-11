@@ -28,11 +28,11 @@ services:
     image: ghcr.io/stevengann/homelab-ci-deploy:latest
     restart: unless-stopped
     environment:
-      - CI_PUBLIC_KEY=${CI_PUBLIC_KEY}
+      - GITHUB_REPO=StevenGann/Homelab
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - POLL_INTERVAL=300
     volumes:
       - /mnt/Media-Storage/Infra-Storage/images:/images
-    ports:
-      - "2222:22"        # CI deploy SSH
 
 volumes:
   k3s-server:

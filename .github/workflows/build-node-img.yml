@@ -9,8 +9,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-to-monolith
+  group: build-images
   cancel-in-progress: false
+
+permissions:
+  contents: write   # required to create GitHub Releases
 
 jobs:
   build:
@@ -60,41 +63,12 @@ jobs:
           echo "IMG_FILE=$IMG_FILE" >> "$GITHUB_ENV"
           zstd -19 -T0 Hyperion/packer/output/rpi-node.img -o "$IMG_FILE"
           echo "IMG_SHA256=$(sha256sum "$IMG_FILE" | awk '{print $1}')" >> "$GITHUB_ENV"
-          echo "IMG_SIZE=$(stat -c%s "$IMG_FILE")"                     >> "$GITHUB_ENV"
 
-      - name: Write SSH known_hosts
+      - name: Publish to GitHub Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.MONOLITH_HOST_KEY }}" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
-      - name: Write deploy key
-        run: |
-          printf '%s\n' "${{ secrets.MONOLITH_SSH_KEY }}" > /tmp/deploy_key
-          chmod 600 /tmp/deploy_key
-
-      - name: Upload image to Monolith
-        run: |
-          rsync -av -e "ssh -i /tmp/deploy_key -p 2222" \
-            "${{ env.IMG_FILE }}" \
-            "ci@${{ secrets.MONOLITH_HOST }}:/images/node/"
-
-      - name: Update manifest and symlink on Monolith
-        run: |
-          MANIFEST=$(jq -n \
-            --argjson ver  "${{ env.VERSION }}" \
-            --arg     file "${{ env.IMG_FILE }}" \
-            --arg     sha  "${{ env.IMG_SHA256 }}" \
-            --argjson size "${{ env.IMG_SIZE }}" \
-            --arg     ts   "$(date -Iseconds)" \
-            '{current_version:$ver,image_file:$file,image_sha256:$sha,image_size_bytes:$size,published_at:$ts}')
-          ssh -i /tmp/deploy_key -p 2222 "ci@${{ secrets.MONOLITH_HOST }}" \
-            "update-manifest node $MANIFEST"
-          ssh -i /tmp/deploy_key -p 2222 "ci@${{ secrets.MONOLITH_HOST }}" \
-            "update-symlink node ${{ env.IMG_FILE }}"
-          ssh -i /tmp/deploy_key -p 2222 "ci@${{ secrets.MONOLITH_HOST }}" \
-            "prune-node-images"
-
-      - name: Cleanup deploy key
-        if: always()
-        run: rm -f /tmp/deploy_key
+          gh release create "node-v${{ env.VERSION }}" \
+            --title "Node IMG v${{ env.VERSION }}" \
+            --notes "SHA256: ${{ env.IMG_SHA256 }}" \
+            "${{ env.IMG_FILE }}"
