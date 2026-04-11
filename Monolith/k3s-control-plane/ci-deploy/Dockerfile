@@ -1,6 +1,6 @@
 FROM alpine:3.21
 
-RUN apk add --no-cache curl jq findutils bash
+RUN apk add --no-cache curl jq findutils bash zstd
 
 COPY poll.sh /poll.sh
 RUN chmod +x /poll.sh

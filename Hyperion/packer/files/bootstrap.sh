@@ -141,7 +141,7 @@ if [ "$NETWORK_UP" = "true" ] && [ -n "$IMG_FILE" ] && [ "$NET_VER" -gt "$USB_VE
 
     # Commit the new image, then clean up old ones
     mv "$DOWNLOAD_PATH.tmp" "$DOWNLOAD_PATH"
-    find "$CACHE_DIR" -name '*.img.zst' ! -name "$(basename "$DOWNLOAD_PATH")" \
+    find "$CACHE_DIR" -name '*.img' ! -name "$(basename "$DOWNLOAD_PATH")" \
         -delete 2>/dev/null || true
 
     # Write version atomically (FAT32: tmp+mv is safer than in-place write)
@@ -158,7 +158,7 @@ fi
 
 # ── 4. Verify USB has an image to flash ───────────────────────────────────────
 USB_IMG=""
-for f in "$CACHE_DIR"/*.img.zst; do
+for f in "$CACHE_DIR"/*.img; do
     [ -f "$f" ] && USB_IMG="$f" && break
 done
 [ -n "$USB_IMG" ] \
@@ -187,7 +187,7 @@ fi
 
 # ── 6. Flash NVMe from USB cache ──────────────────────────────────────────────
 log "Flashing NVMe from USB cache (version $USB_VER)..."
-zstd -dc "$USB_IMG" | dd of="$NVME" bs=4M conv=fsync status=progress
+dd if="$USB_IMG" of="$NVME" bs=4M conv=fsync status=progress
 sync
 partprobe "$NVME"
 udevadm settle --timeout=10

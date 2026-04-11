@@ -80,20 +80,20 @@ check_node() {
         | grep '^SHA256: ' | cut -d' ' -f2 | tr -d '[:space:]' || true)
 
     log "Downloading $asset_name..."
-    local dest_tmp="$IMAGES_ROOT/node/${asset_name}.tmp"
-    download_asset "$asset_url" "$dest_tmp" || {
+    local zst_tmp="$IMAGES_ROOT/node/${asset_name}.tmp"
+    download_asset "$asset_url" "$zst_tmp" || {
         warn "Download failed."
-        rm -f "$dest_tmp"
+        rm -f "$zst_tmp"
         return
     }
 
-    # Verify SHA256
+    # Verify SHA256 of the compressed file (matches what CI published)
     if [ -n "$sha256" ]; then
         local actual_sha
-        actual_sha=$(sha256sum "$dest_tmp" | awk '{print $1}')
+        actual_sha=$(sha256sum "$zst_tmp" | awk '{print $1}')
         if [ "$actual_sha" != "$sha256" ]; then
             warn "SHA256 mismatch! Expected $sha256, got $actual_sha. Aborting."
-            rm -f "$dest_tmp"
+            rm -f "$zst_tmp"
             return
         fi
         log "SHA256 verified."
@@ -101,25 +101,33 @@ check_node() {
         warn "No SHA256 in release body — skipping verification."
     fi
 
-    # Commit image
-    mv "$dest_tmp" "$IMAGES_ROOT/node/$asset_name"
+    # Decompress — store plain .img so bootstrap.sh can flash with plain dd
+    local img_name="${asset_name%.zst}"
+    local img_path="$IMAGES_ROOT/node/$img_name"
+    log "Decompressing to $img_name..."
+    zstd -dc "$zst_tmp" > "${img_path}.tmp"
+    mv "${img_path}.tmp" "$img_path"
+    rm -f "$zst_tmp"
 
-    # Write manifest (same format bootstrap.sh reads)
+    local img_size
+    img_size=$(stat -c%s "$img_path")
+
+    # Write manifest (image_file references the decompressed .img)
     cat > "$IMAGES_ROOT/node/manifest.json" <<EOF
 {
   "current_version": $remote_version,
-  "image_file": "$asset_name",
+  "image_file": "$img_name",
   "image_sha256": "${sha256:-unknown}",
-  "image_size_bytes": $asset_size,
+  "image_size_bytes": $img_size,
   "published_at": "$(date -Iseconds)"
 }
 EOF
 
     # Update symlink
-    ln -sf "$asset_name" "$IMAGES_ROOT/node/rpi-node-latest.img.zst"
+    ln -sf "$img_name" "$IMAGES_ROOT/node/rpi-node-latest.img"
 
-    # Keep only the 3 most recent .img.zst files
-    ls -t "$IMAGES_ROOT"/node/*.img.zst 2>/dev/null | tail -n +4 | xargs -r rm -f
+    # Keep only the 3 most recent .img files
+    ls -t "$IMAGES_ROOT"/node/*.img 2>/dev/null | tail -n +4 | xargs -r rm -f
 
     log "Node IMG updated to version $remote_version."
 }
@@ -161,7 +169,11 @@ check_bootstrap() {
         return
     }
 
-    mv "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.zst.tmp" "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.zst"
+    log "Decompressing to rpi-bootstrap.img..."
+    zstd -dc "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.zst.tmp" \
+        > "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.tmp"
+    mv "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.tmp" "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img"
+    rm -f "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.zst.tmp"
     echo "$remote_id" > "$marker"
     log "Bootstrap IMG updated."
 }
