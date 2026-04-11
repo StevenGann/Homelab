@@ -49,7 +49,7 @@ jobs:
       - name: Build Node IMG
         working-directory: Hyperion/packer
         run: |
-          packer build \
+          sudo packer build \
             -var "image_version=${{ env.VERSION }}" \
             -var "ssh_public_key=${{ secrets.NODE_SSH_PUBLIC_KEY }}" \
             rpi-node.pkr.hcl

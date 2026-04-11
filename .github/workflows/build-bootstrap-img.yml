@@ -46,7 +46,7 @@ jobs:
 
       - name: Build Bootstrap IMG
         working-directory: Hyperion/packer
-        run: packer build rpi-bootstrap.pkr.hcl
+        run: sudo packer build rpi-bootstrap.pkr.hcl
 
       - name: Write SSH known_hosts
         run: |

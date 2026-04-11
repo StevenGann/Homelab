@@ -95,7 +95,7 @@ mkdir -p "$PACKER_DIR/output"
 
 if [ "$IMAGE_TYPE" = "node" ]; then
     log "Building Node IMG..."
-    (cd "$PACKER_DIR" && packer build \
+    (cd "$PACKER_DIR" && sudo packer build \
         -var "image_version=$VERSION" \
         -var "ssh_public_key=${NODE_SSH_PUBLIC_KEY}" \
         rpi-node.pkr.hcl)
@@ -141,7 +141,7 @@ if [ "$IMAGE_TYPE" = "node" ]; then
 
 elif [ "$IMAGE_TYPE" = "bootstrap" ]; then
     log "Building Bootstrap IMG..."
-    (cd "$PACKER_DIR" && packer build rpi-bootstrap.pkr.hcl)
+    (cd "$PACKER_DIR" && sudo packer build rpi-bootstrap.pkr.hcl)
 
     RAW_IMG="$PACKER_DIR/output/rpi-bootstrap.img"
     [ -f "$RAW_IMG" ] || die "Packer build completed but $RAW_IMG not found"
