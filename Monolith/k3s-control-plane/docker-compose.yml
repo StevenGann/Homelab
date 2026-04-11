@@ -34,5 +34,16 @@ services:
     volumes:
       - /mnt/Media-Storage/Infra-Storage/images:/images
 
+  healthcheck:
+    image: ghcr.io/stevengann/homelab-healthcheck:latest
+    restart: unless-stopped
+    environment:
+      - NGINX_URL=http://nginx:50011
+      - SCAN_INTERVAL=600
+    volumes:
+      - /mnt/Media-Storage/Infra-Storage/images:/images:ro
+    ports:
+      - "50012:8080"    # IaC health API
+
 volumes:
   k3s-server:

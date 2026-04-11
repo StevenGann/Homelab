@@ -13,9 +13,26 @@ GITHUB_REPO="${GITHUB_REPO:-StevenGann/Homelab}"
 POLL_INTERVAL="${POLL_INTERVAL:-300}"
 IMAGES_ROOT="/images"
 GITHUB_API="https://api.github.com"
+STATUS_FILE="$IMAGES_ROOT/ci-deploy-status.json"
 
 log()  { echo "[$(date '+%T')] [poll] $*"; }
 warn() { echo "[$(date '+%T')] [poll] WARN: $*" >&2; }
+
+write_status() {
+    local error="${1:-}"
+    local node_ver bootstrap_id
+    node_ver=$(jq -r '.current_version // "unknown"' "$IMAGES_ROOT/node/manifest.json" 2>/dev/null || echo "unknown")
+    bootstrap_id=$(cat "$IMAGES_ROOT/bootstrap/.release_id" 2>/dev/null || echo "unknown")
+    cat > "$STATUS_FILE" <<EOF
+{
+  "last_poll":           "$(date -Iseconds)",
+  "last_error":          $([ -n "$error" ] && echo "\"$error\"" || echo "null"),
+  "poll_interval":       $POLL_INTERVAL,
+  "node_version":        "$node_ver",
+  "bootstrap_release_id": "$bootstrap_id"
+}
+EOF
+}
 
 # ── Authenticated curl wrappers ───────────────────────────────────────────────
 api_get() {
@@ -185,8 +202,10 @@ log "  Interval: ${POLL_INTERVAL}s"
 log "  Auth:     $([ -n "${GITHUB_TOKEN:-}" ] && echo "token set" || echo "anonymous (public repo only)")"
 
 while true; do
-    check_node      || warn "Node check failed unexpectedly."
-    check_bootstrap || warn "Bootstrap check failed unexpectedly."
+    POLL_ERROR=""
+    check_node      || { POLL_ERROR="node check failed"; warn "Node check failed unexpectedly."; }
+    check_bootstrap || { POLL_ERROR="${POLL_ERROR:+$POLL_ERROR; }bootstrap check failed"; warn "Bootstrap check failed unexpectedly."; }
+    write_status "$POLL_ERROR"
     log "Sleeping ${POLL_INTERVAL}s..."
     sleep "$POLL_INTERVAL"
 done
