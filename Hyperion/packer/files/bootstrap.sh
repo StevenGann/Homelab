@@ -5,6 +5,7 @@
 # Runs on every boot from the Bootstrap SD card via hyperion-bootstrap.service.
 #
 # Boot flow (USB-authoritative):
+#   0. Ensure EEPROM BOOT_ORDER=0xf61 (SD → NVMe → loop) — staged if wrong, takes effect on reboot
 #   1. Update identity USB cache from Monolith if a newer Node IMG is available
 #      (network is optional — gracefully skipped if Monolith is unreachable)
 #   2. Flash NVMe from USB cache if NVMe is behind USB version
@@ -56,6 +57,31 @@ if [ "$ATTEMPT" -gt "$MAX_BOOT_ATTEMPTS" ]; then
     echo "  rm $ATTEMPT_FILE && reboot" >&2
     rm -f "$ATTEMPT_FILE"
     exec /bin/bash
+fi
+
+# ── 0. Ensure correct EEPROM boot order ──────────────────────────────────────
+TARGET_BOOT_ORDER="0xf61"
+if command -v rpi-eeprom-config >/dev/null 2>&1; then
+    CURRENT_ORDER=$(rpi-eeprom-config 2>/dev/null | grep '^BOOT_ORDER=' | cut -d= -f2 || true)
+    if [ "${CURRENT_ORDER:-}" != "$TARGET_BOOT_ORDER" ]; then
+        log "EEPROM BOOT_ORDER is '${CURRENT_ORDER:-unset}' — updating to $TARGET_BOOT_ORDER..."
+        CURRENT_CONFIG=$(rpi-eeprom-config 2>/dev/null || echo "")
+        if echo "$CURRENT_CONFIG" | grep -q '^BOOT_ORDER='; then
+            NEW_CONFIG=$(echo "$CURRENT_CONFIG" | sed "s/^BOOT_ORDER=.*/BOOT_ORDER=$TARGET_BOOT_ORDER/")
+        else
+            NEW_CONFIG="${CURRENT_CONFIG}"$'\n'"BOOT_ORDER=$TARGET_BOOT_ORDER"
+        fi
+        EEPROM_TMP=$(mktemp)
+        echo "$NEW_CONFIG" > "$EEPROM_TMP"
+        rpi-eeprom-config --apply "$EEPROM_TMP" 2>/dev/null \
+            && log "EEPROM update staged — takes effect on next reboot." \
+            || warn "EEPROM update failed — boot order unchanged. Run configure-eeprom.sh manually."
+        rm -f "$EEPROM_TMP"
+    else
+        log "EEPROM BOOT_ORDER already $TARGET_BOOT_ORDER."
+    fi
+else
+    warn "rpi-eeprom-config not found — skipping EEPROM check."
 fi
 
 # ── 1. Find identity USB ──────────────────────────────────────────────────────

@@ -95,16 +95,15 @@ CI builds automatically.
 
 ## Step 5 — Configure EEPROM on nodes
 
-Run while nodes are reachable (booted from any OS, SSH user `pi` or `owner`):
+**This is handled automatically by the Bootstrap IMG.** On every boot, `bootstrap.sh`
+checks `BOOT_ORDER` and stages a correction to `0xf61` (SD → NVMe → loop) if needed.
+The update takes effect on the reboot that bootstrap performs at the end of its run.
 
-```bash
-cd ~/GitHub/Homelab/Hyperion
-./configure-eeprom.sh --reboot
-```
+No manual action required — skip to Step 6.
 
-Sets `BOOT_ORDER=0xf61` (SD → NVMe → loop) on all 10 nodes. This is safe to run
-on nodes already running from NVMe — EEPROM lives in SPI flash, unaffected by
-re-imaging.
+> If a node's EEPROM is so misconfigured that it won't boot the Bootstrap SD at all
+> (e.g. `BOOT_ORDER=0xf6`, NVMe-only), run `./configure-eeprom.sh` manually first
+> to get it into a state where the SD card is tried.
 
 ---
 

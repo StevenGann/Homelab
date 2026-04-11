@@ -47,7 +47,7 @@ build {
   provisioner "shell" {
     inline = [
       "apt-get update -qq",
-      "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl jq parted e2fsprogs dosfstools util-linux zstd",
+      "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl jq parted e2fsprogs dosfstools util-linux zstd rpi-eeprom",
     ]
   }
 
