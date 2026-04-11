@@ -119,11 +119,15 @@ Each stick gets: FAT32 label `HYPERION-ID`, a `hostname` file, and an empty
 
 ## Step 7 — Flash Bootstrap SD card
 
-Flash once; this SD card is shared across all 10 nodes during imaging:
+Flash once; this SD card is shared across all 10 nodes during imaging.
+Download `rpi-bootstrap.img.zst` from the `bootstrap-latest` GitHub Release or from
+`http://192.168.10.247:50011/bootstrap/rpi-bootstrap.img.zst` after ci-deploy syncs it.
 
 ```bash
-# Download rpi-bootstrap.img from Monolith, or use Hyperion/packer/output/rpi-bootstrap.img
-sudo dd if=rpi-bootstrap.img of=/dev/sdX bs=4M conv=fsync status=progress
+# Option A: decompress and flash in one step
+zstd -dc rpi-bootstrap.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
+
+# Option B: Balena Etcher supports .img.zst natively
 ```
 
 ---

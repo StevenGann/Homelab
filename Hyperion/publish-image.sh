@@ -123,13 +123,17 @@ elif [ "$IMAGE_TYPE" = "bootstrap" ]; then
         exit 0
     fi
 
+    log "Compressing with zstd -19..."
+    COMPRESSED_IMG="${RAW_IMG%.img}.img.zst"
+    zstd -19 -T0 "$RAW_IMG" -o "$COMPRESSED_IMG"
+
     log "Publishing Bootstrap IMG as bootstrap-latest release..."
     gh release delete bootstrap-latest --yes --cleanup-tag 2>/dev/null || true
     gh release create bootstrap-latest \
         --title "Bootstrap IMG (latest)" \
         --notes "Bootstrap SD card image. Rebuilt automatically on changes." \
         --prerelease \
-        "$RAW_IMG"
+        "$COMPRESSED_IMG"
 
     log "Published. The ci-deploy container on Monolith will download it within ${POLL_INTERVAL:-300} seconds."
 fi

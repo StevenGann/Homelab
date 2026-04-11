@@ -119,11 +119,14 @@ CI compresses the Node IMG with `zstd -19`, uploads to Monolith, and updates
 
 ## Flashing the Bootstrap SD card
 
-The Bootstrap IMG is a raw `.img` file (not compressed):
+The Bootstrap IMG is published as `rpi-bootstrap.img.zst` (zstd-compressed).
+Download from the `bootstrap-latest` GitHub Release or from Monolith after ci-deploy syncs it.
 
 ```bash
-# Download from Monolith or use local build output
-sudo dd if=rpi-bootstrap.img of=/dev/sdX bs=4M conv=fsync status=progress
+# Decompress and flash in one step
+zstd -dc rpi-bootstrap.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
+
+# Or use Balena Etcher — it supports .img.zst natively
 ```
 
 This SD card is shared across all nodes — identity comes from the per-node HYPERION-ID USB stick.

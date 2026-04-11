@@ -147,21 +147,21 @@ check_bootstrap() {
     fi
 
     local asset_url
-    asset_url=$(echo "$release" | jq -r '[.assets[] | select(.name == "rpi-bootstrap.img")] | first | .url')
+    asset_url=$(echo "$release" | jq -r '[.assets[] | select(.name == "rpi-bootstrap.img.zst")] | first | .url')
 
     if [ -z "$asset_url" ] || [ "$asset_url" = "null" ]; then
-        warn "No rpi-bootstrap.img asset in bootstrap-latest release."
+        warn "No rpi-bootstrap.img.zst asset in bootstrap-latest release."
         return
     fi
 
-    log "Downloading rpi-bootstrap.img..."
-    download_asset "$asset_url" "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.tmp" || {
+    log "Downloading rpi-bootstrap.img.zst..."
+    download_asset "$asset_url" "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.zst.tmp" || {
         warn "Download failed."
-        rm -f "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.tmp"
+        rm -f "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.zst.tmp"
         return
     }
 
-    mv "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.tmp" "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img"
+    mv "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.zst.tmp" "$IMAGES_ROOT/bootstrap/rpi-bootstrap.img.zst"
     echo "$remote_id" > "$marker"
     log "Bootstrap IMG updated."
 }
