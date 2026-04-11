@@ -86,8 +86,9 @@ build {
   # Password "raspberry" — this image is short-lived and LAN-only.
   provisioner "shell" {
     inline = [
-      # Create pi user with sudo
-      "useradd -m -s /bin/bash -G sudo pi",
+      # Ensure pi user exists with sudo and known password
+      "id pi >/dev/null 2>&1 || useradd -m -s /bin/bash pi",
+      "usermod -aG sudo pi",
       "echo 'pi:raspberry' | chpasswd",
       "echo 'pi ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/010_pi-nopasswd",
       "chmod 440 /etc/sudoers.d/010_pi-nopasswd",
