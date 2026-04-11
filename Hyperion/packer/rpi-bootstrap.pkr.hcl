@@ -81,9 +81,18 @@ build {
     ]
   }
 
-  # ── 4. Enable SSH (for emergency access during bootstrap) ─────────────────
+  # ── 4. Create pi user and enable SSH (for emergency access during bootstrap) ─
+  # Pi OS Trixie requires userconf.txt to activate SSH on first boot.
+  # Password "raspberry" — this image is short-lived and LAN-only.
   provisioner "shell" {
     inline = [
+      # Create pi user with sudo
+      "useradd -m -s /bin/bash -G sudo pi",
+      "echo 'pi:raspberry' | chpasswd",
+      "echo 'pi ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/010_pi-nopasswd",
+      "chmod 440 /etc/sudoers.d/010_pi-nopasswd",
+      # Write userconf so Pi OS first-boot activates SSH
+      "printf 'pi:%s\\n' \"$(echo 'raspberry' | openssl passwd -6 -stdin)\" > /boot/firmware/userconf.txt",
       "touch /boot/firmware/ssh",
       "systemctl enable ssh",
     ]
