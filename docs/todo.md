@@ -146,12 +146,27 @@ Bootstrap will:
 - Resize p2 → 32 GiB, create p3 (~220 GiB ext4, label `node-storage`)
 - Reboot into NVMe automatically
 
-Monitor via serial cable (115200 baud — use `ttyAMA0` for a USB-to-serial adapter
-on GPIO 14/15, or `ttyAMA10` for a Pi Debug Probe on the 3-pin debug header) or:
+Monitor progress via any of these channels:
+
+**ACT LED blink codes** (green LED on the Pi 5):
+- Slow blink (1s/1s) — working
+- Fast blink (0.25s/0.25s) — downloading image
+- Rapid blink (0.1s/0.1s) — flashing NVMe (**do not interrupt**)
+- Solid on — done, rebooting
+- SOS (···---···) — fatal error
+
+**HTTP status endpoint** (available once node has a DHCP lease):
 ```bash
-# After USB is accessible from another machine:
+curl http://<node-ip>:8080/
+```
+
+**Log file** (once identity USB is accessible from another machine):
+```bash
 tail -f <usb-mount>/node-image/bootstrap.log
 ```
+
+**Serial console** (115200 baud — `ttyAMA0` for USB-to-serial on GPIO 14/15,
+or `ttyAMA10` for a Pi Debug Probe on the 3-pin debug header)
 
 4. Once node boots into NVMe → remove Bootstrap media (identity USB stays in)
 

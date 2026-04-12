@@ -289,6 +289,25 @@ log "USB cache version : $USB_VER"
 
 # ── 2. Try network manifest (non-fatal on failure) ────────────────────────────
 CURRENT_STEP=2
+# Wait for a default route before attempting network — dhcpcd on Pi OS Trixie
+# satisfies network-online.target before a lease is actually obtained, so we
+# cannot rely solely on the systemd unit ordering.
+NET_WAIT=60
+set_status "network_wait" 2 "Waiting for network (up to ${NET_WAIT}s)" "working"
+log "Waiting for default route (up to ${NET_WAIT}s)..."
+NET_READY=false
+for i in $(seq 1 "$NET_WAIT"); do
+    if ip route show default 2>/dev/null | grep -q default; then
+        NET_READY=true
+        log "Network ready after ${i}s."
+        break
+    fi
+    sleep 1
+done
+if [ "$NET_READY" = "false" ]; then
+    warn "No default route after ${NET_WAIT}s — will use USB cache only."
+fi
+
 set_status "network_check" 2 "Checking Monolith for latest image version" "working"
 NET_VER=0
 IMG_FILE=""

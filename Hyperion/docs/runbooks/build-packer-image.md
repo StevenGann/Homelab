@@ -34,9 +34,47 @@ Starting from Raspberry Pi OS Lite 64-bit (Debian Trixie, arm64):
 ## What the Bootstrap IMG contains
 
 Minimal Pi OS Lite with:
-- `curl`, `jq`, `parted`, `e2fsprogs`, `dosfstools`, `util-linux`, `zstd`
+- `curl`, `jq`, `parted`, `e2fsprogs`, `dosfstools`, `util-linux`, `zstd`, `python3`
 - `bootstrap.sh` + `hyperion-bootstrap.service` (runs on every boot)
-- SSH enabled (emergency access)
+- SSH enabled (emergency access: `pi` / `raspberry`)
+
+### Bootstrap feedback channels
+
+Two channels are active for the entire duration of a bootstrap run:
+
+**ACT LED blink codes** (green activity LED on the Pi 5):
+
+| Pattern | Meaning |
+|---------|---------|
+| Slow blink (1s on / 1s off) | Working — general progress |
+| Fast blink (0.25s / 0.25s) | Downloading image from Monolith |
+| Rapid blink (0.1s / 0.1s) | Flashing NVMe — **do not interrupt** |
+| Solid on | Complete, rebooting into NVMe |
+| SOS (···---···, repeating) | Fatal error — dropped to shell |
+
+**HTTP status endpoint** (port 8080, available as soon as the node has a DHCP lease):
+
+```bash
+curl http://<node-ip>:8080/
+```
+
+Example response:
+```json
+{
+  "hostname":    "hyperion-alpha",
+  "step":        6,
+  "total_steps": 8,
+  "phase":       "flashing",
+  "message":     "Flashing NVMe from USB cache (v3) — do not interrupt",
+  "status":      "flashing",
+  "attempt":     1,
+  "started_at":  "2026-04-11T02:30:00+00:00",
+  "updated_at":  "2026-04-11T02:31:15+00:00",
+  "error":       null
+}
+```
+
+`status` values: `working` · `downloading` · `flashing` · `done` · `error`
 
 ---
 
