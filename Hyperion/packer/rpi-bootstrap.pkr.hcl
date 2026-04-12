@@ -48,7 +48,7 @@ build {
   provisioner "shell" {
     inline = [
       "apt-get update -qq",
-      "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl jq parted e2fsprogs dosfstools exfatprogs util-linux rpi-eeprom",
+      "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl jq parted e2fsprogs dosfstools exfatprogs util-linux rpi-eeprom python3",
     ]
   }
 
