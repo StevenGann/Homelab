@@ -17,16 +17,16 @@ mkdir -p /mnt/Media-Storage/Infra-Storage/journal-remote
 
 ## 2. Place configuration files
 
-Copy `nginx.conf`, `docker-compose.yml`, and the `journal-remote/` build context from the repo to the compose directory:
+Copy `nginx.conf` and `docker-compose.yml` from the repo to the compose directory:
 
 ```bash
 cp Monolith/k3s-control-plane/nginx.conf \
    /mnt/App-Storage/Container-Data/k3s-control-plane/nginx.conf
 cp Monolith/k3s-control-plane/docker-compose.yml \
    /mnt/App-Storage/Container-Data/k3s-control-plane/docker-compose.yml
-cp -r Monolith/k3s-control-plane/journal-remote \
-   /mnt/App-Storage/Container-Data/k3s-control-plane/journal-remote
 ```
+
+All container images are pulled from `ghcr.io/stevengann/homelab-*` — no local build contexts are needed in the compose directory. Images are built and published by the workflows under `.github/workflows/build-*-img.yml`.
 
 ## 3. Create the .env file
 
@@ -58,17 +58,18 @@ Services started:
 - `nginx` — Image HTTP server (port 50011), serves `/mnt/Media-Storage/Infra-Storage/images/`
 - `ci-deploy` — GitHub Releases poller; downloads new Node and Bootstrap images automatically
 - `healthcheck` — IaC integration test runner (port 50012); monitors images and node connectivity
-- `journal-remote` — `systemd-journal-remote` HTTP receiver (port 19532); accepts `systemd-journal-upload` streams from every Hyperion node into `/mnt/Media-Storage/Infra-Storage/journal-remote/`. Built locally from `journal-remote/Dockerfile` (no published image)
+- `journal-remote` — `systemd-journal-remote` HTTP receiver (port 19532); accepts `systemd-journal-upload` streams from every Hyperion node into `/mnt/Media-Storage/Infra-Storage/journal-remote/`. Image: `ghcr.io/stevengann/homelab-journal-remote:latest`
 
 ### Adding `journal-remote` to a stack that's already running
 
-If the stack was brought up before `journal-remote` was added, after pulling the new compose file and copying `journal-remote/` into place:
+After pulling the new compose file into the compose directory:
 
 ```bash
-docker compose up -d --build journal-remote
+docker compose pull journal-remote
+docker compose up -d journal-remote
 ```
 
-`--build` is required because the service is a local build, not a pulled image.
+> First-time setup only: the `homelab-journal-remote` package on ghcr.io must be made **public** in the GitHub package settings, the same way `homelab-ci-deploy` and `homelab-healthcheck` were. Otherwise the pull will 401 with "denied: requested access to the resource is denied."
 
 ## 5. Verify services are healthy
 

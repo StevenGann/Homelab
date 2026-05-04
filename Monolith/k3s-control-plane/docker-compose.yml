@@ -77,8 +77,10 @@ services:
   # systemd-journal-upload running on every Hyperion node (Bootstrap and Node
   # IMGs both). See journal-remote/Dockerfile for design rationale.
   # Operator query (from Monolith): journalctl --directory=/mnt/Media-Storage/Infra-Storage/journal-remote/ ...
+  # Image is built and published by .github/workflows/build-journal-remote-img.yml
+  # on every push touching Monolith/k3s-control-plane/journal-remote/**.
   journal-remote:
-    build: ./journal-remote
+    image: ghcr.io/stevengann/homelab-journal-remote:latest
     restart: unless-stopped
     volumes:
       - /mnt/Media-Storage/Infra-Storage/journal-remote:/var/log/journal/remote
