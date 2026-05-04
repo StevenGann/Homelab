@@ -7,21 +7,25 @@ Before running `docker compose up` for the first time:
 ```bash
 mkdir -p /mnt/App-Storage/Container-Data/k3s-control-plane/kubeconfig
 mkdir -p /mnt/Media-Storage/Infra-Storage/images/{node,bootstrap}
+mkdir -p /mnt/Media-Storage/Infra-Storage/journal-remote
 ```
 
 - `kubeconfig/` — k3s writes kubeconfig here on startup
 - `images/node/` — Node IMG files served by nginx; written by the ci-deploy container
 - `images/bootstrap/` — Bootstrap IMG files served by nginx; written by the ci-deploy container
+- `journal-remote/` — receives `systemd-journal-upload` streams from every Hyperion node; one `.journal` per source host
 
 ## 2. Place configuration files
 
-Copy `nginx.conf` and `docker-compose.yml` from the repo to the compose directory:
+Copy `nginx.conf`, `docker-compose.yml`, and the `journal-remote/` build context from the repo to the compose directory:
 
 ```bash
 cp Monolith/k3s-control-plane/nginx.conf \
    /mnt/App-Storage/Container-Data/k3s-control-plane/nginx.conf
 cp Monolith/k3s-control-plane/docker-compose.yml \
    /mnt/App-Storage/Container-Data/k3s-control-plane/docker-compose.yml
+cp -r Monolith/k3s-control-plane/journal-remote \
+   /mnt/App-Storage/Container-Data/k3s-control-plane/journal-remote
 ```
 
 ## 3. Create the .env file
@@ -54,6 +58,17 @@ Services started:
 - `nginx` — Image HTTP server (port 50011), serves `/mnt/Media-Storage/Infra-Storage/images/`
 - `ci-deploy` — GitHub Releases poller; downloads new Node and Bootstrap images automatically
 - `healthcheck` — IaC integration test runner (port 50012); monitors images and node connectivity
+- `journal-remote` — `systemd-journal-remote` HTTP receiver (port 19532); accepts `systemd-journal-upload` streams from every Hyperion node into `/mnt/Media-Storage/Infra-Storage/journal-remote/`. Built locally from `journal-remote/Dockerfile` (no published image)
+
+### Adding `journal-remote` to a stack that's already running
+
+If the stack was brought up before `journal-remote` was added, after pulling the new compose file and copying `journal-remote/` into place:
+
+```bash
+docker compose up -d --build journal-remote
+```
+
+`--build` is required because the service is a local build, not a pulled image.
 
 ## 5. Verify services are healthy
 
