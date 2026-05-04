@@ -522,6 +522,18 @@ mkdir -p "$TMPROOT/mnt/node-storage"
 umount "$TMPROOT"
 rm -rf "$TMPROOT"
 
+# Commit success: write the version stamp now that repartition has finished.
+# The stamp was wiped at step 6 so a mid-flash failure would force re-flash on
+# next boot. Without re-writing it here, NVME_VER reads 0 next boot and the
+# script would re-flash on every boot the bootstrap medium is still inserted.
+TMPBOOT=$(mktemp -d)
+MOUNTS_TO_CLEAN+=("$TMPBOOT")
+mount "${NVME}p1" "$TMPBOOT"
+echo "$USB_VER" > "$TMPBOOT/node-img.ver"
+sync
+umount "$TMPBOOT"
+rm -rf "$TMPBOOT"
+
 # ── 8. Success — clear attempt counter and reboot ─────────────────────────────
 CURRENT_STEP=8
 set_status "done" 8 "Flash complete. Rebooting into NVMe." "done"
