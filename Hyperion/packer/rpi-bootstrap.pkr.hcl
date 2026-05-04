@@ -98,4 +98,38 @@ build {
       "systemctl enable ssh",
     ]
   }
+
+  # ── 5. Enable UART boot output (zero-cost diagnostic surface) ─────────────
+  # `enable_uart=1` exposes the kernel console on GPIO 14/15 at 115200 baud.
+  # `console=serial0,115200` adds the serial port to the kernel command line.
+  # Operators can attach a $5 USB-TTL adapter (CP2102 / FT232) to capture full
+  # boot output when SSH/HTTP diagnostics are inconclusive — only channel that
+  # catches firmware-stage failures (e.g. NVMe enumeration issues per
+  # rpi-eeprom #629/#718). Idempotent grep-q-||-... pattern matches the
+  # Node IMG's config.txt edits to avoid duplicate entries on Packer re-runs.
+  provisioner "shell" {
+    inline = [
+      "grep -q 'enable_uart=1' /boot/firmware/config.txt || echo 'enable_uart=1' >> /boot/firmware/config.txt",
+      "grep -q 'console=serial0,115200' /boot/firmware/cmdline.txt || sed -i '$ s/$/ console=serial0,115200/' /boot/firmware/cmdline.txt",
+    ]
+  }
+
+  # ── 6. systemd-journal-upload — networked log shipping (Phase 1) ──────────
+  # Ships the bootstrap journal (including hyperion-bootstrap.service stdout
+  # via StandardOutput=journal+console) to the journal-remote service on
+  # Monolith. Acceptable for LAN-only HTTP because the Bootstrap medium is
+  # short-lived and never carries production data. The bootstrap script's
+  # in-band /log HTTP route covers the early-boot window before journal-upload
+  # has network connectivity.
+  provisioner "shell" {
+    inline = [
+      "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq systemd-journal-remote",
+      "mkdir -p /etc/systemd/journal-upload.conf.d",
+      # Plain HTTP (no TLS) — LAN-only homelab. Trust= is only relevant for
+      # HTTPS; omit it. The default systemd-journal-upload behavior with an
+      # http:// URL ships logs without TLS validation.
+      "printf '[Upload]\\nURL=http://192.168.10.247:19532\\n' > /etc/systemd/journal-upload.conf.d/monolith.conf",
+      "systemctl enable systemd-journal-upload.service",
+    ]
+  }
 }

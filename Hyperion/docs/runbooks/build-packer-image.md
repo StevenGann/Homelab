@@ -38,9 +38,13 @@ Minimal Pi OS Lite with:
 - `bootstrap.sh` + `hyperion-bootstrap.service` (runs on every boot)
 - SSH enabled (emergency access: `pi` / `raspberry`)
 
+### When something goes wrong during flashing
+
+See `Hyperion/docs/runbooks/debug-flashing.md` for the full diagnostic experiment sequence. The most common gotcha: **two USB devices are required** (the bootstrap medium AND the per-node HYPERION-ID identity USB). The bootstrap script enumerates detected USBs in its `die()` message when the identity USB is missing.
+
 ### Bootstrap feedback channels
 
-Two channels are active for the entire duration of a bootstrap run:
+Three channels are active for the entire duration of a bootstrap run:
 
 **ACT LED blink codes** (green activity LED on the Pi 5):
 
@@ -55,10 +59,14 @@ Two channels are active for the entire duration of a bootstrap run:
 **HTTP status endpoint** (port 8080, available as soon as the node has a DHCP lease):
 
 ```bash
-curl http://<node-ip>:8080/
+curl http://<node-ip>:8080/         # JSON status (below)
+curl http://<node-ip>:8080/log      # tail -1000 of bootstrap.log on identity USB
+curl http://<node-ip>:8080/log?n=50
 ```
 
-Example response:
+`/log` returns 404 until the identity USB is mounted (early-boot window). Once mounted, it tails the live `bootstrap.log` so you don't have to SSH in to read progress.
+
+Example status response:
 ```json
 {
   "hostname":    "hyperion-alpha",

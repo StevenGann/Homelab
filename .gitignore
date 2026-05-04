@@ -14,3 +14,4 @@ packer/output/
 # Imaging SSH key (private — never commit)
 imaging_ed25519
 
+/docs/pipeline-runs

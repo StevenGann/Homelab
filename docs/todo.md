@@ -166,7 +166,13 @@ tail -f <usb-mount>/node-image/bootstrap.log
 ```
 
 **Serial console** (115200 baud — `ttyAMA0` for USB-to-serial on GPIO 14/15,
-or `ttyAMA10` for a Pi Debug Probe on the 3-pin debug header)
+or `ttyAMA10` for a Pi Debug Probe on the 3-pin debug header). Both Bootstrap
+and Node IMGs ship with `enable_uart=1` + `console=serial0,115200` baked in.
+
+> **Stuck? See `Hyperion/docs/runbooks/debug-flashing.md`** — full diagnostic
+> experiment sequence (SSH-into-bootstrap, identity-USB inspection, Monolith
+> plumbing checks, hypothesis routing). Most common cause: only the bootstrap
+> medium was inserted; the per-node HYPERION-ID identity USB is also required.
 
 4. Once node boots into NVMe → remove Bootstrap media (identity USB stays in)
 

@@ -73,5 +73,26 @@ services:
       timeout: 5s
       retries: 3
 
+  # Phase 1 networked log collection — receives journal uploads from
+  # systemd-journal-upload running on every Hyperion node (Bootstrap and Node
+  # IMGs both). See journal-remote/Dockerfile for design rationale.
+  # Operator query (from Monolith): journalctl --directory=/mnt/Media-Storage/Infra-Storage/journal-remote/ ...
+  journal-remote:
+    build: ./journal-remote
+    restart: unless-stopped
+    volumes:
+      - /mnt/Media-Storage/Infra-Storage/journal-remote:/var/log/journal/remote
+    ports:
+      - "19532:19532"   # plain HTTP — LAN-only
+    healthcheck:
+      # Process must be listening on 19532. wget against / returns a 404 from
+      # journal-remote (it only handles /upload), but a 404 means the listener
+      # is alive — that's the test we want.
+      test: ["CMD-SHELL", "wget -qO /dev/null --tries=1 --timeout=3 http://localhost:19532/ 2>&1 | grep -q '404\\|400' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   k3s-server:

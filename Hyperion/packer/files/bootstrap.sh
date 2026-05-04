@@ -160,33 +160,73 @@ set_status() {
 EOF
 }
 
+LOG_PATH_FILE=/tmp/bootstrap-log-path
+_publish_log_path() {
+    # Make LOG_FILE discoverable by the (already-running) Python status server.
+    # Bash sets LOG_FILE later (after the identity USB is mounted at step 1),
+    # so the server reads this sentinel on every /log request to pick it up.
+    [ -n "${LOG_FILE:-}" ] && echo "$LOG_FILE" > "$LOG_PATH_FILE"
+}
+
 _start_status_server() {
-    # Serve STATUS_FILE as a JSON response on STATUS_PORT using Python3.
+    # Serve STATUS_FILE as JSON on /, and tail of LOG_FILE on /log, using Python3.
     # Python3 is always present on Pi OS — no extra packages needed.
     cat > /tmp/bootstrap-httpd.py <<'PYEOF'
-import http.server, sys, json
+import http.server, sys, json, os
+from urllib.parse import urlparse, parse_qs
 
 port = int(sys.argv[1])
 status_file = sys.argv[2]
+log_path_file = sys.argv[3]
+
+def _resolve_log_file():
+    # Read on every request so the path becomes available once bash writes it.
+    try:
+        with open(log_path_file) as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ""
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass  # suppress access log noise
-    def do_GET(self):
-        try:
-            with open(status_file) as f:
-                data = f.read()
-        except Exception as e:
-            data = json.dumps({"error": str(e)})
-        encoded = data.encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
+
+    def _send(self, code, body, ctype):
+        encoded = body.encode() if isinstance(body, str) else body
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
 
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        if parsed.path == "/log":
+            n = 1000
+            try:
+                n = int(parse_qs(parsed.query).get("n", ["1000"])[0])
+            except (ValueError, TypeError):
+                pass
+            lf = _resolve_log_file()
+            if not lf or not os.path.exists(lf):
+                self._send(404, "log file not yet available\n", "text/plain")
+                return
+            try:
+                with open(lf) as f:
+                    lines = f.readlines()[-n:]
+                self._send(200, "".join(lines), "text/plain; charset=utf-8")
+            except Exception as e:
+                self._send(500, f"error reading log: {e}\n", "text/plain")
+        else:
+            try:
+                with open(status_file) as f:
+                    data = f.read()
+            except Exception as e:
+                data = json.dumps({"error": str(e)})
+            self._send(200, data, "application/json")
+
 http.server.HTTPServer(("", port), Handler).serve_forever()
 PYEOF
-    python3 /tmp/bootstrap-httpd.py "$STATUS_PORT" "$STATUS_FILE" &
+    python3 /tmp/bootstrap-httpd.py "$STATUS_PORT" "$STATUS_FILE" "$LOG_PATH_FILE" &
     STATUS_SERVER_PID=$!
     log "Status server running on port $STATUS_PORT (PID $STATUS_SERVER_PID)"
 }
@@ -218,19 +258,31 @@ if [ -f "$ATTEMPT_FILE" ]; then
 fi
 echo "$ATTEMPT" > "$ATTEMPT_FILE"
 
-if [ "$ATTEMPT" -gt "$MAX_BOOT_ATTEMPTS" ]; then
-    echo "Bootstrap has failed $MAX_BOOT_ATTEMPTS times consecutively." >&2
-    echo "Dropping to shell. Fix the issue, then run:" >&2
-    echo "  rm $ATTEMPT_FILE && reboot" >&2
-    rm -f "$ATTEMPT_FILE"
-    exec /bin/bash
-fi
-
-# ── Initialise feedback channels ──────────────────────────────────────────────
+# ── Initialise feedback channels (BEFORE the MAX_BOOT_ATTEMPTS gate) ──────────
+# The status server starts first so an operator polling :8080 sees a populated
+# JSON status — including the "exhausted_attempts" terminal state — instead of
+# connection-refused. Previously this lived after the gate, which meant attempt
+# 4+ produced a silent 404 (cf. dbg-nvme-not-flashing pipeline §F H3).
 _led_init
 set_status "starting" 0 "Bootstrap starting (attempt $ATTEMPT)" "working"
 _start_status_server
 _led_working
+
+if [ "$ATTEMPT" -gt "$MAX_BOOT_ATTEMPTS" ]; then
+    set_status "exhausted_attempts" 0 \
+        "Bootstrap has failed $MAX_BOOT_ATTEMPTS times consecutively. Dropped to shell. Recovery: mount the bootstrap medium on a workstation and 'rm bootstrap-attempts', then power-cycle this node." \
+        "error" \
+        "MAX_BOOT_ATTEMPTS exceeded — manual recovery required"
+    echo "Bootstrap has failed $MAX_BOOT_ATTEMPTS times consecutively." >&2
+    echo "Dropping to shell. Fix the issue, then run:" >&2
+    echo "  rm $ATTEMPT_FILE && reboot" >&2
+    rm -f "$ATTEMPT_FILE"
+    # `exec` replaces this process with bash; the EXIT trap does NOT fire and
+    # the Python status server (already started above) is reparented to PID 1
+    # and continues serving the populated "exhausted_attempts" JSON. Operators
+    # see the actual error via :8080 instead of connection-refused.
+    exec /bin/bash
+fi
 
 # ── 0. Ensure correct EEPROM boot order ──────────────────────────────────────
 CURRENT_STEP=0
@@ -268,7 +320,23 @@ for i in $(seq 1 "$USB_WAIT"); do
     ID_DEV=$(blkid -L HYPERION-ID 2>/dev/null) && break
     sleep 1
 done
-[ -n "${ID_DEV:-}" ] || die "No HYPERION-ID USB found after ${USB_WAIT}s."
+
+if [ -z "${ID_DEV:-}" ]; then
+    # Enumerate USB block devices that WERE detected so the operator can tell at
+    # a glance whether (a) no USBs are present at all, (b) only the bootstrap
+    # USB is in (forgot the identity stick), or (c) the identity stick is in
+    # but mislabeled. lsblk output goes to both the log and the die() message.
+    DETECTED_USBS=$(lsblk -o NAME,LABEL,SIZE,TRAN -nr 2>/dev/null \
+        | awk '$4=="usb"{printf "  /dev/%s  label=%-16s  size=%s\n", $1, ($2==""?"<none>":$2), $3}' \
+        || true)
+    if [ -n "$DETECTED_USBS" ]; then
+        log "Detected USB block devices (none labeled HYPERION-ID):"
+        printf '%s\n' "$DETECTED_USBS" | tee -a "${LOG_FILE:-/dev/null}"
+        die "No HYPERION-ID USB found after ${USB_WAIT}s. USB devices present but none labeled HYPERION-ID — did you flash the identity USB with flash-identity-usb.sh? See Hyperion/docs/runbooks/debug-flashing.md."
+    else
+        die "No HYPERION-ID USB found after ${USB_WAIT}s. NO USB devices detected at all — only the bootstrap medium is connected. Insert the per-node HYPERION-ID identity USB and power-cycle. See Hyperion/docs/runbooks/debug-flashing.md."
+    fi
+fi
 
 ID_MNT=$(mktemp -d)
 MOUNTS_TO_CLEAN+=("$ID_MNT")
@@ -277,6 +345,7 @@ mount "$ID_DEV" "$ID_MNT"
 CACHE_DIR="$ID_MNT/node-image"
 mkdir -p "$CACHE_DIR"
 LOG_FILE="$CACHE_DIR/bootstrap.log"
+_publish_log_path   # tell the HTTP server where /log can find LOG_FILE
 
 HOSTNAME=$(tr -d '[:space:]' < "$ID_MNT/hostname" 2>/dev/null || echo "unknown")
 NODE_HOSTNAME="$HOSTNAME"   # update status JSON hostname from bootstrap SD → identity USB

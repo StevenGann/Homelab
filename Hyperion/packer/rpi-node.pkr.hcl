@@ -217,4 +217,36 @@ build {
       "locale-gen en_US.UTF-8 2>/dev/null || true",
     ]
   }
+
+  # ── 14. Enable UART boot output (zero-cost diagnostic surface) ────────────
+  # Mirror of rpi-bootstrap.pkr.hcl §5. `enable_uart=1` exposes the kernel
+  # console on GPIO 14/15 at 115200 baud. Operators can attach a USB-TTL
+  # adapter to capture firmware/kernel boot output (the only channel that
+  # catches Pi 5 NVMe enumeration failures per rpi-eeprom #629/#718).
+  # Idempotent grep-q-||-... pattern matches the cgroup line above.
+  provisioner "shell" {
+    inline = [
+      "grep -q 'enable_uart=1' /boot/firmware/config.txt || echo 'enable_uart=1' >> /boot/firmware/config.txt",
+      "grep -q 'console=serial0,115200' /boot/firmware/cmdline.txt || sed -i '$ s/$/ console=serial0,115200/' /boot/firmware/cmdline.txt",
+    ]
+  }
+
+  # ── 15. systemd-journal-upload — networked log shipping (Phase 1) ─────────
+  # Ships the runtime journal (k3s, containerd, kubelet, custom services) to
+  # the journal-remote service on Monolith. Persistent journal is enabled so
+  # log history survives reboots and is shipped on next network connectivity.
+  # Plain HTTP — LAN-only homelab.
+  provisioner "shell" {
+    inline = [
+      "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq systemd-journal-remote",
+      "mkdir -p /var/log/journal",
+      "systemd-tmpfiles --create --prefix=/var/log/journal 2>/dev/null || true",
+      "mkdir -p /etc/systemd/journal-upload.conf.d",
+      "printf '[Upload]\\nURL=http://192.168.10.247:19532\\n' > /etc/systemd/journal-upload.conf.d/monolith.conf",
+      # Cap on-disk journal usage so 32 GiB root partition is never filled.
+      "mkdir -p /etc/systemd/journald.conf.d",
+      "printf '[Journal]\\nSystemMaxUse=1G\\n' > /etc/systemd/journald.conf.d/sizecap.conf",
+      "systemctl enable systemd-journal-upload.service",
+    ]
+  }
 }
