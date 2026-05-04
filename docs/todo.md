@@ -44,25 +44,43 @@ first successful run, **make the `homelab-journal-remote` package public** on
 `https://github.com/users/StevenGann/packages/container/homelab-journal-remote/settings`
 (matches the existing `homelab-ci-deploy` and `homelab-healthcheck` setup).
 
-```bash
-ssh truenas_admin@192.168.10.247
+Deployment via Dockge (the container manager on Monolith):
 
-# 1. Pull the new compose file into the Dockge stack directory
-cp /path/to/Homelab/Monolith/k3s-control-plane/docker-compose.yml \
-   /mnt/.ix-apps/app_mounts/dockge/stacks/k3s-control-plane/docker-compose.yml
+1. **Trigger the workflow** — first push of the new compose file alone won't fire
+   it because the path filter is `Monolith/k3s-control-plane/journal-remote/**`:
 
-# 2. Create the journal storage directory
-mkdir -p /mnt/Media-Storage/Infra-Storage/journal-remote
+   ```bash
+   gh workflow run build-journal-remote-img.yml
+   gh run watch
+   ```
 
-# 3. Pull the published image and bring up the service
-cd /mnt/.ix-apps/app_mounts/dockge/stacks/k3s-control-plane
-docker compose pull journal-remote
-docker compose up -d journal-remote
+2. **Make the published package public** on GitHub (one-time, see link above).
 
-# 4. Verify
-docker compose ps journal-remote               # should show "healthy"
-curl -s http://localhost:19532/ -o /dev/null -w '%{http_code}\n'   # 404 = listener up
-```
+3. **Drop the new compose file into the Dockge stack** over SMB:
+
+   ```
+   smb://monolith.local/container-data/k3s-control-plane/docker-compose.yml
+   ```
+
+   Replace with the version at `Monolith/k3s-control-plane/docker-compose.yml`
+   from this repo.
+
+4. **Create the journal storage directory** on Monolith (host-side path, used as
+   a bind-mount target in the compose file):
+
+   ```bash
+   ssh truenas_admin@192.168.10.247 \
+       'mkdir -p /mnt/Media-Storage/Infra-Storage/journal-remote'
+   ```
+
+5. **In Dockge UI**: open the `k3s-control-plane` stack → click **Update**
+   (this runs `docker compose pull && docker compose up -d` against the stack).
+
+6. **Verify** from any host on the LAN:
+
+   ```bash
+   curl -s http://192.168.10.247:19532/ -o /dev/null -w '%{http_code}\n'   # 404 = listener up
+   ```
 
 Full runbook: [`Monolith/k3s-control-plane/docs/runbooks/preflight.md`](../Monolith/k3s-control-plane/docs/runbooks/preflight.md).
 

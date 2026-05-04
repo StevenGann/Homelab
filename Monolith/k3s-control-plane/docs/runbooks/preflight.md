@@ -1,6 +1,16 @@
 # Pre-flight: k3s Control Plane on Monolith
 
-Before running `docker compose up` for the first time:
+The stack is managed by **Dockge** on Monolith (TrueNAS Scale). The same stack directory is reachable three different ways depending on what you're doing:
+
+| Access method | Path | Used by |
+|---------------|------|---------|
+| TrueNAS host filesystem | `/mnt/App-Storage/Container-Data/k3s-control-plane/` | Docker bind-mounts in `docker-compose.yml`, host-side `mkdir` |
+| Dockge container view | `/mnt/.ix-apps/app_mounts/dockge/stacks/k3s-control-plane/` | Where Dockge runs `docker compose ...` |
+| SMB share | `smb://monolith.local/container-data/k3s-control-plane/` | Operator file edits from a workstation |
+
+All three reference the same data; pick whichever is convenient.
+
+Before bringing the stack up for the first time:
 
 ## 1. Create required directories
 
@@ -17,39 +27,44 @@ mkdir -p /mnt/Media-Storage/Infra-Storage/journal-remote
 
 ## 2. Place configuration files
 
-Copy `nginx.conf` and `docker-compose.yml` from the repo to the compose directory:
+Copy `nginx.conf` and `docker-compose.yml` from the repo into the stack directory. The simplest path is over SMB from your workstation:
 
-```bash
-cp Monolith/k3s-control-plane/nginx.conf \
-   /mnt/App-Storage/Container-Data/k3s-control-plane/nginx.conf
-cp Monolith/k3s-control-plane/docker-compose.yml \
-   /mnt/App-Storage/Container-Data/k3s-control-plane/docker-compose.yml
+```
+smb://monolith.local/container-data/k3s-control-plane/docker-compose.yml
+smb://monolith.local/container-data/k3s-control-plane/nginx.conf
 ```
 
-All container images are pulled from `ghcr.io/stevengann/homelab-*` — no local build contexts are needed in the compose directory. Images are built and published by the workflows under `.github/workflows/build-*-img.yml`.
+All container images are pulled from `ghcr.io/stevengann/homelab-*` — no local build contexts are needed in the stack directory. Images are built and published by the workflows under `.github/workflows/build-*-img.yml`.
 
 ## 3. Create the .env file
 
-The compose file expects `K3S_TOKEN` and optionally `GITHUB_TOKEN` from a `.env` file (never committed):
+The compose file expects `K3S_TOKEN` and optionally `GITHUB_TOKEN` from a `.env` file (never committed). Edit it via SMB at `smb://monolith.local/container-data/k3s-control-plane/.env`, or via SSH:
 
 ```bash
+ssh truenas_admin@192.168.10.247
 cd /mnt/App-Storage/Container-Data/k3s-control-plane
 
 # Generate k3s cluster token
 echo "K3S_TOKEN=$(openssl rand -hex 32)" >> .env
 
-# GitHub token for the ci-deploy poller (only needed if the repo is private)
-# Create a fine-grained PAT with read access to Contents at:
+# GitHub token for the ci-deploy poller — leave blank for the public StevenGann/Homelab repo
+# (silences the "GITHUB_TOKEN not set" compose warning). For private repos, create a
+# fine-grained PAT with read access to Contents at:
 # https://github.com/settings/personal-access-tokens
-echo "GITHUB_TOKEN=<paste token here>" >> .env
+echo "GITHUB_TOKEN=" >> .env
 ```
 
 Keep a SOPS-encrypted copy of `K3S_TOKEN` in the repo — see the top-level `.sops.yaml`.
 
 ## 4. Bring up the stack
 
+In the Dockge UI: open the `k3s-control-plane` stack and click **Start** (or **Update** if it already exists). Dockge runs `docker compose pull && docker compose up -d` against the stack.
+
+For an SSH-based equivalent:
+
 ```bash
-cd /mnt/App-Storage/Container-Data/k3s-control-plane
+ssh truenas_admin@192.168.10.247
+cd /mnt/.ix-apps/app_mounts/dockge/stacks/k3s-control-plane
 docker compose up -d
 ```
 
@@ -62,14 +77,13 @@ Services started:
 
 ### Adding `journal-remote` to a stack that's already running
 
-After pulling the new compose file into the compose directory:
-
-```bash
-docker compose pull journal-remote
-docker compose up -d journal-remote
-```
+1. Drop the new `docker-compose.yml` into `smb://monolith.local/container-data/k3s-control-plane/`.
+2. Create the bind-mount target on the host: `ssh truenas_admin@192.168.10.247 'mkdir -p /mnt/Media-Storage/Infra-Storage/journal-remote'`.
+3. In the Dockge UI for the `k3s-control-plane` stack, click **Update**.
 
 > First-time setup only: the `homelab-journal-remote` package on ghcr.io must be made **public** in the GitHub package settings, the same way `homelab-ci-deploy` and `homelab-healthcheck` were. Otherwise the pull will 401 with "denied: requested access to the resource is denied."
+>
+> Also one-time: the workflow path filter only fires on changes under `Monolith/k3s-control-plane/journal-remote/**`, so the first publish of the image needs `gh workflow run build-journal-remote-img.yml` (or a manual dispatch from the Actions tab).
 
 ## 5. Verify services are healthy
 

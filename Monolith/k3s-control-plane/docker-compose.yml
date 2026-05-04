@@ -30,7 +30,13 @@ services:
     ports:
       - "50011:50011"    # Image serving
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:50011/ || exit 1"]
+      # Use 127.0.0.1 (not localhost): the bind-mounted nginx.conf is :ro, so
+      # the official nginx image's 10-listen-on-ipv6-by-default.sh entrypoint
+      # script can't add `listen [::]:50011`. nginx ends up IPv4-only, but
+      # alpine's /etc/hosts resolves `localhost` → ::1 first; busybox wget
+      # connects to ::1, gets ECONNREFUSED, and exits non-zero. Forcing
+      # 127.0.0.1 sidesteps the IPv6 fallback.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:50011/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -68,7 +74,7 @@ services:
       ci-deploy:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8080/summary || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:8080/summary || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -90,7 +96,7 @@ services:
       # Process must be listening on 19532. wget against / returns a 404 from
       # journal-remote (it only handles /upload), but a 404 means the listener
       # is alive — that's the test we want.
-      test: ["CMD-SHELL", "wget -qO /dev/null --tries=1 --timeout=3 http://localhost:19532/ 2>&1 | grep -q '404\\|400' || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null --tries=1 --timeout=3 http://127.0.0.1:19532/ 2>&1 | grep -q '404\\|400' || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
