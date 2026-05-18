@@ -99,13 +99,54 @@ fi
 
 # ─── Deploy: git pull + compose pull + compose up -d ────────────────────────────────
 if [ "$DO_DEPLOY" -eq 1 ]; then
-    log "Running git pull + docker compose pull + up -d on Heimdall..."
+    # Preflight: docker group membership. If owner isn't in the docker group on
+    # Heimdall, `docker compose` will fail with "permission denied while trying
+    # to connect to the docker API at unix:///var/run/docker.sock". Fix once,
+    # idempotent. setup.sh handles this on fresh installs; this guard catches
+    # hosts that were set up before that fix landed.
+    REMOTE_USER="${HEIMDALL_HOST%@*}"
+    if ! ssh "$HEIMDALL_HOST" "getent group docker | grep -qw $REMOTE_USER" 2>/dev/null; then
+        log "$REMOTE_USER not in docker group on $HEIMDALL_HOST; adding (sudo + tty)..."
+        if [ -n "$DRY_RUN" ]; then
+            printf '\033[1;36m[dry-run]\033[0m ssh -t %s "sudo usermod -aG docker %s"\n' "$HEIMDALL_HOST" "$REMOTE_USER"
+        else
+            ssh -t "$HEIMDALL_HOST" "sudo usermod -aG docker $REMOTE_USER" \
+                || die "Failed to add $REMOTE_USER to docker group"
+            log "Group membership added. (Takes effect on next SSH session, which is the one below.)"
+        fi
+    fi
+
+    log "Running git pull + docker compose pull + up -d + onboard + seed on Heimdall..."
     REMOTE_CMD='set -e
         cd /opt/Homelab && git pull
         cd /opt/Homelab/Heimdall
         docker compose pull
         docker compose up -d
-        docker compose ps'
+        docker compose ps
+
+        echo "[remote] Waiting for Komodo Core HTTP API on :9120..."
+        for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://127.0.0.1:9120 2>/dev/null; then
+                echo "[remote] Komodo Core reachable after ${i}s"
+                break
+            fi
+            sleep 2
+        done
+
+        echo "[remote] Onboarding Periphery..."
+        bash /opt/Homelab/Heimdall/scripts/onboard-periphery.sh
+
+        echo "[remote] Waiting for Technitium API on :5380..."
+        for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://127.0.0.1:5380 2>/dev/null; then
+                echo "[remote] Technitium reachable after ${i}s"
+                break
+            fi
+            sleep 2
+        done
+
+        echo "[remote] Seeding Technitium zone..."
+        bash /opt/Homelab/Heimdall/scripts/seed-zones.sh'
     if [ -n "$DRY_RUN" ]; then
         printf '\033[1;36m[dry-run]\033[0m ssh %s "%s"\n' "$HEIMDALL_HOST" "$REMOTE_CMD"
     else

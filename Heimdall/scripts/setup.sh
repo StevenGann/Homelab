@@ -86,6 +86,16 @@ step_01_apt_docker() {
         docker-ce docker-ce-cli containerd.io \
         docker-buildx-plugin docker-compose-plugin
 
+    # Add `owner` to the docker group so `docker` commands work without sudo.
+    # Idempotent — usermod -aG is a no-op if owner is already a member.
+    # The group membership takes effect on the next login (SSH session, sudo -i, etc.).
+    if id owner >/dev/null 2>&1; then
+        usermod -aG docker owner
+    else
+        warn "User 'owner' does not exist yet; skipping docker group membership."
+        warn "After creating 'owner', run: sudo usermod -aG docker owner"
+    fi
+
     # sops is not always packaged; install via direct download from the upstream release
     # if `apt install sops` is not available. (Ubuntu 26.04's `getsops` package, if shipped,
     # provides this; fall back to download.)
