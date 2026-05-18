@@ -1,0 +1,33 @@
+name: shellcheck
+
+# Lint shell scripts. Catches common bash bugs before they ship — specifically the kind
+# of "wrong URL scheme" / "unquoted variable" / "dead code" mistakes that surfaced during
+# the Heimdall finalize pipeline run's Stage 5 review.
+#
+# Punch list item M8 (FINAL.md).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.sh'
+      - '.github/workflows/shellcheck.yml'
+  pull_request:
+    paths:
+      - '**/*.sh'
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          # Treat warnings as errors (severity: warning). Info-level findings are advisory.
+          severity: warning
+          # Search the whole repo.
+          scandir: '.'
+          # Exclude vendored / third-party scripts if any land in the repo later.
+          # additional_files: ''

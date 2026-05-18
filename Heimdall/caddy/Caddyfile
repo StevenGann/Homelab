@@ -1,0 +1,85 @@
+# Heimdall — Caddyfile
+#
+# Phase 2 scaffold: HTTPS via internal CA for *.lab hostnames; one routed service (komodo.lab)
+# satisfies the Phase 2 end-to-end self-test gate.
+#
+# Phase 3 adds per-service `<service>.lab { reverse_proxy <pi-1>:<nodeport> ... }` blocks.
+# See Heimdall/docs/runbooks/adding-a-route.md for the per-route pattern.
+#
+# Lives at /etc/caddy/Caddyfile inside the container (bind-mounted read-only).
+
+{
+    # Global options.
+    # auto_https disable_redirects: avoids ambiguity with the :80 file_server block below
+    # by preventing Caddy from auto-installing an HTTP→HTTPS redirect on every site.
+    # Internal CA means no Let's Encrypt rate-limit window to worry about.
+    auto_https disable_redirects
+
+    # No `email` directive — internal CA does not need a contact for ACME registration.
+}
+
+# ─── LAN-only HTTP listener: distribute the internal-CA root certificate ──────────────
+#
+# nftables already restricts :80 to source 192.168.10.0/24 (see Heimdall/hostconf/nftables.conf),
+# so Caddy itself does not need to filter by source. UCG does NOT forward :80 from the WAN
+# (iter-1 known concern #4), so this is intrinsically LAN-scoped.
+#
+# `file_server` cannot serve a single file by URL — it serves files from a directory.
+# `rewrite * /root.crt` re-paths every request under `/ca.crt` to the actual on-disk filename
+# `root.crt`, then `file_server` reads it from the configured `root`.
+#
+# Internal-CA root storage location: /data/caddy/pki/authorities/local/root.crt
+# (Caddy's documented internal-CA path; /data is the Compose volume mount.)
+
+:80 {
+    handle /ca.crt {
+        rewrite * /root.crt
+        file_server {
+            root /data/caddy/pki/authorities/local
+        }
+    }
+
+    # Anything else on :80 → 404. We do NOT do HTTP-01 ACME (internal CA default).
+    handle {
+        respond 404
+    }
+}
+
+# ─── Komodo Core UI ───────────────────────────────────────────────────────────────────
+#
+# Phase 2 end-to-end self-test: from a LAN client with the internal-CA root trusted,
+# `https://komodo.lab` returns the Komodo Core UI. This route is part of Phase 2's scaffold,
+# not a Phase 3 addition, because it's the acceptance gate.
+
+komodo.lab {
+    tls internal
+
+    reverse_proxy 127.0.0.1:9120 {
+        # Health endpoint path — verify against Komodo's actual /api/health route during
+        # implementation smoke-test. If Komodo exposes a different path, update here.
+        health_uri /api/health
+        health_interval 30s
+        fail_duration 60s
+    }
+}
+
+# ─── Phase 3 routes go below this line ────────────────────────────────────────────────
+#
+# Pattern for HTTP services on the k3s cluster (NodePort fanout across all Pi nodes):
+#
+# service.lab {
+#     tls internal
+#     reverse_proxy 192.168.10.101:30001 192.168.10.102:30001 192.168.10.103:30001 \
+#                   192.168.10.104:30001 192.168.10.105:30001 192.168.10.106:30001 \
+#                   192.168.10.107:30001 192.168.10.108:30001 192.168.10.109:30001 \
+#                   192.168.10.110:30001 {
+#         lb_policy least_conn
+#         health_uri /healthz
+#         health_interval 30s
+#         fail_duration 60s
+#     }
+# }
+#
+# Pattern for L4 (game servers etc.) — see the layer4 docs at github.com/mholt/caddy-l4
+# and adding-a-route.md for the JSON config form (or use the Caddyfile `layer4` directive
+# if the syntax has stabilized in your pinned plugin version).

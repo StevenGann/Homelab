@@ -8,6 +8,7 @@ Top-level directories map to **physical hosts or clusters**:
 
 - `Hyperion/` — the 10-node Raspberry Pi 5 k3s worker cluster
 - `Monolith/` — the TrueNAS Scale host at `192.168.10.247` (k3s server, image registry, CI deploy poller, healthcheck)
+- `Heimdall/` — edge-services host (reverse proxy / load balancer / DNS). Scaffolding only; tech stack and IaC pending. See [`docs/design/heimdall-planning.md`](docs/design/heimdall-planning.md).
 - `docs/` — repo-wide design and planning docs
 
 This pattern extends as IaC coverage grows. New hosts get their own top-level directory.

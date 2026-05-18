@@ -15,3 +15,27 @@ packer/output/
 imaging_ed25519
 
 /docs/pipeline-runs
+
+# Heimdall — decrypted secrets (SOPS-encrypted forms in secrets/*.sops.yaml are tracked)
+Heimdall/secrets/technitium-admin-pw
+Heimdall/secrets/technitium-api-token
+
+# Heimdall — bind-mount runtime state (containers write here; .gitkeep markers stay tracked)
+Heimdall/caddy/data/*
+!Heimdall/caddy/data/.gitkeep
+Heimdall/caddy/config/*
+!Heimdall/caddy/config/.gitkeep
+Heimdall/technitium/config/*
+!Heimdall/technitium/config/.gitkeep
+Heimdall/technitium/logs/*
+!Heimdall/technitium/logs/.gitkeep
+Heimdall/komodo-data/mongo-data/*
+!Heimdall/komodo-data/mongo-data/.gitkeep
+Heimdall/komodo-data/mongo-config/*
+!Heimdall/komodo-data/mongo-config/.gitkeep
+Heimdall/komodo-data/keys/*
+!Heimdall/komodo-data/keys/.gitkeep
+Heimdall/komodo-data/repos/*
+!Heimdall/komodo-data/repos/.gitkeep
+Heimdall/komodo-data/backups/*
+!Heimdall/komodo-data/backups/.gitkeep

@@ -1,0 +1,32 @@
+# Dependabot configuration
+#
+# Tracks dependency updates for the repo. Two ecosystems:
+#
+# 1. docker: scans `FROM ...` lines in Dockerfiles only — does NOT parse
+#    `xcaddy --with` lines (verified against dependabot-core issue #5103).
+#    The caddy-l4 plugin is tracked separately by
+#    .github/workflows/poll-caddy-l4-releases.yml.
+#
+# 2. github-actions: scans `uses:` lines in workflow files.
+#
+# History: iter-1 of the parent run pinned this on the false assumption that
+# `package-ecosystem: docker` would catch `xcaddy --with` plugin bumps. It does
+# not. The finalize run corrected the mechanism. See FINAL.md known concern #3.
+
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /Heimdall/caddy/image       # Tracks `FROM caddy:X.Y.Z` base-image bumps only
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "deps"

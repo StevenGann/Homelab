@@ -2,8 +2,8 @@
 agent: Devil's Advocate
 specialization: Strategic and logical adversary — attacks design, assumptions, scope, reasoning
 role: Adversarial — every other agent's positions are targets
-last_compacted_utc: 2026-05-03T23:42:42Z
-last_updated_utc:   2026-05-04T00:35:00Z
+last_compacted_utc: 2026-05-17T19:05:00Z
+last_updated_utc:   2026-05-17T22:30:00Z
 ---
 
 # Devil's Advocate — Notes
@@ -39,131 +39,14 @@ true?" Concretely:
 
 ---
 
-## Challenge ledger
+## Settled patterns (promoted from prior runs)
 
-Format per entry:
+Patterns that have survived multiple challenges and are worth reusing as
+attack vectors without re-deriving them each time.
 
-```
-### YYYY-MM-DDTHH:MM:SSZ — <short position summary>
-- Position: <verbatim or close paraphrase, with the source agent + file:line>
-- Challenge: <the specific weakness, alternative, or scenario>
-- Strongest counter-argument I can imagine (steelman): <…>
-- Resolution: WITHDRAWN | STEELMANNED | OUTSTANDING | CHANGED <how>
-- Cost-of-being-wrong: low | medium | high | catastrophic
-```
-
-<!-- Append new challenges at the bottom. Compaction merges duplicates and
-     retires resolved-and-no-longer-relevant entries. -->
-
-### 2026-05-04T00:35:00Z — pipeline-run dbg-nvme-not-flashing iter-1, attacks on `02-combined-draft.md`
-
-Twelve challenges raised against the orchestrator's combined draft. Full
-ledger lives in
-`docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/iter-1/03-adversarial/devils-advocate.md`.
-Summary of resolutions and patterns worth carrying forward:
-
-- **C-1 — observability-is-the-bug reframe.** STEELMANNED-with-edit. The
-  Old Man's "the script is loud internally; the diagnostic surface is the
-  fix" framing won. But: when the orchestrator says "the user is
-  misreading the signal," that's a smell — the next time it appears, push
-  back harder before accepting it.
-- **C-2 — universal-first-step assumes operator capability.** PARTIAL.
-  Pattern: any "step 1" that depends on operator skill / hardware /
-  network position needs an explicit fallback chain, not just a
-  decision-tree leaf labeled "escalate."
-- **C-3 — H1 ranking attacks (too generous OR too lenient).** WITHDRAWN.
-  The ranking didn't matter because the experiment splits the
-  hypotheses regardless. Lesson: don't waste cycles attacking probability
-  rankings when the next step distinguishes them anyway.
-- **C-4 — H1c sleeper.** STEELMANNED. Old Man's "no while-we're-here
-  fixes" wins. Latent bugs go in a backlog, not in the current PR.
-- **C-5 — minimum-viable-fix is anti-complexity bias talking too early.**
-  PARTIAL. Pattern: "minimum viable" framings should be hypothesis-
-  conditional, not advertised as universal byte-counts.
-- **C-6 — Phase-1-only dodges the user's stated request.** PARTIAL.
-  Pattern: when an orchestrator picks an adversary's pre-conceded
-  fallback, that's path-of-least-resistance, not adversarial review.
-  Force the tradeoff to be made visibly (Phase 1 vs. Phase 2 buys what?)
-  rather than implicitly via "let's defer."
-- **C-7 — UART recommendation requires hardware not in hand.** PARTIAL.
-  Pattern: split "Packer-time enable" (free) from "operator-time use"
-  (requires hardware). Don't conflate them.
-- **C-8 — "escalate" with no referent.** OUTSTANDING. Pattern: "escalate"
-  in a single-operator project is doc-as-deflection.
-- **C-9 — H5-sub should be promoted to its own H-number (proposed: H7).**
-  PARTIAL. Pattern: when a "sub-finding" is structurally a different
-  class of bug (build-time vs. runtime, IMG vs. script), promote it.
-  Embedding it under the wrong parent hypothesis hides the diagnostic.
-- **C-10 — single-cause assumption.** PARTIAL. Pattern: never-worked
-  systems are usually multi-cause. Plans should expect to re-enter the
-  pipeline after each individual fix.
-- **C-11 — test-node selection ignores 4GB-vs-8GB hardware split.**
-  PARTIAL. Per `MEMORY.md`, two Hyperion nodes are 4GB. Pi expert flagged
-  this for runtime shippers. Worth carrying as a future trap whenever
-  "pick a test node" appears.
-- **C-12 — "fix bootstrap" is the wrong primary framing if the answer is
-  operator-side.** CHANGED. Pattern: code-vs-docs framing matters because
-  it affects what the team builds. When the modal fix is documentation,
-  call docs the primary deliverable.
-
-**New standing-challenge candidate (added to standing list):**
-Monolith-as-aggregator is a SPOF for log collection during the moment
-debugging is most needed (when something is failing). Both Phase 1
-(journal-remote) and Phase 2 (Loki/Grafana) inherit this. Worth
-revisiting if/when Monolith ever needs HA.
-
-**Compaction note:** Ledger now has 12 new entries. Compaction window
-opens 2026-05-05T00:35Z. Until then, append-only.
-
----
-
-## Standing challenges to keep alive
-
-Positions worth re-examining periodically because the answer can shift as the
-project evolves.
-
-- **"GitOps reconciles the cluster."** The repo is set up for it but FluxCD
-  isn't bootstrapped (per `docs/todo.md` Step 10). Until it is, any plan that
-  assumes "just commit and Flux will pick it up" is fiction. Force this to be
-  said out loud whenever k8s manifests are discussed.
-- **"USB-authoritative imaging is correct."** Steelman: it survives a network
-  outage and is simpler than alternatives. Counter: it puts the per-node
-  identity on a piece of consumer flash that has a finite write count. What's
-  the failure mode when a HYPERION-ID stick wears out mid-cluster? Is there
-  monitoring for this?
-- **"The two-image split is good because PXE/TFTP failed on Pi 5."** Past
-  failure justifies past decisions. It does not perpetually justify the current
-  design. If the upstream Pi 5 / RP1 issues are eventually fixed, is netboot
-  worth revisiting? Don't let "we tried that" become permanent.
-- **Greek-letter hostnames** (alpha…kappa) — cute but capped at 24 nodes if you
-  insist on the alphabet. What happens at node 11? Does the convention break or
-  just get awkward (`hyperion-lambda` is fine until you hit `hyperion-omicron`).
-  Worth deciding *before* it bites.
-- **Single VLAN for everything.** `192.168.10.0/24` carries cluster traffic,
-  MetalLB, the image server, and presumably workstation access. Is there a
-  scenario where you'd want to isolate workload pods from the management plane?
-- **Monolith as single point of failure.** k3s server, image registry,
-  ci-deploy, and healthcheck all live on one TrueNAS box. The repo's whole
-  reproducibility story rests on this one host being reproducible. Is it?
-- **Monolith as the log-aggregator SPOF.** Both proposed log-collection
-  designs (`systemd-journal-remote` Phase 1, Loki/Vector Phase 2) put the
-  receiver on Monolith. Logs are most needed when something is failing —
-  and the most likely thing to be failing during a hard outage is also
-  Monolith (since it hosts everything). Pi-side disk buffers (Vector)
-  partially mitigate; plain journal-upload does not. Worth surfacing as
-  a known-acceptable tradeoff each time log collection is discussed,
-  and revisited when/if Monolith gains an HA story. Added 2026-05-04
-  during dbg-nvme-not-flashing iter-1.
-
----
-
-## Common attack vectors
-
-Patterns I look for when reviewing a position. Compaction promotes successful
-attack patterns into this list.
-
-1. **The "we already do X" justification.** Past adoption is not present
-   correctness. Re-derive the choice from current constraints.
+1. **"We already do X" is past-performance bias.** Past adoption is not present
+   correctness. Re-derive the choice from current constraints. (From
+   dbg-nvme-not-flashing iter-1.)
 2. **The unnamed alternative.** A plan that doesn't enumerate its alternatives
    is hiding work, not avoiding it.
 3. **The optimistic concurrency assumption.** "Two of these won't run at once"
@@ -176,26 +59,228 @@ attack patterns into this list.
    command fails is a sales brochure.
 7. **The single-source-of-failure hidden as a feature.** "Centralized" and
    "single point of failure" are the same architecture from different angles.
+8. **The hypothesis-conditional minimum-viable-fix.** "Minimum viable" framings
+   should be hypothesis-conditional, not universal byte-counts. (From C-5
+   dbg-nvme-not-flashing.)
+9. **The build-time-vs-operator-time split.** Don't conflate "Packer enabled X"
+   (free) with "operator can use X" (requires hardware/skill). Split them.
+   (From C-7 dbg-nvme-not-flashing.)
+10. **The "escalate" deflection.** In a single-operator project, "escalate" with
+    no referent is doc-as-deflection. (From C-8 dbg-nvme-not-flashing.)
+11. **The wrong-parent sub-hypothesis.** When a sub-finding is structurally a
+    different class of bug, promote it to its own H-number. (From C-9.)
+12. **The single-cause assumption on never-worked systems.** Multi-cause is the
+    default. Plans should expect to re-enter the pipeline after each fix.
+    (From C-10.)
+13. **Code-vs-docs framing matters.** If the modal fix is docs, call docs the
+    primary deliverable. (From C-12.)
+14. **The threshold-trigger that names no threshold.** "If it grows past X we'll
+    extract Y" is only honest if X is defined now. (Pattern emerging in
+    dev-heimdall, §3 point C "no Ansible for v1" + §3 point H "rebuild when
+    breakage matters.")
+15. **The cost-free addition.** "Including X costs nothing" is almost never
+    true: every dependency is attack surface, release-tracking burden, and a
+    potential bug-trigger on paths the operator doesn't use. (Pattern emerging
+    in dev-heimdall, §3 point H "bake caddy-dns/cloudflare in because free.")
+16. **The recurring-ceiling rule.** "Defend N; reject N+1 without a
+    demonstrable case" rules are trivially overridable because every N+1
+    candidate arrives *with* a real failure as its case. Rule is load-bearing
+    only if it names what evidence does NOT count (e.g., "operator-convenience
+    does not qualify; only failure modes the current N cannot mitigate do").
+    Otherwise it's a narrative device for narrating the next breach.
+    (From dev-heimdall-finalize Challenge 1.)
 
 ---
 
-## Sources (frameworks I lean on)
+## Standing challenges to keep alive
 
-- **Premortem analysis (Gary Klein, HBR)** — imagine the project failed; work
-  backward from what killed it.
-  https://hbr.org/2007/09/performing-a-project-premortem — accessed 2026-05-03 —
-  confidence: community (canon)
-- **Steelmanning** — the obligation to argue against the strongest version of
-  the position, not the weakest. Concept attribution: Chana Messinger / various.
-- **A Philosophy of Software Design (Ousterhout)** — "complexity is incremental"
-  and "deep modules" inform many of my challenges. Book.
-- **Choose Boring Technology (McKinley)** — the innovation-token framing is a
-  useful weapon against shiny-object proposals.
-  https://boringtechnology.club — accessed 2026-05-03 — confidence: community
+Positions worth re-examining periodically because the answer can shift as the
+project evolves.
+
+- **"GitOps reconciles the cluster."** FluxCD isn't bootstrapped (per
+  `docs/todo.md` Step 10). Any plan that assumes "just commit and Flux will
+  pick it up" is fiction. Force this to be said out loud when k8s manifests
+  are discussed.
+- **"USB-authoritative imaging is correct."** Steelman: it survives a network
+  outage and is simpler than alternatives. Counter: it puts per-node identity
+  on consumer flash with finite write count. Failure mode when a HYPERION-ID
+  stick wears out mid-cluster? Is there monitoring?
+- **"The two-image split is good because PXE/TFTP failed on Pi 5."** Past
+  failure justifies past decisions, not perpetually current ones. If upstream
+  Pi 5 / RP1 issues are eventually fixed, is netboot worth revisiting?
+- **Greek-letter hostnames** capped at 24 nodes. What happens at node 11+?
+  Decide *before* it bites.
+- **Single VLAN for everything.** `192.168.10.0/24` carries cluster traffic,
+  MetalLB, image server, workstation. Scenario for isolating workload pods
+  from the management plane?
+- **Monolith as single point of failure.** k3s server, image registry,
+  ci-deploy, healthcheck all on one TrueNAS box. Is the reproducibility story
+  itself reproducible?
+- **Monolith as log-aggregator SPOF.** journal-remote (Phase 1) and Loki/Vector
+  (Phase 2) both put receiver on Monolith. Logs are most needed when something
+  is failing — and the most likely thing to fail is Monolith. Worth surfacing
+  each time log collection is discussed.
+- **Heimdall as DNS SPOF.** Added 2026-05-17 during dev-heimdall iter-1.
+  AdGuard down → LAN clients lose name resolution within their cache TTL,
+  including operator's own ability to SSH back by hostname. Mitigation
+  (secondary DNS in DHCP) is one-line; punting it is a load-bearing punt.
+  Worth revisiting if/when Heimdall ever gains an HA story or a sibling box.
+- **Caddy ACME store as cert-loss SPOF.** Added 2026-05-17 during
+  dev-heimdall iter-1. Loss of `caddy/data/` → re-issue every LE cert at
+  once → hit rate limits → effectively CA-banned for ~week. Backup target
+  punted in draft. This is a load-bearing punt. Revisit if any LE-issued
+  cert is added.
+- **UCG as DHCP + L3 SPOF.** Added 2026-05-17. If UCG dies, LAN has no DHCP
+  and no path to Heimdall for new clients — Heimdall's own SPOF status is
+  smaller than UCG's. Worth re-examining whether obsessing over Heimdall HA
+  while UCG is single-box is even rational.
+
+---
+
+## Active observations — dev-heimdall-tech-stack iter-1
+
+Scenarios I ran while reviewing `02-combined-draft.md` on 2026-05-17:
+
+- **caddy-l4 stability scenario.** Maintainer is Matt Holt (Caddy author). The
+  "experimental" warning may be conservative-by-default rather than
+  load-bearing. Survived attack: still a real signal because the README is the
+  maintainer's chosen advertisement; a team optimizing for *stability*
+  shouldn't override an author's own hedge unless the FC produces release-
+  history evidence of stability.
+- **FTP-in-2026 scenario.** No FTP-only dependency named by user. SFTP solves
+  the same surface without PASV / stick-tables / conntrack helper / port-range
+  forwarding. Recommendation: strike from v1 unless dependency named.
+- **AdGuard SPOF scenario.** Run-the-room: phone wakes from sleep at 0300,
+  AdGuard container OOM'd 4 hours ago, phone has no DNS cache, can't resolve
+  *anything*. Operator SSH'ing back to Heimdall by hostname also fails. The
+  "24h cache cushion" only applies to AdGuard's *own* cache for already-asked
+  names — clients without their own resolver cache (most consumer devices)
+  break immediately. Mitigation: DHCP secondary DNS = UCG or Monolith.
+- **Operator-in-the-loop GitOps tax scenario.** Caddyfile changes every time a
+  new service hostname is added. At "20 services churning monthly" the Dockge-
+  click tax compounds. But: same flow on Monolith works fine at 5 services
+  rarely changing. Threshold question. Survives attack at current churn level.
+- **Backup-punt scenario.** Heimdall NVMe dies. caddy/data/ is gone. Operator
+  rebuilds host per runbook. First boot, Caddy requests cert for
+  service-a.example.com — request blocked by LE rate limit if the operator has
+  more than 5 certs and the rebuild hits within 168 hours of last issuance.
+  Documented LE Failed Authorization limit: 5/hour/account/hostname (Failed)
+  and 50/week/registered-domain (Issued). Real risk for any non-trivial
+  number of public hostnames.
+- **Hostconf-files-as-shadow-Ansible scenario.** §4.2 has 12 steps each
+  `sudo install -m 0644 /opt/Homelab/Heimdall/hostconf/X /etc/Y`. That's an
+  Ansible task list spelled out as shell. The "no Ansible" win evaporates if
+  the failure mode (operator-typos-one-path) is the same.
+
+---
+
+## Active observations — dev-heimdall-finalize iter-1
+
+Scenarios I ran while reviewing `02-combined-draft.md` on 2026-05-17:
+
+- **"Five-tool ceiling" rule audit.** Iter-1 had a "three-container budget"
+  that broke 67% in one run (3 → 5). The new "defend five, reject sixth
+  without demonstrable case" rule is the same shape, one tick higher. Every
+  candidate sixth tool (backup daemon, metrics exporter, cert-watcher) will
+  arrive with a real failure as its "demonstrable case." Rule is trivially
+  overridable. Made into pattern #16 below (the recurring-ceiling-rule).
+- **Soft-deferral hit rate.** Repo only has two prior pipeline runs on
+  disk — empirical base too thin to score the 2-month Technitium-secondary
+  deadline. But the parent run (3 days ago) had three of its unanimous
+  decisions re-opened by user-surfacing new info. "Days, not months" is the
+  observed re-open velocity. Recommendation: replace soft "the swap was a
+  mistake" rhetoric with a binary action-tagged deadline (revert OR ship).
+- **Komodo onboarding step scenario.** §3.3 Phase 2 step 4 prescribes 8
+  discrete operator actions (browser nav + clipboard + ssh + sed + restart)
+  yet calls itself "one-shot manual step." Proposal §Risks #2 admits it's
+  not yet scripted; doesn't admit it could be scripted with a `curl + jq`
+  wrapper. 9-months-later failure mode: UI changes between v2.2 and v2.x
+  (active development) and runbook describes a screen that no longer exists.
+- **`bootstrap-zones.sh` failure-mode audit.** Specification gaps:
+  prune-vs-additive semantics, retry on 5xx, API-version coupling. The
+  "binary config changes across versions" argument against committing
+  `dns.config` is asymmetric — API also changes across versions. Either
+  defend the asymmetry or rename to `seed-zones.sh` and own the additive-only
+  contract.
+- **Drift-detection alert-volume scenario.** Komodo `RESOURCE_POLL_INTERVAL=1-hr`
+  at week-12 steady state: ~3 drift alerts/week (Dependabot, poll-caddy-l4,
+  Caddyfile edits). Not alert fatigue strictly; alert background-noise.
+  Operator's mental model: orange badge always there; ignore. Worse:
+  Dependabot PRs cause false-positive drift between PR-open and merge.
+- **NodePort fanout multi-edit operator scenario.** Adding a k8s service:
+  3 coordinated edits (Service manifest, Caddyfile, allocation table) vs
+  MetalLB's 1 (LoadBalancer Service). Couples to iter-1 §C5 churn-threshold
+  decision: NodePort fanout *guarantees* an edit per service. The two
+  decisions will collide as service count grows.
+- **MetalLB-deletion-tripwire premortem.** Read `Hyperion/k8s/` directly:
+  `apps/.gitkeep`, `flux-system/.gitkeep`, MetalLB manifests only. Zero
+  `Service: type=LoadBalancer` exist. Deletion is a free move today.
+  Steelmanned: the cross-host PR's pre-flight discipline is correct *as a
+  discipline* but vacuous on current cluster state.
+- **Mongo working-set drift scenario.** `wiredTigerCacheSizeGB=0.25` caps
+  WT cache at 250 MB; "under 256 MB combined" applies to idle Komodo.
+  At month 6: audit log 500–2000 entries, Stack history 50–100 versions,
+  100-connection pool ≈ 100 MB process RSS not in WT cache. Heimdall has
+  32 GB so not a blocker; but the runbook should set expectations.
+- **`.lab` internal-CA + IoT trust scenario.** Steelmanned: printers /
+  Smart TVs / Chromecasts / game consoles don't reach `.lab` HTTPS in
+  normal use. Trust-burden falls on operator-controlled devices, not IoT.
+  Residual risk: future cluster pods reaching `.lab` HTTPS will fail
+  trust check until CA root is distributed into pod images. Add a section
+  to `trust-store-distribution.md` for k8s-pod trust before someone wastes
+  2 hours on `x509: certificate signed by unknown authority`.
+- **Phase 2 acceptance honesty audit.** Phase 2 acceptance = containers
+  healthy + Periphery onboarded + CA root fetchable + Technitium resolves.
+  Phase 2 does NOT prove: any LAN client uses Heimdall, any service is
+  routed, any `.lab` record resolves. "Project complete at end of Phase 2"
+  framing (Old Man) is technically correct per user phasing but
+  operationally misleading — three Phase-3-ish runbook files exist as
+  *steady-state* docs. Honest gate: at least one Phase 3 deliverable
+  shipped (e.g., `komodo.lab` resolves end-to-end).
+- **Cross-host PR ordering scenario.** (a) cross-host first: cluster has
+  no LB between MetalLB removal and Heimdall Phase 3. Today empty
+  (Challenge 7) so blast radius zero, but conditional on Flux-bootstrap
+  timing. (b) Heimdall Phase 1+2 first, cross-host second, Phase 3 third:
+  Heimdall stands up next to cluster; both LBs coexist briefly; safest
+  given empty cluster. (c) parallel: 3-day inconsistent-state window
+  cost. (b) wins.
+- **Convergence-audit on Periphery-as-systemd.** All three specialists
+  cited the *same* root constraint (Docker daemon restart). 3-of-3
+  consensus is single-constraint × three witnesses, not triple-independent.
+  Honest framing: "one constraint, three confirmations, container mode
+  is also upstream-supported." Decision survives; framing is overconfident.
+
+Pattern added to settled patterns (below): #16 recurring-ceiling-rule.
+
+---
+
+## Sources
+
+- **caddy-l4** project README: https://github.com/mholt/caddy-l4 — Matt Holt
+  maintainer; "still in development" warning present 2026-05-17 (verified by
+  Linux Expert in Stage 1).
+- **Let's Encrypt rate limits**:
+  https://letsencrypt.org/docs/rate-limits/ — 50 certs/week/registered-domain;
+  5 Failed Authorizations/hour/account/hostname; 5
+  duplicate-certificate/week. Accessed via prior Devil's Advocate notes;
+  confidence: official. Relevant to backup-loss scenario.
+- **Caddy on-demand TLS + ACME storage**:
+  https://caddyserver.com/docs/automatic-https — `data/` directory holds
+  account keys + issued certs. Accessed via Old Man citations 2026-05-17.
+- **HAProxy 3.0 LTS lifecycle**: HAProxy.com release-management page —
+  pending FC verification.
+- **Premortem analysis (Gary Klein, HBR)**:
+  https://hbr.org/2007/09/performing-a-project-premortem — used to drive
+  the "phone-wakes-at-0300-with-no-DNS" scenario above.
+- **Choose Boring Technology (McKinley)**: https://boringtechnology.club —
+  used to attack the "cost-free addition" of caddy-dns/cloudflare into the
+  baked image.
 
 ---
 
 ## Archive
 
-Resolved challenges (WITHDRAWN, STEELMANNED, or made moot by repo changes) kept
-for historical context.
+Prior pipeline-run summaries (dbg-nvme-not-flashing iter-1) are retained in
+git history of this file; promoted patterns are now in §"Settled patterns"
+above. Detailed ledger lives at
+`docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/iter-1/03-adversarial/devils-advocate.md`.

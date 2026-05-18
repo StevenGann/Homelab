@@ -26,18 +26,22 @@ Homelab/
 │   ├── configure-eeprom.sh      # Sets BOOT_ORDER on all nodes via SSH
 │   └── docs/runbooks/           # Hyperion-specific runbooks
 │
-└── Monolith/                    # TrueNAS Scale host (192.168.10.247)
-    └── k3s-control-plane/       # k3s server + nginx image server
-        ├── docker-compose.yml
-        ├── nginx.conf
-        ├── ci-deploy/           # GitHub Releases poller (downloads images to Monolith)
-        ├── healthcheck/         # IaC integration test runner (HTTP API on port 50012)
-        └── docs/runbooks/
+├── Monolith/                    # TrueNAS Scale host (192.168.10.247)
+│   └── k3s-control-plane/       # k3s server + nginx image server
+│       ├── docker-compose.yml
+│       ├── nginx.conf
+│       ├── ci-deploy/           # GitHub Releases poller (downloads images to Monolith)
+│       ├── healthcheck/         # IaC integration test runner (HTTP API on port 50012)
+│       └── docs/runbooks/
+│
+└── Heimdall/                    # Edge-services host (reverse proxy / LB / DNS)
+    └── docs/                    # Scaffolding only — tech stack pending
 ```
 
 Each top-level directory maps to a physical host or cluster. Files for Monolith
-go under `Monolith/`, files for the Pi cluster go under `Hyperion/`. This pattern
-extends as IaC coverage expands to other hosts.
+go under `Monolith/`, files for the Pi cluster go under `Hyperion/`, files for
+Heimdall go under `Heimdall/`. This pattern extends as IaC coverage expands to
+other hosts.
 
 ---
 
@@ -88,6 +92,7 @@ All infrastructure is on the Homelab VLAN (`192.168.10.0/24`):
 | `.10–.99` | MetalLB LoadBalancer pool |
 | `.101–.110` | Hyperion Pi nodes |
 | `.247` | Monolith |
+| TBD | Heimdall (reverse proxy / LB / DNS — IP plan pending) |
 
 ---
 

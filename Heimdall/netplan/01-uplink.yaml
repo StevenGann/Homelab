@@ -1,0 +1,36 @@
+# Heimdall — uplink netplan
+#
+# Installed to /etc/netplan/01-uplink.yaml mode 0600 by setup.sh.
+# Static IP per the approved plan (192.168.10.240 — high static, mirrors Monolith convention).
+# UCG is gateway and DNS bootstrap (host resolv.conf does NOT point at self — see approved plan §"chicken-and-egg").
+#
+# Per netplan ≥ 0.106 (Ubuntu 26.04 ships networkd as default renderer): the `routes:` form below
+# replaces the deprecated `gateway4:` key.
+#
+# NIC name: defaults to predictable kernel naming. If the operator has carved out udev MAC-based
+# names (`enp_up`, etc.), update the `match:` block accordingly during implementation.
+#
+# Mode 0600 is required by recent netplan — world-readable files are rejected.
+
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    uplink:
+      # Match the first 2.5GbE interface — operator confirms by MAC at install time.
+      # On a fresh install this typically appears as eno1 or enp1s0; replace `name:` below
+      # OR set `match: { macaddress: "xx:xx:xx:xx:xx:xx" }` instead. Pick one form.
+      match:
+        name: "en*"
+      set-name: uplink
+      addresses:
+        - 192.168.10.240/24
+      routes:
+        - to: default
+          via: 192.168.10.1
+      nameservers:
+        # Bootstrap DNS — points at UCG, NOT at self. After Phase 2 brings up Technitium,
+        # host queries continue to resolve via UCG (configured via /etc/systemd/resolved.conf.d/
+        # no-stub.conf). LAN clients receive Heimdall's .240 as primary DNS via UCG DHCP option 6.
+        addresses: [192.168.10.1, 1.1.1.1]
+      mtu: 1500

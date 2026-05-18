@@ -1,0 +1,5 @@
+{
+  "log-driver": "journald",
+  "live-restore": true,
+  "userland-proxy": false
+}
