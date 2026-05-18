@@ -276,10 +276,20 @@ step_08_periphery() {
     # survive reboots (FC new fact B from the pipeline run).
     systemctl enable --now periphery.service
 
-    # Confirm Periphery is listening. The default config binds [::]:8120 with TLS enabled;
-    # nftables enforces 127.0.0.0/8 source restriction on :8120 so external access is denied.
+    # Confirm Periphery is listening on :8120. Periphery takes 1-2s to initialize on
+    # first start (key generation + SSL cert generation); poll up to 15s before warning.
+    # The default config binds [::]:8120 with TLS enabled; nftables enforces 127.0.0.0/8
+    # source restriction on :8120 so external access is denied.
+    log "Waiting for Periphery to bind :8120..."
+    for i in $(seq 1 15); do
+        if ss -tlnp 2>/dev/null | grep -q ':8120'; then
+            log "Periphery listening on :8120 after ${i}s."
+            break
+        fi
+        sleep 1
+    done
     if ! ss -tlnp 2>/dev/null | grep -q ':8120'; then
-        warn "Periphery does not appear to be listening on :8120. Check 'journalctl -u periphery'."
+        warn "Periphery did not bind :8120 within 15s. Check 'journalctl -u periphery -n 50'."
     fi
 
     mark_step 08_periphery

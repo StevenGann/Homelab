@@ -15,22 +15,40 @@
 
 ### 1. Decrypt secrets
 
-From the workstation (or directly on Heimdall if the age key is provisioned there):
+Secrets live SOPS-encrypted in `Heimdall/secrets/` and committed to the repo:
+
+- `Heimdall/secrets/env.sops.env` — Komodo + Mongo env vars.
+- `Heimdall/secrets/technitium-admin-pw.sops` — single-line Technitium admin password.
+
+**Decrypt on the workstation, ship cleartext to Heimdall via SSH.** This keeps the age private key off Heimdall (smaller blast radius if Heimdall is ever compromised). Heimdall never needs `sops` installed.
+
+First-time setup of the encrypted files (one-time, if the files don't exist yet):
 
 ```bash
-SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt \
-    sops --decrypt /opt/Homelab/Heimdall/secrets/env.sops.yaml \
-    > /opt/Homelab/Heimdall/.env
-
-SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt \
-    sops --decrypt /opt/Homelab/Heimdall/secrets/technitium-admin-pw.sops \
-    > /opt/Homelab/Heimdall/secrets/technitium-admin-pw
-
-chmod 600 /opt/Homelab/Heimdall/.env
-chmod 600 /opt/Homelab/Heimdall/secrets/technitium-admin-pw
+# On the workstation:
+bash Heimdall/scripts/generate-secrets.sh
+git add Heimdall/secrets/env.sops.env Heimdall/secrets/technitium-admin-pw.sops
+git commit -m 'heimdall: scaffold encrypted secrets'
+git push
 ```
 
-Both files are `.gitignore`d.
+Then deploy:
+
+```bash
+# On Heimdall — pull the new commit so the encrypted files are present locally:
+sudo git -C /opt/Homelab pull
+
+# On the workstation — decrypt and ship to Heimdall over SSH:
+sops --decrypt Heimdall/secrets/env.sops.env | \
+    ssh owner@192.168.10.4 'sudo tee /opt/Homelab/Heimdall/.env > /dev/null && sudo chmod 600 /opt/Homelab/Heimdall/.env'
+
+sops --decrypt --input-type binary --output-type binary Heimdall/secrets/technitium-admin-pw.sops | \
+    ssh owner@192.168.10.4 'sudo tee /opt/Homelab/Heimdall/secrets/technitium-admin-pw > /dev/null && sudo chmod 600 /opt/Homelab/Heimdall/secrets/technitium-admin-pw'
+```
+
+Both decrypted files are `.gitignore`d on the Heimdall side.
+
+> If the operator's age key is provisioned on Heimdall (alternative pattern; larger blast radius), the decrypt can run there directly: `SOPS_AGE_KEY_FILE=... sops --decrypt /opt/Homelab/Heimdall/secrets/env.sops.env > /opt/Homelab/Heimdall/.env`. The workstation-decrypts-and-ships pattern above is recommended.
 
 ### 2. Pull and start
 
