@@ -50,7 +50,7 @@ sudo bash /tmp/setup.sh --force 04_nftables
 What it does:
 
 1. APT base packages + Docker CE from the upstream `download.docker.com` repo
-2. Netplan static `192.168.10.240`
+2. Netplan static `192.168.10.4`
 3. systemd-resolved with `DNSStubListener=no`; `/etc/resolv.conf` symlinked to upstream view
 4. nftables ruleset (default-deny inbound, allow-list for the Heimdall services)
 5. systemd-journal-upload to Monolith `:19532`
@@ -66,7 +66,7 @@ After `setup.sh` exits successfully:
 
 ```bash
 # Static IP
-ip -4 addr show | grep 192.168.10.240
+ip -4 addr show | grep 192.168.10.4
 # Should show the address on the uplink interface.
 
 # Services running

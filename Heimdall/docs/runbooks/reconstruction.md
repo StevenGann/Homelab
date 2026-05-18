@@ -63,12 +63,12 @@ Follow [`phase-2-containers.md`](phase-2-containers.md). The end-to-end self-tes
 In addition to Phase 2's acceptance checklist:
 
 - LAN clients that trusted the previous internal-CA root: if you restored `caddy/data/`, no re-trust is needed. If not, distribute the new root per [`trust-store-distribution.md`](trust-store-distribution.md).
-- UCG DHCP option 6 should still point at `192.168.10.240`. Verify: a fresh DHCP-leased LAN client receives Heimdall as primary DNS.
+- UCG DHCP option 6 should still point at `192.168.10.4`. Verify: a fresh DHCP-leased LAN client receives Heimdall as primary DNS.
 - All Phase 3 routes that existed pre-failure work. Walk the Caddyfile blocks and curl-test each.
 
 ## What is NOT covered by reconstruction
 
-- **External-internet exposure for new services.** UCG port-forwards must be reviewed; they may need to be updated to point at the new Heimdall IP (if it changed from `.240`).
+- **External-internet exposure for new services.** UCG port-forwards must be reviewed; they may need to be updated to point at the new Heimdall IP (if it changed from `.4`).
 - **Active Komodo Stacks that Heimdall manages on OTHER hosts.** This is a Phase 4 / Monolith-migration concern.
 
 ## Failure modes during reconstruction

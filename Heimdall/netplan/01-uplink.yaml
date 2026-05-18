@@ -1,14 +1,22 @@
 # Heimdall — uplink netplan
 #
 # Installed to /etc/netplan/01-uplink.yaml mode 0600 by setup.sh.
-# Static IP per the approved plan (192.168.10.240 — high static, mirrors Monolith convention).
-# UCG is gateway and DNS bootstrap (host resolv.conf does NOT point at self — see approved plan §"chicken-and-egg").
 #
-# Per netplan ≥ 0.106 (Ubuntu 26.04 ships networkd as default renderer): the `routes:` form below
-# replaces the deprecated `gateway4:` key.
+# Static IP: 192.168.10.4 — chosen outside the UCG's DHCP dynamic range (.129–.254)
+# and outside the Hyperion node range (.101–.110). The original approved plan used
+# .240, but that's inside the DHCP pool; the address was changed to .4 during
+# implementation after the actual DHCP range was confirmed. See docs/design/
+# heimdall-planning.md for the change record.
 #
-# NIC name: defaults to predictable kernel naming. If the operator has carved out udev MAC-based
-# names (`enp_up`, etc.), update the `match:` block accordingly during implementation.
+# NIC MAC pin: the `match: { macaddress: ... }` form binds this config to one
+# specific physical interface by hardware address. This is more robust than
+# matching by kernel-assigned name (`enpXsY`) because kernel naming can shift on
+# kernel upgrades, BIOS changes, or NIC replacement. The MAC stays constant
+# unless the NIC itself is replaced — at which point the operator updates this
+# file as part of the hardware swap.
+#
+# Per netplan ≥ 0.106 (Ubuntu 26.04 ships networkd as default renderer): the
+# `routes:` form below replaces the deprecated `gateway4:` key.
 #
 # Mode 0600 is required by recent netplan — world-readable files are rejected.
 
@@ -17,20 +25,28 @@ network:
   renderer: networkd
   ethernets:
     uplink:
-      # Match the first 2.5GbE interface — operator confirms by MAC at install time.
-      # On a fresh install this typically appears as eno1 or enp1s0; replace `name:` below
-      # OR set `match: { macaddress: "xx:xx:xx:xx:xx:xx" }` instead. Pick one form.
+      # `uplink` is the netplan-internal config name (not the kernel interface name).
+      # The MAC pin binds this config to one specific physical port.
+      #
+      # As deployed on the production Heimdall (2026-05-17): enp12s0 of the
+      # quad-port 2.5GbE card. If this NIC is ever replaced, update the MAC.
+      #
+      # No `set-name:` directive — the kernel-assigned name (enp12s0) is used
+      # as-is. Nothing in nftables or the scripts refers to a stable interface
+      # name; the MAC pin provides robustness against PCI-slot or kernel-naming
+      # shifts. An earlier broken setup.sh run renamed one of the 10G NICs to
+      # `uplink`; that artifact clears on next reboot regardless of this config.
       match:
-        name: "en*"
-      set-name: uplink
+        macaddress: "00:04:e1:c2:06:2f"
       addresses:
-        - 192.168.10.240/24
+        - 192.168.10.4/24
       routes:
         - to: default
           via: 192.168.10.1
       nameservers:
-        # Bootstrap DNS — points at UCG, NOT at self. After Phase 2 brings up Technitium,
-        # host queries continue to resolve via UCG (configured via /etc/systemd/resolved.conf.d/
-        # no-stub.conf). LAN clients receive Heimdall's .240 as primary DNS via UCG DHCP option 6.
+        # Bootstrap DNS — points at UCG, NOT at self. After Phase 2 brings up
+        # Technitium, host queries continue to resolve via UCG (configured via
+        # /etc/systemd/resolved.conf.d/no-stub.conf). LAN clients receive
+        # Heimdall's .4 as primary DNS via UCG DHCP option 6.
         addresses: [192.168.10.1, 1.1.1.1]
       mtu: 1500

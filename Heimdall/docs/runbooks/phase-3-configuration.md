@@ -45,8 +45,8 @@ Edit the `RECORDS=()` array at the top of `Heimdall/scripts/seed-zones.sh`:
 
 ```bash
 RECORDS=(
-    "komodo.lab|A|192.168.10.240"
-    "new-service.lab|A|192.168.10.240"     # ← new entry
+    "komodo.lab|A|192.168.10.4"
+    "new-service.lab|A|192.168.10.4"     # ← new entry
 )
 ```
 
@@ -79,19 +79,19 @@ Expected alert volume: ~2–4/week steady state, mostly the second case. Operato
 
 ## Cross-host port-forwards (UCG side)
 
-On the UCG, after Heimdall is reachable on `192.168.10.240`:
+On the UCG, after Heimdall is reachable on `192.168.10.4`:
 
 | Port | Forward to | Why |
 |------|-----------|-----|
-| 443/tcp + 443/udp | `192.168.10.240` | HTTPS + HTTP/3 (Caddy) |
-| 25565/tcp + 25565/udp | `192.168.10.240` | Minecraft TCP + Bedrock UDP (Caddy L4) |
-| Additional game ports | `192.168.10.240` | Per game server, when added |
+| 443/tcp + 443/udp | `192.168.10.4` | HTTPS + HTTP/3 (Caddy) |
+| 25565/tcp + 25565/udp | `192.168.10.4` | Minecraft TCP + Bedrock UDP (Caddy L4) |
+| Additional game ports | `192.168.10.4` | Per game server, when added |
 
 **Do not** forward port 80 from WAN. The :80 listener on Heimdall is LAN-only (for the `/ca.crt` distribution endpoint).
 
 DHCP option 6 (DNS servers) on the UCG:
 
-- Primary: `192.168.10.240` (Heimdall / Technitium)
+- Primary: `192.168.10.4` (Heimdall / Technitium)
 - Secondary: `1.1.1.1` (the SPOF mitigation slot — see [iter-1 §C3](../../docs/pipeline-runs/20260517T213331Z-dev-heimdall-finalize/iter-1/04-revision.md))
 
 ## The 6-month Technitium-secondary deadline

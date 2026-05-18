@@ -101,8 +101,19 @@ step_01_apt_docker() {
 }
 
 # ─── Step 02 — netplan static IP ─────────────────────────────────────────────────────
+# After applying, the static address must actually be present on the host — both
+# netplan apply and netplan try return 0 in some cases where the config fails to
+# bind to an interface (e.g., ambiguous match). We verify post-apply that the
+# expected IP is on a real interface before marking the step done.
 step_02_netplan() {
     log "Installing netplan config..."
+
+    # Guard against the placeholder MAC. The committed netplan ships with
+    # "TODO-FILL-IN-MAC-OF-UPLINK-NIC" so the operator can't accidentally apply
+    # an unconfigured file.
+    if grep -q "TODO-FILL-IN-MAC-OF-UPLINK-NIC" "${HEIMDALL_DIR}/netplan/01-uplink.yaml"; then
+        die "netplan template still has the MAC placeholder. Edit ${HEIMDALL_DIR}/netplan/01-uplink.yaml — replace TODO-FILL-IN-MAC-OF-UPLINK-NIC with the MAC of the uplink NIC (see ethtool output)."
+    fi
 
     install -m 0600 -o root -g root \
         "${HEIMDALL_DIR}/netplan/01-uplink.yaml" \
@@ -118,6 +129,19 @@ step_02_netplan() {
         netplan apply
     fi
 
+    # Verify the static IP actually landed on a real interface. netplan can exit 0
+    # while the config silently fails to apply (e.g., no NIC matches by name/MAC).
+    EXPECTED_IP="192.168.10.4"
+    if ! ip -4 addr show 2>/dev/null | grep -q "inet ${EXPECTED_IP}/"; then
+        warn "netplan exited 0 but ${EXPECTED_IP} is NOT assigned to any interface."
+        warn "Likely causes: NIC MAC in ${HEIMDALL_DIR}/netplan/01-uplink.yaml doesn't match any installed NIC,"
+        warn "or the matched NIC has no link. Diagnose with:"
+        warn "  ip -br link"
+        warn "  sudo ethtool <iface> | grep -E 'Link detected|Speed'"
+        die "netplan apply did not produce the expected address; aborting before marking step done."
+    fi
+
+    log "Static IP ${EXPECTED_IP} confirmed on a live interface."
     mark_step 02_netplan
 }
 

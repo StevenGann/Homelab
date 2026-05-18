@@ -64,7 +64,7 @@ On success the script exits 0. On timeout it warns with diagnostic pointers. The
 bash /opt/Homelab/Heimdall/scripts/seed-zones.sh
 ```
 
-For Phase 2 the script seeds exactly one record: `komodo.lab → 192.168.10.240`. This unlocks the end-to-end self-test in step 6. Phase 3 expands the record set.
+For Phase 2 the script seeds exactly one record: `komodo.lab → 192.168.10.4`. This unlocks the end-to-end self-test in step 6. Phase 3 expands the record set.
 
 The script is additive-only (creates missing records, never deletes). See [`phase-3-configuration.md`](phase-3-configuration.md) for the full contract.
 
@@ -73,7 +73,7 @@ The script is additive-only (creates missing records, never deletes). See [`phas
 The end-to-end test in step 6 runs from a LAN workstation. That workstation needs to trust Caddy's internal-CA root. Fetch it:
 
 ```bash
-curl -o caddy-internal-ca.crt http://192.168.10.240/ca.crt
+curl -o caddy-internal-ca.crt http://192.168.10.4/ca.crt
 ```
 
 The :80 LAN-only `file_server` block in the Caddyfile serves this exactly once
@@ -96,7 +96,7 @@ For a Heimdall-self-contained variant that does not depend on the LAN client (pe
 the punch-list M6 fix), run from Heimdall itself:
 
 ```bash
-curl -fsS --resolve komodo.lab:443:192.168.10.240 \
+curl -fsS --resolve komodo.lab:443:192.168.10.4 \
      --cacert /opt/Homelab/Heimdall/caddy/data/caddy/pki/authorities/local/root.crt \
      https://komodo.lab | head
 ```
@@ -109,11 +109,11 @@ Confirm each:
 
 - [ ] `docker compose ps` shows mongo, komodo-core, technitium, caddy all `running (healthy)`.
 - [ ] `systemctl is-active periphery.service` returns `active`.
-- [ ] Komodo UI at `http://192.168.10.240:9120` (or `https://komodo.lab`) shows `heimdall` as a connected server.
-- [ ] `dig @192.168.10.240 google.com` returns an answer (Technitium forwarders working).
-- [ ] `dig @192.168.10.240 doubleclick.net` returns a blocked response.
-- [ ] `dig @192.168.10.240 komodo.lab` returns `192.168.10.240`.
-- [ ] `curl -sk http://192.168.10.240/ca.crt` returns the Caddy internal-CA root.
+- [ ] Komodo UI at `http://192.168.10.4:9120` (or `https://komodo.lab`) shows `heimdall` as a connected server.
+- [ ] `dig @192.168.10.4 google.com` returns an answer (Technitium forwarders working).
+- [ ] `dig @192.168.10.4 doubleclick.net` returns a blocked response.
+- [ ] `dig @192.168.10.4 komodo.lab` returns `192.168.10.4`.
+- [ ] `curl -sk http://192.168.10.4/ca.crt` returns the Caddy internal-CA root.
 - [ ] End-to-end self-test above passes (both forms).
 
 ## Troubleshooting

@@ -21,7 +21,7 @@ This is bind-mounted to:
 Caddy's `:80` listener serves it as `http://heimdall.lab/ca.crt` (or by IP if DNS isn't ready yet):
 
 ```bash
-curl -fsSL http://192.168.10.240/ca.crt -o caddy-internal-ca.crt
+curl -fsSL http://192.168.10.4/ca.crt -o caddy-internal-ca.crt
 ```
 
 The `:80` block is LAN-only — nftables restricts source to `192.168.10.0/24`, and UCG does NOT forward port 80 from WAN. This is intentional.
@@ -29,7 +29,7 @@ The `:80` block is LAN-only — nftables restricts source to `192.168.10.0/24`, 
 You can also copy the file directly from Heimdall:
 
 ```bash
-scp owner@192.168.10.240:/opt/Homelab/Heimdall/caddy/data/caddy/pki/authorities/local/root.crt caddy-internal-ca.crt
+scp owner@192.168.10.4:/opt/Homelab/Heimdall/caddy/data/caddy/pki/authorities/local/root.crt caddy-internal-ca.crt
 ```
 
 ## Trust the root — per-OS

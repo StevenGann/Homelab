@@ -37,10 +37,10 @@ TOKEN_FILE="${TOKEN_FILE:-/tmp/heimdall-technitium-token}"
 # can pass. Phase 3 grows this list.
 RECORDS=(
     # Phase 2 minimum-viable:
-    "komodo.lab|A|192.168.10.240"
+    "komodo.lab|A|192.168.10.4"
 
     # Phase 3 baseline (uncomment when ready to seed):
-    # "heimdall.lab|A|192.168.10.240"
+    # "heimdall.lab|A|192.168.10.4"
     # "monolith.lab|A|192.168.10.247"
     # "hyperion-alpha.lab|A|192.168.10.101"
     # "hyperion-beta.lab|A|192.168.10.102"
@@ -272,7 +272,7 @@ main() {
     log "Seed complete. Zone '$ZONE' has ${#RECORDS[@]} declared record(s) (operator UI-added records persist)."
     log
     log "Verify:"
-    log "  dig @192.168.10.240 ${RECORDS[0]%%|*}"
+    log "  dig @192.168.10.4 ${RECORDS[0]%%|*}"
     log "  curl -G --data-urlencode 'token=\$TOKEN' --data-urlencode 'zone=$ZONE' --data-urlencode 'listZone=true' $DNS_API/api/zones/records/get | jq"
 }
 

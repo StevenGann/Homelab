@@ -81,7 +81,7 @@ The ports were already open for `caddy-l4`. They stay open for HAProxy.
 
 ### UCG port-forwards — no change
 
-Already forwarding 25565/tcp+udp → `192.168.10.240`. Continues to work.
+Already forwarding 25565/tcp+udp → `192.168.10.4`. Continues to work.
 
 ## FTP (the protocol-level note)
 
@@ -109,7 +109,7 @@ The FTP server itself must be configured with:
 - `pasv_address = <Heimdall's external WAN IP>` (so its PASV `227` response points back at Heimdall)
 - `pasv_min_port = 50000`, `pasv_max_port = 50100`
 
-UCG must forward 21/tcp and 50000-50100/tcp from WAN to `192.168.10.240`.
+UCG must forward 21/tcp and 50000-50100/tcp from WAN to `192.168.10.4`.
 
 Also add an nftables ruleset entry on Heimdall for the PASV range:
 

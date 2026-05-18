@@ -52,13 +52,13 @@ Three coordinated edits per service:
    ```bash
    RECORDS=(
        # ...existing entries...
-       "my-service.lab|A|192.168.10.240"
+       "my-service.lab|A|192.168.10.4"
    )
    ```
 
    Then run `bash /opt/Homelab/Heimdall/scripts/seed-zones.sh`.
 
-5. (Optional) UCG WAN port-forward — only if the service should be reachable from the public internet. Add a forward on port 443 → `192.168.10.240` if not already present; the Caddyfile's `my-service.lab` block handles the rest.
+5. (Optional) UCG WAN port-forward — only if the service should be reachable from the public internet. Add a forward on port 443 → `192.168.10.4` if not already present; the Caddyfile's `my-service.lab` block handles the rest.
 
 After all edits land in `main`, on Heimdall:
 ```bash
@@ -122,8 +122,8 @@ Per-service NodePort assignments live in `Hyperion/docs/network-layout.md`'s all
 
 ```bash
 # DNS resolves
-dig @192.168.10.240 my-service.lab
-# → 192.168.10.240
+dig @192.168.10.4 my-service.lab
+# → 192.168.10.4
 
 # Caddy is serving (from LAN client with CA root trusted)
 curl -sk https://my-service.lab/healthz
@@ -141,5 +141,5 @@ docker compose exec caddy curl -s http://localhost:2019/reverse_proxy/upstreams
 ## Troubleshooting
 
 - **`curl https://my-service.lab` returns 502.** Caddy sees all upstreams as down. Either (a) the Service isn't yet created on the cluster, (b) the NodePort doesn't match what's in the Caddyfile, (c) the pod isn't ready, or (d) the `health_uri` path is wrong.
-- **`curl` works from LAN but not from WAN.** Check the UCG port-forward for 443 → `.240` exists, and the WAN-side firewall isn't blocking the request before it reaches the UCG.
+- **`curl` works from LAN but not from WAN.** Check the UCG port-forward for 443 → `.4` exists, and the WAN-side firewall isn't blocking the request before it reaches the UCG.
 - **`docker compose exec caddy caddy reload` fails.** Caddyfile syntax error. `docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile` shows the line.
