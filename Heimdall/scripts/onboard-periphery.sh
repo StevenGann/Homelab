@@ -76,8 +76,11 @@ LOGIN_BODY=$(jq -nc \
     --arg p "$KOMODO_INIT_ADMIN_PASSWORD" \
     '{type:"LoginLocalUser", params:{username:$u, password:$p}}')
 
-# Komodo Core HTTP API auth-request endpoint. Convention: POST /auth with {type,params}.
-LOGIN_RESP=$(curl -fsS -X POST "$KOMODO_API/auth" \
+# Komodo Core HTTP API auth-request endpoint. Empirically verified against
+# v2.2.0: POST /auth/login (NOT /auth) — verified against running Heimdall
+# by probing for the path that returns 401 (auth-but-rejected) vs 405 (no
+# handler). The body shape stays {type, params} per the Rust client source.
+LOGIN_RESP=$(curl -fsS -X POST "$KOMODO_API/auth/login" \
     -H "Content-Type: application/json" \
     -d "$LOGIN_BODY") || die "Login request failed. Check Komodo Core is running and the admin credentials in $ENV_FILE."
 
