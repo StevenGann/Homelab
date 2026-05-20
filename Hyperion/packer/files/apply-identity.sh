@@ -10,7 +10,7 @@ GUARD=/etc/hyperion-identity-applied
 
 # Wait for USB enumeration (up to 15 s; less contention on NVMe boot than Bootstrap)
 ID_DEV=""
-for i in $(seq 1 15); do
+for _ in $(seq 1 15); do
     ID_DEV=$(blkid -L HYPERION-ID 2>/dev/null) && break
     sleep 1
 done
@@ -21,7 +21,7 @@ if [ -z "${ID_DEV:-}" ]; then
 fi
 
 ID_MNT=$(mktemp -d)
-trap "umount $ID_MNT 2>/dev/null || true; rm -rf $ID_MNT" EXIT
+trap 'umount "$ID_MNT" 2>/dev/null || true; rm -rf "$ID_MNT"' EXIT
 mount -o ro "$ID_DEV" "$ID_MNT"
 
 HOSTNAME=$(tr -d '[:space:]' < "$ID_MNT/hostname")

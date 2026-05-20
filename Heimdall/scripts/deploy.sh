@@ -58,7 +58,7 @@ run() {
     if [ -n "$DRY_RUN" ]; then
         printf '\033[1;36m[dry-run]\033[0m %s\n' "$*"
     else
-        eval "$@"
+        "$@"
     fi
 }
 

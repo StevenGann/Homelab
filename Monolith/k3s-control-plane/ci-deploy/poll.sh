@@ -81,10 +81,9 @@ check_node() {
     fi
 
     # Find the .img.zst asset
-    local asset_name asset_url asset_size
+    local asset_name asset_url
     asset_name=$(echo "$latest_release" | jq -r '[.assets[] | select(.name | endswith(".img.zst"))] | first | .name')
     asset_url=$(echo "$latest_release"  | jq -r '[.assets[] | select(.name | endswith(".img.zst"))] | first | .url')
-    asset_size=$(echo "$latest_release" | jq -r '[.assets[] | select(.name | endswith(".img.zst"))] | first | .size')
 
     if [ -z "$asset_name" ] || [ "$asset_name" = "null" ]; then
         warn "No .img.zst asset in release node-v${remote_version}."

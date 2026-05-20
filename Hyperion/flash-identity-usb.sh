@@ -87,7 +87,7 @@ udevadm settle --timeout=5
 
 # ── Mount and write files ─────────────────────────────────────────────────────
 MNT=$(mktemp -d)
-trap "umount '$MNT' 2>/dev/null || true; rm -rf '$MNT'" EXIT
+trap 'umount "$MNT" 2>/dev/null || true; rm -rf "$MNT"' EXIT
 
 mount "$PARTITION" "$MNT"
 
