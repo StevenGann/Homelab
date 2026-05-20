@@ -55,7 +55,9 @@ RECORDS=(
 )
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────────────
-log()  { printf '\033[1;34m[seed]\033[0m %s\n' "$*"; }
+# All helper output goes to stderr so $(get_token) and other command-substitution
+# captures don't ingest log lines along with the actual return value.
+log()  { printf '\033[1;34m[seed]\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[fail]\033[0m %s\n' "$*" >&2; exit 1; }
 

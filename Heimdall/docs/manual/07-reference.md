@@ -124,6 +124,7 @@ Heimdall/
 | [`generate-secrets.sh`](../../scripts/generate-secrets.sh) | Workstation | Operator once | refuses to overwrite |
 | [`onboard-periphery.sh`](../../scripts/onboard-periphery.sh) | Heimdall | `deploy.sh` | yes (no-op if `onboarding_key` set) |
 | [`seed-zones.sh`](../../scripts/seed-zones.sh) | Heimdall | `deploy.sh` | yes (additive only) |
+| [`seed-blocklists.sh`](../../scripts/seed-blocklists.sh) | Heimdall | `deploy.sh` | yes (reconciles to declared set) |
 | [`backup.sh`](../../scripts/backup.sh) | Heimdall | cron (`/etc/cron.daily`) | yes |
 
 ## Env vars in `.env` (decrypted from `env.sops.env`)

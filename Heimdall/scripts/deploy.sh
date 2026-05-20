@@ -157,7 +157,10 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
         done
 
         echo "[remote] Seeding Technitium zone..."
-        bash /opt/Homelab/Heimdall/scripts/seed-zones.sh'
+        bash /opt/Homelab/Heimdall/scripts/seed-zones.sh
+
+        echo "[remote] Reconciling Technitium blocklist subscriptions..."
+        bash /opt/Homelab/Heimdall/scripts/seed-blocklists.sh'
     if [ -n "$DRY_RUN" ]; then
         printf '\033[1;36m[dry-run]\033[0m ssh %s "%s"\n' "$HEIMDALL_HOST" "$REMOTE_CMD"
     else

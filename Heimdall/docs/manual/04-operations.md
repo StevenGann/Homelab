@@ -148,14 +148,54 @@ dig @192.168.10.4 bad.example.com
 
 ## Add or update a Technitium blocklist subscription
 
-Public blocklists (StevenBlack hosts, OISD, etc.) keep themselves current. Subscribe Technitium to one or more URLs and it pulls on a schedule.
+Two paths — the **IaC path** (recommended; reconstruction-safe) and the **UI path** (quick one-off).
+
+### IaC path — `seed-blocklists.sh`
+
+The canonical list of subscriptions lives in [`Heimdall/scripts/seed-blocklists.sh`](../../scripts/seed-blocklists.sh)'s `BLOCK_LIST_URLS` array. Each `deploy.sh` run reconciles Technitium to match the array.
+
+```bash
+# Edit the array:
+$EDITOR Heimdall/scripts/seed-blocklists.sh
+
+# Commit + push + deploy:
+git add Heimdall/scripts/seed-blocklists.sh
+git commit -m "blocklists: add <name>"
+git push
+bash Heimdall/scripts/deploy.sh --no-secrets
+```
+
+**Contract — different from `seed-zones.sh`:**
+- `seed-blocklists.sh` uses **reconciling** semantics. The array IS the canonical set; UI-added URLs not in the array are REMOVED on next deploy.
+- `seed-zones.sh` uses **additive** semantics. UI-added records persist.
+
+The asymmetry is intentional: DNS records are routinely added/removed during testing (additive matches that workflow); blocklists are deliberate, infrequent configuration (reconciliation matches that).
+
+Also reconciled by the script (idempotent per run):
+- `enableBlocking=true`
+- `blockingType=NxDomain`
+- `blockListUpdateIntervalHours=24`
+- Triggers an immediate refresh after subscription changes (otherwise Technitium waits up to 24h for the next scheduled fetch).
+
+### UI path — quick one-off
+
+For testing or rapid iteration:
 
 1. Technitium UI → **Settings → Blocking → Block List URLs**.
-2. Add the URL (e.g., `https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts`).
-3. Set **Auto Update Interval** to your preferred cadence (24h is typical).
-4. Save → **Update Now** to fetch immediately.
+2. Add the URL → Save → **Update Now**.
 
-The blocklist subscription is in `dns.config`, which lives in `Heimdall/technitium/config/` (bind-mounted, persistent). Survives container restarts and re-deploys.
+⚠ Anything you add via the UI is wiped on the next `deploy.sh`. If you want it permanent, add it to `seed-blocklists.sh` instead.
+
+### Recommended URLs (current declared set)
+
+| URL | Coverage |
+|---|---|
+| `https://big.oisd.nl` | Ads, trackers (broad daily-driver list) |
+| `https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt` | AdGuard Base (ads + trackers) |
+| `https://urlhaus.abuse.ch/downloads/hostfile/` | Malware (abuse.ch curated) |
+| `https://phishing.army/download/phishing_army_blocklist_extended.txt` | Phishing |
+
+The blocklist subscription set lives in `dns.config` inside `Heimdall/technitium/config/` (bind-mounted, persistent across container restarts). The seed script reconciles it back to the declared array on each run.
 
 ---
 
