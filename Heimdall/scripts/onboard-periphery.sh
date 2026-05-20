@@ -132,8 +132,16 @@ log "Onboarding key minted. Writing to $PERIPHERY_CONFIG ..."
 # Use a backup file so a malformed sed can be recovered.
 
 sudo cp "$PERIPHERY_CONFIG" "${PERIPHERY_CONFIG}.pre-onboard.bak"
+# Strip both keys if present (commented or not), then append fresh values.
 sudo sed -i -E '/^[[:space:]]*#?[[:space:]]*onboarding_key[[:space:]]*=/d' "$PERIPHERY_CONFIG"
-printf 'onboarding_key = "%s"\n' "$ONBOARDING_KEY" | sudo tee -a "$PERIPHERY_CONFIG" >/dev/null
+sudo sed -i -E '/^[[:space:]]*#?[[:space:]]*core_addresses[[:space:]]*=/d' "$PERIPHERY_CONFIG"
+{
+    printf 'onboarding_key = "%s"\n' "$ONBOARDING_KEY"
+    # Outbound mode — Periphery dials Core to register. Without core_addresses
+    # set, Periphery is in inbound mode (waiting for Core to dial it), which
+    # never happens for a freshly-minted onboarding key with no Server record.
+    printf 'core_addresses = ["%s"]\n' "$KOMODO_API"
+} | sudo tee -a "$PERIPHERY_CONFIG" >/dev/null
 sudo chmod 0640 "$PERIPHERY_CONFIG"
 
 # Also register the address that Komodo Core will dial Periphery on. Komodo Core looks
