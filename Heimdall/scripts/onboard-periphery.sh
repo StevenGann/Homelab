@@ -84,10 +84,11 @@ LOGIN_RESP=$(curl -fsS -X POST "$KOMODO_API/auth/login" \
     -H "Content-Type: application/json" \
     -d "$LOGIN_BODY") || die "Login request failed. Check Komodo Core is running and the admin credentials in $ENV_FILE."
 
-# JwtOrTwoFactor enum: success case is { "Jwt": { "jwt": "..." } } with Serde's default
-# externally-tagged enum serialization. If 2FA is enabled the response is different.
-# This script does NOT handle 2FA — admin user should be 2FA-free for automation.
-JWT=$(printf '%s' "$LOGIN_RESP" | jq -r '.Jwt.jwt // .jwt // empty')
+# JwtOrTwoFactor enum: Komodo Core v2.2.0 serializes this as adjacently-tagged
+# {"type":"Jwt","data":{"jwt":"..."}} — NOT externally-tagged {"Jwt":{"jwt":"..."}}.
+# Verified empirically against the running instance. 2FA responses use a different
+# `type` value; this script does NOT handle 2FA — admin user should be 2FA-free.
+JWT=$(printf '%s' "$LOGIN_RESP" | jq -r '.data.jwt // .Jwt.jwt // .jwt // empty')
 if [ -z "$JWT" ]; then
     die "Login response did not contain a JWT. Response was: $LOGIN_RESP"
 fi
