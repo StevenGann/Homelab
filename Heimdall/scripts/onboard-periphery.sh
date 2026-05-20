@@ -62,7 +62,9 @@ command -v jq   >/dev/null || die "jq not found (apt install jq)"
 # After successful onboarding the TOML has a non-empty `onboarding_key = "..."` line.
 # If we see that, skip — running again would replace the key with a fresh one and
 # orphan Periphery's existing trust relationship.
-if grep -qE '^[[:space:]]*onboarding_key[[:space:]]*=[[:space:]]*"[^"]+"[[:space:]]*$' "$PERIPHERY_CONFIG"; then
+#
+# The periphery config is 0640 root:root, so use sudo to read it without warnings.
+if sudo grep -qE '^[[:space:]]*onboarding_key[[:space:]]*=[[:space:]]*"[^"]+"[[:space:]]*$' "$PERIPHERY_CONFIG"; then
     log "Periphery already has an onboarding_key set in $PERIPHERY_CONFIG."
     log "If you need to re-onboard: blank the onboarding_key line manually, then re-run."
     exit 0

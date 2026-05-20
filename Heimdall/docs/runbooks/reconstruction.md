@@ -19,7 +19,16 @@
 
 ### 1. Run Phase 1 on the replacement hardware
 
-Follow [`phase-1-host.md`](phase-1-host.md). This installs Ubuntu, runs `setup.sh`, and brings the host to the same baseline state Phase 1 leaves any new Heimdall in.
+Follow [`phase-1-host.md`](phase-1-host.md). This installs Ubuntu, runs `setup.sh`, and brings the host to the same baseline state Phase 1 leaves any new Heimdall in. Critical pre-reqs to flip on after Phase 1 lands and before deploy.sh can run unattended:
+
+```bash
+# Passwordless sudo for owner (deploy.sh's auto-fix steps need this)
+ssh -t owner@<heimdall-ip> \
+    'echo "owner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/owner-nopasswd && sudo chmod 0440 /etc/sudoers.d/owner-nopasswd'
+
+# SSH key auth from workstation (deploy.sh runs unattended over SSH)
+ssh-copy-id owner@<heimdall-ip>
+```
 
 ### 2. Restore optional state (if recovering)
 
@@ -54,9 +63,17 @@ rsync -a "truenas_admin@192.168.10.247:/mnt/Media-Storage/Infra-Storage/heimdall
     /opt/Homelab/Heimdall/komodo-data/keys/
 ```
 
-### 3. Run Phase 2
+### 3. Run Phase 2 — one command
 
-Follow [`phase-2-containers.md`](phase-2-containers.md). The end-to-end self-test passes — Heimdall is back.
+```bash
+# On the workstation:
+cd ~/GitHub/Homelab
+bash Heimdall/scripts/deploy.sh
+```
+
+That runs the entire Phase 2 sequence end-to-end: decrypt secrets, ship to Heimdall, `docker compose up -d`, onboard Periphery to Komodo Core, seed the Technitium `.lab` zone. See [`phase-2-containers.md`](phase-2-containers.md) for what each step does internally.
+
+If `deploy.sh` exits 0, distribute the Caddy internal-CA root to LAN clients (per [`trust-store-distribution.md`](trust-store-distribution.md)) and confirm the Phase 2 acceptance gate: `curl -fsS https://komodo.lab` from a trusted LAN client returns Komodo's UI HTML.
 
 ## Verification (post-reconstruction)
 

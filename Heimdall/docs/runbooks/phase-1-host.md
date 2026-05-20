@@ -102,6 +102,20 @@ from what the marker claims, force re-run:
 sudo bash /tmp/setup.sh --force 03_resolved
 ```
 
+## Known gotchas (from actual install — May 2026)
+
+These are documented so future reconstructions don't re-hit them:
+
+- **`sudo git pull` creates files owned by root.** If you do `sudo git pull` in `/opt/Homelab/`, subsequent owner-as-non-root operations fail with "Permission denied". Fix: `sudo chown -R owner:owner /opt/Homelab` after any `sudo git`, or just use plain `git pull` (owner owns the repo per setup.sh step 7).
+
+- **`nft flush ruleset` wipes Docker's NAT rules too.** If you re-apply nftables via `setup.sh --force 04_nftables`, Docker's iptables/nftables rules for container port mapping disappear. Symptom: `docker compose ps` shows no PORTS column on services that should be publishing ports. Fix: `sudo systemctl restart docker` to re-install the rules. The `live-restore: true` setting keeps containers running across the daemon restart.
+
+- **`live-restore: true` + nftables flush + container restart = broken bridge networking.** Containers stay "running" but DNS resolution inside the bridge network fails ("Temporary failure in name resolution" on hostnames like `mongo`). Fix: `docker compose down && docker compose up -d` to fully tear down and recreate the bridge network. All persistent state is bind-mounted, so this is non-destructive.
+
+- **`owner` not in `docker` group on first install.** setup.sh step 1 adds the user; if you ran an older setup.sh that didn't, fix manually: `sudo usermod -aG docker owner`. Takes effect on the next SSH session.
+
+- **`forward` chain policy in nftables.conf must be `accept`, not `drop`.** Docker bridge networking (container-to-container traffic) transits the host's `forward` hook. The kernel sysctl `net.ipv4.ip_forward=0` (default) is what prevents Heimdall from acting as an L3 router; `policy accept` on the netfilter forward chain just allows Docker's bridge traffic to pass.
+
 ## Next
 
 Proceed to [`phase-2-containers.md`](phase-2-containers.md).
