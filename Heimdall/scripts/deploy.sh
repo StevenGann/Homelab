@@ -122,6 +122,17 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
         cd /opt/Homelab/Heimdall
         docker compose pull
         docker compose up -d
+
+        # File-bind-mounts (Caddyfile, periphery configs, etc.) hold the old inode
+        # across a git-pull that renames files. Restart containers whose bind-
+        # mounted config files just changed so they pick up the new content.
+        # `docker compose up -d` does NOT recreate or restart these — it only
+        # acts on image / service-spec changes.
+        if git -C /opt/Homelab diff HEAD@{1} HEAD --name-only 2>/dev/null | grep -qE "^Heimdall/caddy/Caddyfile$"; then
+            echo "[remote] Caddyfile changed in this pull — restarting caddy..."
+            docker compose restart caddy
+        fi
+
         docker compose ps
 
         echo "[remote] Waiting for Komodo Core HTTP API on :9120..."

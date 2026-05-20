@@ -169,6 +169,8 @@ If both return Komodo's HTML, Phase 2 is complete.
 
 - **`https://komodo.lab` returns SSL warning on the LAN client.** The internal-CA root isn't in the client's trust store. See [`trust-store-distribution.md`](trust-store-distribution.md).
 
+- **Edited Caddyfile but Caddy still serves the old config.** Docker's file-bind-mount (`/opt/.../Caddyfile:/etc/caddy/Caddyfile`) holds the file's inode at container-start time. `git pull` replaces the file via rename, leaving the bind mount pointing at the OLD inode. `docker compose up -d` doesn't fix this (it only restarts containers whose image / spec changed). Fix: `docker compose restart caddy`. `deploy.sh` does this automatically when it detects Caddyfile changed in the pull. Same pattern applies to any file-bind-mounted config — `periphery.config.toml`, `AdGuardHome.yaml`-style configs, etc.
+
 ## Next
 
 Proceed to [`phase-3-configuration.md`](phase-3-configuration.md) for ongoing operational work (adding routes, records, more services).
