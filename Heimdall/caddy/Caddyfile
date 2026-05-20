@@ -54,13 +54,12 @@
 komodo.lab {
     tls internal
 
-    reverse_proxy 127.0.0.1:9120 {
-        # Health endpoint path — verify against Komodo's actual /api/health route during
-        # implementation smoke-test. If Komodo exposes a different path, update here.
-        health_uri /api/health
-        health_interval 30s
-        fail_duration 60s
-    }
+    # Single local upstream — passive failure detection (Caddy's default) is enough.
+    # No active health probe configured: Komodo v2.2.0 doesn't expose a stable
+    # /health endpoint, and for one upstream there's nothing to load-balance away
+    # from anyway. Multi-upstream Phase 3 routes (NodePort fanout) should add an
+    # active health check on a per-service-known-good path — see adding-a-route.md.
+    reverse_proxy 127.0.0.1:9120
 }
 
 # ─── Phase 3 routes go below this line ────────────────────────────────────────────────
