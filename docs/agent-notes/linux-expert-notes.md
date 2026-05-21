@@ -1,8 +1,8 @@
 ---
 agent: Linux Expert
 specialization: Debian/Trixie, systemd, networking, filesystems, kernel, package management, shell
-last_compacted_utc: 2026-05-17T18:42:00Z
-last_updated_utc:   2026-05-17T21:55:00Z
+last_compacted_utc: 2026-05-21T15:00:00Z
+last_updated_utc:   2026-05-21T15:00:00Z
 ---
 
 # Linux Expert — Notes
@@ -45,11 +45,27 @@ parameters, package management, shell idioms, and standard sysadmin reasoning.
   `systemd-networkd-wait-online.service` is a no-op and
   `network-online.target` resolves prematurely; the `NET_WAIT=60` polling loop
   added in commit `8a21d6b` only checks for a default route, not reachability.
+- Bootstrap medium has **no static DNS server in the IMG**. dhcpcd populates
+  `/etc/resolv.conf` from DHCP options 6/15 (UCG-supplied). With Trixie's stock
+  dhcpcd (the Pi-customized dhcpcd5 from Bookworm was dropped), the only DNS
+  available pre-mount-of-USB is whatever the UCG hands out — so bootstrap.sh's
+  `MONOLITH_BASE` cannot use a hostname unless that hostname is also resolvable
+  via the UCG's upstream DNS path. **At the moment, only literal IPs work
+  during bootstrap.**
 - `systemd-journal-upload` is the canonical Homelab log-shipping mechanism.
   Both Hyperion image variants enable it and push to `http://192.168.10.247:19532`
   via a drop-in at `/etc/systemd/journal-upload.conf.d/monolith.conf`. Package on
   Trixie is `systemd-journal-remote` (sender + receiver come in the same pkg).
   Default TCP port 19532.
+- Bootstrap.sh `:8080` status server: serves `/` (JSON status from
+  `/tmp/bootstrap-status.json`) and `/log` (tail of `bootstrap.log` on the
+  HYPERION-ID USB at `$CACHE_DIR/bootstrap.log`). Survives `MAX_BOOT_ATTEMPTS`
+  by being started **before** the gate; `exec /bin/bash` reparents to PID 1
+  and keeps serving the `exhausted_attempts` state.
+- Two IP references to update for Heimdall migration:
+  - `Hyperion/packer/files/bootstrap.sh:32`: `MONOLITH_BASE=...:50011`
+  - `Hyperion/packer/rpi-bootstrap.pkr.hcl:131`: `URL=...:19532`
+  - `Hyperion/packer/rpi-node.pkr.hcl:245`: `URL=...:19532`
 
 ### Monolith-specific repo facts
 
@@ -59,11 +75,36 @@ parameters, package management, shell idioms, and standard sysadmin reasoning.
   `ghcr.io/stevengann/homelab-*`.
 - `journal-remote` container baked from `debian:trixie-slim` (Dockerfile in repo).
   Listens HTTP on `:19532`. Writes to `/var/log/journal/remote/` with
-  `--split-mode=host` → one `.journal` file per source hostname.
+  `--split-mode=host` → one `remote-<hostname>.journal` file per source.
 - Image registry: nginx on `:50011`, served from `/mnt/Media-Storage/Infra-Storage/images`.
 - ci-deploy poller: `homelab-ci-deploy` polls GitHub Releases every 5 min, writes
-  to `/images`.
-- healthcheck API on `:50012/summary`.
+  to `/images` (= `/mnt/Media-Storage/Infra-Storage/images` on host).
+- healthcheck API on `:50012/summary` (out of scope for this migration).
+
+### Heimdall-specific repo facts (settled)
+
+- Ubuntu Server 26.04 LTS "Resolute Raccoon" (systemd 259, cgroup v2 only,
+  dracut default initrd).
+- Docker CE from upstream `download.docker.com` apt repo (resolute suite).
+  daemon.json sets `log-driver: journald`, `live-restore`, `userland-proxy: false`.
+- nftables ruleset at `Heimdall/hostconf/nftables.conf` (installed to
+  `/etc/nftables.conf`). Table `inet heimdall_fw`. Default-deny inbound;
+  per-port LAN-allow rules. `forward` chain policy `accept` so Docker bridge
+  networking works.
+- `systemd-journal-upload` configured on Heimdall via
+  `Heimdall/hostconf/journal-upload-monolith.conf` → ships TO Monolith:19532.
+- `systemd-resolved` runs with `DNSStubListener=no` so containers can bind :53
+  (Technitium under `network_mode: host`).
+- Compose stack lives at `/opt/Homelab/Heimdall/docker-compose.yml`.
+  Persistent state under `/opt/Homelab/Heimdall/{komodo-data,technitium,caddy,secrets}/`.
+- Komodo Periphery is **host systemd binary**, not a container (avoids the
+  container-manager-managing-the-container-manager-managing-itself loop).
+- `Heimdall/scripts/deploy.sh` is the canonical one-command deploy from the
+  workstation: SOPS-decrypt → ssh-ship → git pull → compose pull → up -d →
+  onboard-periphery → seed-zones → seed-blocklists.
+- Caddy with caddy-l4 plugin, in `network_mode: host` for L4 source-IP
+  preservation. Internal CA root distributed via `http://heimdall.lab/ca.crt`
+  on :80.
 
 ### General sysadmin knowledge worth keeping
 
@@ -71,20 +112,32 @@ parameters, package management, shell idioms, and standard sysadmin reasoning.
   config `/etc/systemd/journal-upload.conf` plus drop-ins under
   `/etc/systemd/journal-upload.conf.d/*.conf`. Default port 19532. Tolerates
   receiver outages — buffers locally up to `Storage.MaxSize`.
+- `systemd-journal-remote` with `--split-mode=host` writes
+  `remote-<escaped-hostname>.journal` per upload source. The "hostname" is the
+  endpoint of the TCP connection (DNS reverse-lookup, or literal IP). Per
+  upstream PR #2080, the port is stripped from the filename so connection
+  resets don't fragment into a new file. **The `_HOSTNAME=` field inside
+  individual journal entries comes from the source machine; `journalctl
+  _HOSTNAME=hyperion-alpha` filters by that, independent of filename.**
+- `journalctl --directory=<dir> -f` follows a remote journal directory in real
+  time (refresh-on-mtime; new files in the dir are picked up).
 - Trixie systemd-resolved interaction: stub listener at `127.0.0.53:53`. If the
   host needs to *host* a DNS server on `:53`, `systemd-resolved` must be either
-  disabled or configured with `DNSStubListener=no`. `/etc/resolv.conf` must then
-  point somewhere that won't loop (e.g. the container's published IP, or
-  `127.0.0.1` once the container is up — chicken-and-egg risk on boot).
-- Docker on Ubuntu 26.04 LTS: install path is the upstream
-  `docker-ce` repository, not Ubuntu's `docker.io` package (older, lacks
-  Compose v2 plugin). Compose v2 is the `docker compose` (no dash) plugin
-  command, not the deprecated `docker-compose` Python script.
-- netplan defaults to `networkd` renderer on Ubuntu Server. Multi-NIC hosts:
-  per-interface YAML under `/etc/netplan/`. Permissions must be `0600` since
-  netplan 0.106 or the parser warns and (in newer versions) fails.
-- For DNS authority on a host with `:53` exposed: nftables `chain input { tcp dport 53 accept; udp dport 53 accept; }` only. Never publish recursion to
-  the upstream interface.
+  disabled or configured with `DNSStubListener=no`.
+- Caddy `reverse_proxy` SSE/streaming: set `flush_interval -1` to disable
+  response buffering. Auto-detected for `Content-Type: text/event-stream`
+  since v2.8, but explicit setting is safer. Bug if `encode` (compression)
+  is enabled upstream sends only headers — exclude streaming routes from
+  `encode`.
+- Docker bridge `ports:` mappings rewrite source IPs via `docker-proxy` (fine
+  for HTTP-with-XFF, broken for L4). Fix: `network_mode: host` OR
+  `userland-proxy: false`.
+- `sed -i` on Linux replaces the inode and inherits caller's umask. Mode/owner
+  changes — re-apply explicit `chmod`/`chown` after sed on system config files.
+- Pi OS Trixie ships **stock Debian dhcpcd** (Bookworm's dhcpcd5 was Pi-modified).
+  No automatic resolvconf installation by default; `/etc/resolv.conf` is
+  populated directly by dhcpcd's 20-resolv.conf hook from DHCP options 6/15.
+  Disable per-script with `nohook`.
 
 ---
 
@@ -92,196 +145,109 @@ parameters, package management, shell idioms, and standard sysadmin reasoning.
 
 <!-- Append new items at the bottom: `### YYYY-MM-DDTHH:MM:SSZ — title` -->
 
-### 2026-05-17T18:42:00Z — Stage 1 research for Heimdall tech stack
+### 2026-05-21T15:00:00Z — Stage 1 research for dev-hyperion-flashing-to-heimdall
 
-Run `20260517T183851Z-dev-heimdall-tech-stack`. New sources fetched today (full
-URLs in Sources section). Highlights and corrections:
+Run `20260521T144651Z-dev-hyperion-flashing-to-heimdall`. Wrote
+`docs/pipeline-runs/20260521T144651Z-dev-hyperion-flashing-to-heimdall/01-proposals/linux-expert.md`.
 
-- **Ubuntu 26.04 LTS codename is "Resolute Raccoon"** (not "Rhino" — pre-Stage-1
-  training-data guess was wrong). Confirmed against
-  `documentation.ubuntu.com/release-notes/26.04/`. systemd **259** (not 257),
-  cgroup v1 **removed** entirely, **dracut** replaces initramfs-tools as default
-  initrd. Released 2026-04-23.
-- **Docker CE on Ubuntu 26.04**: `resolute` apt suite is live at
-  `download.docker.com/linux/ubuntu`. Docker 29 had day-one support for 26.04.
-  Standard package set: `docker-ce docker-ce-cli containerd.io
-  docker-buildx-plugin docker-compose-plugin`. Ubuntu's `docker.io` package
-  lags upstream — use the upstream apt repo.
-- **AdGuard Home v0.107.x** is the current stable line (April 2026 release on
-  Docker Hub). DoT/DoH upstream supported natively (`tls://`, `https://`
-  prefix on `upstream_dns:` list). State paths `/opt/adguardhome/work` and
-  `/opt/adguardhome/conf`.
-- **Caddy v2.11.x** is the current line (v2.11.3 published 2026-05-12).
-  Notable: built-in HTTP/3 + ACME ECH key rotation, several CVEs fixed.
-- **caddy-l4 v0.1.1** (May 2026) is still upstream-flagged "in development;
-  expect breaking changes" — verified against the project README today. This
-  is the load-bearing reason to keep L4 traffic on HAProxy, not on Caddy.
-- **HAProxy 3.0 LTS** native `mode tcp` + `stick-table type ip` is the
-  canonical pattern for FTP passive (bind passive port range, pin client to
-  one backend across control + data connections). UDP supported since 2.6 —
-  not needed in v1.
-- **Dockge** latest release April 2026; v1.4+ has multi-host management.
-  Single-author OSS, no licensing wrinkles.
-- **systemd-resolved port-53 conflict** is well-documented; drop-in
-  `/etc/systemd/resolved.conf.d/no-stub.conf` with `DNSStubListener=no` is
-  the standard fix and does NOT require disabling the whole service.
-- **netplan** on 26.04: still `networkd` default renderer on Server; YAML
-  files must be `0600` or netplan warns/fails on apply; `routes: - to: default`
-  is the current syntax (`gateway4` removed); `netplan try` auto-reverts after
-  120 s — use it before `netplan apply` on remote hosts.
-- **Quad9 / Cloudflare DoT endpoints** confirmed reachable via standard
-  `tls://dns.quad9.net` / `tls://1.1.1.1` URLs in AdGuard upstream config.
-  Quad9 has malware-blocking built-in server-side; Cloudflare doesn't.
-- **MetalLB**: per current Hyperion plan it owns `192.168.10.10–.99` in
-  L2/ARP mode. Heimdall does not replace it; Heimdall fronts L7 with the
-  reverse proxy and forwards to MetalLB VIPs as upstreams.
+Linux/host-OS lens findings on the migration to Heimdall:
 
-Surprise: Canonical's announcement blog and the Discourse release page agree on
-"Resolute Raccoon" — the "Rhino" name was apparently a pre-release
-codename floated and discarded. Caused a documentation-source mismatch
-internally; corrected in this notes file.
+- **Three services added to Heimdall's stack**: nginx (`:50011`), ci-deploy
+  (no port — outbound only to GitHub), journal-remote (`:19532` plain HTTP).
+  None conflict with the existing four-container stack (mongo / komodo-core
+  on `127.0.0.1:9120` / technitium host-net on 53/5380/853 / caddy host-net
+  on 80/443/443udp/25565). Compose bridge network handles all three.
+- **nftables additions** are minimal (3 rules in the LAN-allowed input chain):
+  `tcp dport 50011 accept`, `tcp dport 19532 accept`, plus optionally re-using
+  existing `tcp dport 8080 accept`-equivalent for a flash dashboard. All
+  source-restricted to `192.168.10.0/24` since this is LAN-only.
+- **`network_mode: host` decision for journal-remote**: NO. With
+  `split-mode=host`, the filename is `remote-<reverse-DNS-or-IP-of-source>`.
+  Per upstream behavior, journal-remote does a hostname lookup on the source IP
+  via libc resolver (NSS). On Heimdall the resolver hits the host's resolved
+  → upstream DNS, so Pi reverse-PTRs will resolve through Technitium (once we
+  register them) or fall back to literal IPs. **Bridge networking via `ports:
+  19532:19532` does rewrite source IPs via docker-proxy**, but journal-remote
+  doesn't use source IPs for anything load-bearing — `_HOSTNAME=` in journal
+  entries comes from the SENDER's machine, not the TCP connection. The
+  filename becomes `remote-172.17.0.1.journal` if we go bridge, which is
+  harmless because we always query by `_HOSTNAME=` field. **But to keep the
+  filename meaningful, set `userland-proxy: false` (already in Heimdall
+  daemon.json — verified) and journal-remote sees the real source IP via the
+  in-kernel NAT.** No host networking needed.
+- **Storage**: Heimdall is single-disk. Per the existing compose pattern,
+  bind-mount `/opt/Homelab/Heimdall/images/` (about 5 GB capacity ceiling for
+  ~3 node images + 1 bootstrap image at zstd-compressed sizes). NFS-from-Monolith
+  is rejected — circular dependency (Heimdall serves Pis from Monolith
+  storage; if Monolith is down, Heimdall flash service is down too, which
+  defeats half the migration's value).
+- **journal-remote container vs host-installed**: container, same as Monolith.
+  Heimdall **also** has host-installed `systemd-journal-upload` (sender, ships
+  Heimdall's own journal TO Monolith). The two have similar package origins
+  (`systemd-journal-remote` apt package on Debian/Ubuntu contains BOTH the
+  receiver binary and the uploader binary) but distinct roles: upload =
+  client/sender; remote = server/receiver. Naming collision is unavoidable;
+  document explicitly.
+- **Persistent data path for received journals**: `/opt/Homelab/Heimdall/journal-remote/`
+  bind-mount, mirroring `/var/log/journal/remote/` inside the container.
+  Backups extended via `Heimdall/scripts/backup.sh` to include this directory.
+- **Realtime monitoring**: the `:8080` per-Pi status server is the obvious
+  data source. Two-layer tool:
+  1. **`watch-flash.sh <hostname>`** — workstation shell script. Resolves
+     hostname to IP via known reservation table (Hyperion `:101–:110`,
+     alpha→kappa). Polls `:8080/` + `:8080/log` every 2s, renders status +
+     last 20 log lines. Single screen, watchable side-by-side with the
+     bootstrap LED on the actual Pi.
+  2. **`https://flash.heimdall.lab/<hostname>`** — Caddy-fronted lightweight
+     CGI / static page that proxies to `:8080` of the Pi. Useful when SSH'd
+     in from off-LAN via WireGuard.
+  Both layered on top of the existing `:8080` server, no new instrumentation
+  in bootstrap.sh.
+- **Caddy SSE/streaming for the web dashboard**: if we add SSE later, must
+  set `flush_interval -1` in the reverse_proxy block.
+- **Cutover sequencing**:
+  - Phase A: Stand up the three services on Heimdall **in parallel** with
+    Monolith's existing services. Both endpoints alive simultaneously. nginx
+    serves the same files (ci-deploy independently polls GitHub, both write
+    to their local images dir).
+  - Phase B: Reflash ONE Pi (hyperion-alpha) with a new Bootstrap IMG pointed
+    at Heimdall. Verify with the realtime tool that everything works.
+  - Phase C: Bake the Heimdall IPs into the Node IMG via CI. Roll out to
+    remaining nodes one at a time using `./reimage.sh`.
+  - Phase D: After all 10 nodes are confirmed running against Heimdall for
+    ≥7 days, decommission Monolith's nginx/ci-deploy/journal-remote
+    containers (`docker compose stop` first, then `docker compose rm` in
+    Monolith).
+  Monolith stays alive throughout. The two systems are independent;
+  there's no rsync-from-Monolith requirement because ci-deploy on Heimdall
+  pulls directly from GitHub.
+- **Hostname vs IP in bootstrap.sh**: KEEP THE LITERAL IPs in v1. Pi
+  bootstrap's DNS chain is dhcpcd → DHCP options 6/15 → UCG → upstream
+  (eventually Technitium once Hyperion is operational, but on the Bootstrap
+  medium the resolver path is UCG-direct). Hostname resolution for `images.lab`
+  is not available during the early-bootstrap window because:
+  1. The Bootstrap IMG never registers with Technitium for DNS — it has no
+     `apply-identity.service` equivalent for DNS.
+  2. UCG forwards `*.lab` to Heimdall via DNS-zone delegation only AFTER
+     Heimdall's Technitium is the LAN's authoritative resolver — which
+     depends on Heimdall being up.
+  3. Even with all that, the chicken-and-egg risk during cutover is real:
+     if Heimdall is the only `*.lab` resolver and Heimdall is down, no
+     `images.lab` resolves and Pis can't bootstrap.
+  Recommendation: literal IP (`192.168.10.4`) in bootstrap.sh; defer the
+  hostname conversion to a v2 ticket once Technitium is the registered
+  DHCP-DNS for the LAN AND we've validated UCG falls back to upstream
+  resolvers on Heimdall outage.
+- **Migration posture**: Heimdall is the **permanent** host for these three
+  services. Rationale (Linux-lens): Heimdall is the modern Komodo-managed
+  Ubuntu Server stack; Monolith is the legacy TrueNAS-on-bare-metal Compose
+  stack; this migration is also a piece of the gradual decommissioning of
+  Monolith as a control-plane host. The user said "temporarily" but the team's
+  job is to surface that there's no Linux-side reason to plan a return trip.
 
-### 2026-05-17T19:35:00Z — Stage 5.1 re-review of iter-1 revision (same pipeline)
-
-Wrote `docs/pipeline-runs/20260517T183851Z-dev-heimdall-tech-stack/iter-1/05-review/linux-expert.md`.
-
-Key shifts since my Stage 1:
-
-- **L4 split flipped.** Revision dropped HAProxy as the v1 default; `caddy-l4`
-  single-container is now the v1 design. I disagree on stability grounds but
-  the team's reasoning (FC #16, hidden-cost analysis, FTP strike) is sound.
-  Conceded in the review.
-- **Ansible playbook shelved.** Old Man's `setup.sh` middle-path wins.
-  Explicit promotion trigger documented (200 LOC / second host / fact-gathering).
-- **Internal CA default for `.lab`.** Public LE is opt-in per-hostname; cert-loss
-  rate-limit SPOF eliminated for v1.
-- **FTP struck from v1.** No `Heimdall/ftp/` directory, no PASV range in nftables,
-  no ftp-passive-mode runbook.
-
-**Operational findings I surfaced in this re-review** (worth keeping for future
-Heimdall work):
-
-- **Docker bridge `ports:` mappings rewrite source IPs via `docker-proxy`** —
-  fine for HTTP-with-`X-Forwarded-For` (Caddy reconstructs), broken for L4
-  (`caddy-l4` sees `172.17.0.1`). UDP is even worse — `moby/libnetwork#1994`.
-  Fix is `network_mode: host` for the Caddy container OR `userland-proxy: false`
-  in `daemon.json` plus L4 source-IP verification. Naming this because the
-  revision flipped to `caddy-l4` without porting the host-mode requirement that
-  HAProxy had in my Stage 1 spec.
-- **Caddy has no built-in HTTP endpoint for its local root CA cert.** Root is
-  on disk at `{data_dir}/pki/authorities/local/root.crt`. Standard pattern is
-  a `file_server` on `:80` pointing at that path. The revision's
-  `http://heimdall.lab/ca.crt` URL is invented; runbook needs the Caddyfile snippet.
-- **k3s `--disable=servicelb` is a server-side flag.** Agents don't run the
-  klipper-lb controller. The §6.A claim that both server and agents need the
-  flag is half-right; the agent edit is redundant safety, not load-bearing.
-  Restarting the server with this flag removes svclb-* DaemonSets cluster-wide
-  — verify `kubectl get svc -A | grep LoadBalancer` is empty (or MetalLB is
-  already installed) before flipping.
-- **`/etc/resolv.conf` symlink swap ordering matters.** Drop-in first, restart
-  resolved (which drops the stub), then swap symlink to
-  `/run/systemd/resolve/resolv.conf` (NOT `stub-resolv.conf`). If the host points
-  at itself for DNS and AdGuard is the resolver, that's a chicken-and-egg trap
-  on boot; the revision correctly keeps the host pointed at the UCG.
-
-Vote-shape: trending YAE; would flip to NAY only if Caddy ships in
-`network_mode: bridge` without source-IP verification on the L4 path.
-
-### 2026-05-17T21:55:00Z — Stage 1 research for dev-heimdall-finalize (amendment run)
-
-Run `20260517T213331Z-dev-heimdall-finalize`. Wrote
-`docs/pipeline-runs/20260517T213331Z-dev-heimdall-finalize/01-proposals/linux-expert.md`.
-
-Three deltas plus a phasing requirement. Linux/host-OS lens findings:
-
-- **Technitium default port set**: 53/tcp+udp (DNS), 5380/tcp (web UI),
-  optional 853 (DoT), 443 (DoH), 80 (DoH-redirect), 53443 (web UI HTTPS),
-  67/udp (DHCP). Verified against upstream `docker-compose.yml`. **DoH at
-  443 collides with Caddy** under `network_mode: host`. Resolution:
-  Caddy keeps :443; Technitium DoH (if/when needed) goes via
-  `Caddy → 127.0.0.1:8053 → Technitium DNS-over-HTTP-via-reverse-proxy`.
-- **Technitium first-start env-var behavior**: `DNS_SERVER_*` env vars
-  are read **only when the config file doesn't exist** (verified
-  against upstream `DockerEnvironmentVariables.md`). Pre-seeding is
-  thus two-layer: env vars for first-start (admin pw, forwarders,
-  blocking, domain), and bind-mounted `config/` directory for zone
-  files committed to repo.
-- **Technitium config path** inside container: upstream compose mounts
-  `./config:/etc/dns/config`. Linux Expert flagged to Stage 5 to
-  verify against the current image's `WORKDIR`.
-- **Technitium runtime**: ASP.NET Core 10. 1 GB RAM baseline; known
-  upstream issues about cache+stats RAM growth. Recommend explicit
-  container `mem_limit`.
-- **Komodo Periphery default port**: 8120. Default bind `[::]` (all
-  interfaces) — source filtering is on us. v1 had a passkey-empty-array
-  footgun; v2 replaces passkeys with PKI (Ed25519). Onboarding requires
-  Core to issue a key, then Periphery accepts. v2 came out before
-  this run.
-- **Komodo Periphery install paths**: Docker container OR systemd
-  binary via `setup-periphery.py`. **Upstream recommendation: systemd
-  for remote-managed hosts; container for compose-co-located-with-Core
-  scenarios.** I argued for systemd in Phase 1 (no container manager
-  exists yet; circular dependency if Periphery containerized).
-- **Komodo Core has a database dependency** (MongoDB or FerretDB).
-  FerretDB picked for v1 (lighter, Postgres-backed). This is a third
-  v1 container alongside Technitium and Caddy.
-- **MetalLB removal — Linux host side is almost a no-op.** NodePorts
-  are outbound from Heimdall; no firewall change needed. The
-  documentation update (drop `.10–.99` from `Hyperion/docs/network-layout.md`)
-  is the only Heimdall-side artifact, and that's not on Heimdall at all.
-- **Static-vs-dynamic NodePort discovery**: I recommend static config
-  in Caddyfile (one `reverse_proxy <pi-1>:<np> <pi-2>:<np> …` block
-  per service) with Caddy's active health checks handling node-down.
-  Dynamic discovery (k8s API watcher) would add a daemon, a kubeconfig,
-  and an RBAC role for ~weekly churn — the cost-benefit is wrong.
-
-**Iter-1 known concerns** — accounted for each (table in proposal).
-Most carry forward unchanged; #5 expands by one sub-bullet (Periphery
-idempotence guard); #6 is *superseded* by full MetalLB removal; #8's
-"12→4 steps" marketing claim should be deleted; #11's backup paths
-change (Technitium replaces AdGuard, Komodo+FerretDB added).
-
-### 2026-05-17T22:50:00Z — Stage 5.1 re-review of iter-1 revision (finalize run)
-
-Wrote `docs/pipeline-runs/20260517T213331Z-dev-heimdall-finalize/iter-1/05-review/linux-expert.md`.
-
-Corrections to my own Stage 1 / settled knowledge:
-
-- **Komodo Periphery `allowed_ips = []` means "accept from anywhere," not
-  "from nowhere."** Verified directly against upstream
-  `config/periphery.config.toml`: comment reads "Default: empty, which will
-  not block any request by ip." My Stage 1 had the inverse. Promote to
-  settled: `allowed_ips = []` is open-by-default; nftables source-CIDR is
-  the only IP-layer gate unless operator configures the TOML.
-- **Komodo Periphery defaults to HTTPS on `:8120`, not HTTP.**
-  `ssl_enabled = true` in default config; setup-periphery.py auto-generates
-  self-signed cert/key at `/etc/komodo/ssl/{key,cert}.pem`. The revision's
-  `onboard-periphery.sh` uses `http://127.0.0.1:8120` for `PERIPHERY_ADDR`
-  which is wrong — will fail TLS handshake. Flagged as the one MAJOR
-  pre-merge fix.
-- **Periphery keypair persists at `/etc/komodo/periphery.key`** (per
-  upstream config comment `file:${root_directory}/keys/periphery.key`
-  pattern). Survives reboot, survives `systemctl restart periphery`,
-  survives setup-periphery.py re-run (script skips existing config).
-- **k3s installer writes `INSTALL_K3S_EXEC` to
-  `/etc/systemd/system/k3s-agent.service.env`.** Path is correct in the
-  §D.6 revision. `grep -q 'disable=servicelb'` is too narrow — catches
-  servicelb-disable but doesn't notice if `--disable=traefik` should also
-  land. Documented as MINOR.
-- **`sed -i` on Linux replaces the inode and inherits caller's umask.**
-  Mode/ownership of `/etc/komodo/periphery.config.toml` after the
-  `onboard-periphery.sh` sed will be `0644` not the pre-existing `0600`.
-  Fix is explicit `chmod 0600 && chown root:root` after sed. Promote to
-  settled sysadmin knowledge — `sed -i.bak` is not mode-preserving.
-- **`:80` IS a valid Caddyfile site address (bare port).** Web-verified.
-  Combined with `auto_https disable_redirects` in global options, the
-  revision's `:80` block has clean ownership of port 80 for the `/ca.crt`
-  file_server. Future public-LE hostnames will collide on `:80` for
-  ACME-HTTP-01; document the fix in `adding-a-route.md`.
-
-Vote-shape: trending YAE-with-conditions; pre-merge fixes needed are HTTPS
-scheme in onboard-periphery.sh (~2 min) and `source .env` hardening
-(~10 min). Not architectural; the revision's foundation holds.
+Surprise: I expected to need to add a forward-chain rule for Docker, but
+`forward { policy accept; }` is already there from Heimdall finalize. The
+three new services need only their input-chain ports added.
 
 ---
 
@@ -298,52 +264,36 @@ scheme in onboard-periphery.sh (~2 min) and `source .env` hardening
   `/etc/systemd/journal-upload.conf` and `/etc/systemd/journal-remote.conf`.
   https://manpages.debian.org/trixie/systemd-journal-remote/systemd-journal-upload.service.8.en.html
   — accessed 2026-05-04 — confidence: official Debian manpage
+- **systemd-journal-remote.service(8)** — `--listen-http`, `--split-mode=host`,
+  output filename `remote-<hostname>.journal`.
+  https://www.freedesktop.org/software/systemd/man/latest/systemd-journal-remote.service.html
+  — accessed 2026-05-21 — confidence: official
+- **systemd PR #2080** — split-mode=host filename naming behavior; port
+  stripped from filename.
+  https://github.com/systemd/systemd/pull/2080/files — accessed 2026-05-21 —
+  confidence: official upstream
+- **dhcpcd(8) — Debian Trixie** — DHCP DNS option handling and resolvconf
+  integration in stock Debian dhcpcd (post-Pi-customized-dhcpcd5).
+  https://manpages.debian.org/trixie/dhcpcd-base/dhcpcd.8.en.html — accessed
+  2026-05-21 — confidence: official
+- **Caddy reverse_proxy directive (flush_interval)** — SSE / streaming
+  buffering behavior; `flush_interval -1` low-latency mode.
+  https://caddyserver.com/docs/caddyfile/directives/reverse_proxy — accessed
+  2026-05-21 — confidence: official
+- **Caddy issue #4247** — SSE buffering bug history; behavior verified in
+  v2.8+.
+  https://github.com/caddyserver/caddy/issues/4247 — accessed 2026-05-21 —
+  confidence: official issue tracker
 - **Ubuntu 26.04 LTS release notes** — feature set, kernel, systemd version.
   https://discourse.ubuntu.com/t/ubuntu-26-04-lts-resolute-rhino-release-notes/
   — accessed 2026-05-17 — confidence: official Canonical
 - **Docker Engine install on Ubuntu** — upstream apt repo path, package set.
   https://docs.docker.com/engine/install/ubuntu/ — accessed 2026-05-17 —
   confidence: official vendor
-- **AdGuard Home wiki — Docker image** — env, volume, port plan.
-  https://github.com/AdguardTeam/AdGuardHome/wiki/Docker — accessed
-  2026-05-17 — confidence: official upstream
-- **Caddy docs — layer4 plugin** — TCP/UDP routing.
-  https://caddyserver.com/docs/modules/layer4 — accessed 2026-05-17 —
+- **Docker bind mounts** — read-only and rw bind-mount syntax in Compose;
+  recursive-ro kernel ≥5.12.
+  https://docs.docker.com/engine/storage/bind-mounts/ — accessed 2026-05-21 —
   confidence: official
-- **HAProxy 3.0 documentation** — TCP mode, ct-helper integration for FTP.
-  https://docs.haproxy.org/3.0/ — accessed 2026-05-17 — confidence: official
-- **Dockge GitHub README** — Compose stack manager.
-  https://github.com/louislam/dockge — accessed 2026-05-17 — confidence: official
-- **systemd-resolved(8)** — `DNSStubListener=` option, port-53 conflict.
-  https://www.freedesktop.org/software/systemd/man/systemd-resolved.service.html
-  — accessed 2026-05-17 — confidence: official
-- **netplan reference** — Ubuntu 26.04 default renderer, multi-NIC layout.
-  https://netplan.readthedocs.io/en/stable/ — accessed 2026-05-17 —
-  confidence: official Canonical
-- **Technitium DNS Server upstream docker-compose.yml** — canonical port
-  set, volume mounts, network_mode hints.
-  https://github.com/TechnitiumSoftware/DnsServer/blob/master/docker-compose.yml
-  — accessed 2026-05-17 — confidence: official upstream
-- **Technitium DNS Server Docker environment variables** — first-start
-  init contract (env-vars only read when config absent), full `DNS_SERVER_*`
-  list, forwarders/OIDC syntax.
-  https://github.com/TechnitiumSoftware/DnsServer/blob/master/DockerEnvironmentVariables.md
-  — accessed 2026-05-17 — confidence: official upstream
-- **Komodo Periphery default config.toml** — port 8120, bind `[::]`,
-  allowed_ips, root_directory `/etc/komodo`, passkey deprecated.
-  https://github.com/moghtech/komodo/blob/main/config/periphery.config.toml
-  — accessed 2026-05-17 — confidence: official upstream
-- **Komodo Core + Periphery installation guide** —
-  Docker-container vs systemd-binary install paths; remote-host recommendation.
-  https://deepwiki.com/moghtech/komodo/11.1-core-and-periphery-installation
-  — accessed 2026-05-17 — confidence: derived from upstream (DeepWiki)
-- **Komodo connect-servers (komo.do docs)** — port 8120, PKI v2.
-  https://komo.do/docs/setup/connect-servers — accessed 2026-05-17 —
-  confidence: official upstream
-- **Komodo Periphery security discussion (#1319)** — v1 passkey
-  footgun history, v2 PKI rollout, source-IP restriction recommendation.
-  https://github.com/moghtech/komodo/discussions/1319 — accessed
-  2026-05-17 — confidence: maintainer discussion thread
 
 ---
 

@@ -26,10 +26,17 @@
 #     GET http://<node-ip>:8080/       — full JSON status
 #     JSON fields: hostname, step, total_steps, phase, message,
 #                  status (working|downloading|flashing|done|error),
-#                  attempt, started_at, updated_at, error
+#                  attempt, started_at, updated_at,
+#                  image_server_base, usb_version, nvme_version,
+#                  error
+#     GET http://<node-ip>:8080/log?n=<N> — tail of LOG_FILE (default 1000 lines)
 set -euo pipefail
 
-MONOLITH_BASE="http://192.168.10.247:50011"
+# Image server is Heimdall (192.168.10.4) since the dev-hyperion-flashing-to-
+# heimdall pipeline cut over. The variable name is kept for stability — it is
+# emitted verbatim in :8080/ JSON as `image_server_base`, which watch-flash.sh
+# and operators visually compare against the migration-cutover gate.
+MONOLITH_BASE="http://192.168.10.4:50011"
 MANIFEST_URL="$MONOLITH_BASE/node/manifest.json"
 IMAGE_BASE_URL="$MONOLITH_BASE/node"
 NVME="/dev/nvme0n1"
@@ -135,6 +142,11 @@ BOOTSTRAP_START="$(date -Iseconds)"
 NODE_HOSTNAME="$(cat /etc/hostname 2>/dev/null | tr -d '[:space:]' || echo "unknown")"
 
 # Write status JSON. Args: phase step message status [error]
+# Globals exposed in the JSON (so watch-flash.sh can detect Monolith-vs-Heimdall
+# pointing and reconstruct the boot signature without parsing the log tail):
+#   MONOLITH_BASE  → "image_server_base"  (always present)
+#   USB_VER        → "usb_version"        (null until step 1 reads the cache)
+#   NVME_VER       → "nvme_version"       (null until step 5 reads p1)
 set_status() {
     local phase="$1" step="$2" message="$3" status="$4" error="${5:-null}"
     CURRENT_STEP="$step"
@@ -144,18 +156,33 @@ set_status() {
     else
         error_field="\"$(echo "$error" | sed 's/"/\\"/g')\""
     fi
+    # Emit integers as JSON numbers; emit `null` (no quotes) when unset.
+    local usb_version_field nvme_version_field
+    if [ -n "${USB_VER:-}" ] && is_int "${USB_VER:-}"; then
+        usb_version_field="$USB_VER"
+    else
+        usb_version_field="null"
+    fi
+    if [ -n "${NVME_VER:-}" ] && is_int "${NVME_VER:-}"; then
+        nvme_version_field="$NVME_VER"
+    else
+        nvme_version_field="null"
+    fi
     cat > "$STATUS_FILE" <<EOF
 {
-  "hostname":    "$NODE_HOSTNAME",
-  "step":        $step,
-  "total_steps": $TOTAL_STEPS,
-  "phase":       "$phase",
-  "message":     "$(echo "$message" | sed 's/"/\\"/g')",
-  "status":      "$status",
-  "attempt":     ${ATTEMPT:-1},
-  "started_at":  "$BOOTSTRAP_START",
-  "updated_at":  "$(date -Iseconds)",
-  "error":       $error_field
+  "hostname":          "$NODE_HOSTNAME",
+  "step":              $step,
+  "total_steps":       $TOTAL_STEPS,
+  "phase":             "$phase",
+  "message":           "$(echo "$message" | sed 's/"/\\"/g')",
+  "status":            "$status",
+  "attempt":           ${ATTEMPT:-1},
+  "started_at":        "$BOOTSTRAP_START",
+  "updated_at":        "$(date -Iseconds)",
+  "image_server_base": "$MONOLITH_BASE",
+  "usb_version":       $usb_version_field,
+  "nvme_version":      $nvme_version_field,
+  "error":             $error_field
 }
 EOF
 }
@@ -473,18 +500,26 @@ if [ "$NVME_VER" -ge "$USB_VER" ]; then
 fi
 
 # ── 6. Flash NVMe from USB cache ──────────────────────────────────────────────
+# Sub-phases (`flashing_dd` → `flashing_sync` → `flashing_partprobe` →
+# `flashing_wipe_stamp`) make each step visible to watch-flash.sh. Without
+# them, a stalled `dd` is indistinguishable from a stalled `partprobe`.
 CURRENT_STEP=6
-set_status "flashing" 6 "Flashing NVMe from USB cache (v$USB_VER) — do not interrupt" "flashing"
+set_status "flashing_dd" 6 "Flashing NVMe from USB cache (v$USB_VER) — do not interrupt" "flashing"
 _led_flashing
 log "Flashing NVMe from USB cache (version $USB_VER)..."
 dd if="$USB_IMG" of="$NVME" bs=4M conv=fsync status=progress
+
+set_status "flashing_sync" 6 "Syncing buffered writes to NVMe" "flashing"
 sync
+
+set_status "flashing_partprobe" 6 "Rescanning NVMe partition table" "flashing"
 partprobe "$NVME"
 udevadm settle --timeout=10
 
 # Wipe the version stamp BEFORE repartition.
 # If repartition fails mid-way, NVME_VER reads as 0 on next boot and re-flash
 # is triggered — prevents booting into a partially-repartitioned NVMe.
+set_status "flashing_wipe_stamp" 6 "Wiping version stamp on p1 (forces re-flash if next step fails)" "flashing"
 TMPBOOT=$(mktemp -d)
 MOUNTS_TO_CLEAN+=("$TMPBOOT")
 mount "${NVME}p1" "$TMPBOOT"
@@ -495,20 +530,29 @@ umount "$TMPBOOT"
 rm -rf "$TMPBOOT"
 
 # ── 7. Repartition NVMe ───────────────────────────────────────────────────────
+# Sub-phases let the operator distinguish `parted resizepart` (fast, ~1s) from
+# `resize2fs` (slow, ~10-30s on a 32 GiB partition) from `mkfs.ext4` on p3.
 CURRENT_STEP=7
-set_status "repartitioning" 7 "Resizing root partition and creating node-storage" "working"
+set_status "repartition_resize_p2" 7 "Resizing root partition (p2) to $ROOT_SIZE" "working"
 _led_working
 log "Resizing root partition (p2) to $ROOT_SIZE..."
 parted -s "$NVME" resizepart 2 "$ROOT_SIZE"
 partprobe "$NVME"
 udevadm settle --timeout=10
+
+set_status "repartition_fsck_p2" 7 "Checking filesystem on p2 before resize2fs" "working"
 e2fsck -f -p "${NVME}p2"
+
+set_status "repartition_resize2fs_p2" 7 "Growing p2 filesystem to fill the resized partition" "working"
 resize2fs "${NVME}p2"
 
+set_status "repartition_create_p3" 7 "Creating node-storage partition (p3)" "working"
 log "Creating node-storage partition (p3)..."
 parted -s "$NVME" mkpart primary ext4 "$ROOT_SIZE" 100%
 partprobe "$NVME"
 udevadm settle --timeout=10
+
+set_status "repartition_mkfs_p3" 7 "Formatting p3 as ext4 (label: node-storage)" "working"
 mkfs.ext4 -L node-storage "${NVME}p3"
 
 # Create mount point on NVMe root.

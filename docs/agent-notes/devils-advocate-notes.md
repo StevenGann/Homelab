@@ -2,8 +2,8 @@
 agent: Devil's Advocate
 specialization: Strategic and logical adversary — attacks design, assumptions, scope, reasoning
 role: Adversarial — every other agent's positions are targets
-last_compacted_utc: 2026-05-17T19:05:00Z
-last_updated_utc:   2026-05-17T22:30:00Z
+last_compacted_utc: 2026-05-21T16:35:00Z
+last_updated_utc:   2026-05-21T16:35:00Z
 ---
 
 # Devil's Advocate — Notes
@@ -251,6 +251,25 @@ Scenarios I ran while reviewing `02-combined-draft.md` on 2026-05-17:
   is also upstream-supported." Decision survives; framing is overconfident.
 
 Pattern added to settled patterns (below): #16 recurring-ceiling-rule.
+
+---
+
+## Active observations — dev-hyperion-flashing-to-heimdall iter-1
+
+Scenarios I ran while reviewing `02-combined-draft.md` on 2026-05-21:
+
+- **Unnamed-deadline scenario.** "Before Monolith retirement" is in the draft as a sequencing gate without a date. Two extremes break the plan:
+  (a) hardware-forces-emergency-retirement next week → Phase A & B both critical-path, no parallelism; (b) deadline slips 3 months → Phase A completes, SSD-debug runs against Monolith for two months, Phase B perpetually deferred until forced.
+  Mitigation: contingency table with named triggers in §3.12. Pattern: #14 threshold-trigger that names no threshold.
+- **"Temporary" posture as verbal tic.** Iter-1 Heimdall-finalize Technitium-secondary "6-month" deadline already showing drift; "Heimdall hosts Hyperion stack temporarily" is the same shape. Need a binary observable to trigger re-migration off Heimdall. Pattern: #14.
+- **Parallel-track operator-attention scenario.** One-person team. The "Phase A and B run in parallel" framing hides whether the SSD debug or the migration leads. No synchronization gate at §3.10 step 7 (canary reflash) — should pre-require `watch-flash.sh` working against current Monolith.
+- **The cutover-gate that cannot trip (BLOCKER).** §3.10 step 11 gates Monolith retirement on all 10 Pis successfully flashing — but this run delivers diagnostic tooling, not the SSD fix. If canary fails, step 11 never triggers and "temporary parallel deploy" becomes permanent split-brain. The defined failure mode: the new context (Monolith retiring) drives an unplanned emergency cutover when the original migration plan stalled. Fix: decouple "migration cut" from "SSD bug fixed."
+- **`:latest`-tag regression scenario.** Same risk class as iter-1 Heimdall-finalize `komodo:latest`, but now applied to images the team itself publishes (`homelab-ci-deploy`, `homelab-journal-remote`). Versioned tags are a bounded CI change. Pattern: "we know this risk; we've already conceded it once."
+- **Two-daemons-one-container coupled failure.** IaC's gatewayd-baked-into-journal-remote-image uses `wait -n` supervision. Either daemon's exit takes the other down. Cleaner: two containers sharing the same image, gatewayd mounts read-only. No new image, no new CI workflow.
+- **The "two-reboot success" assumption is operator-dependent.** `BOOT_ORDER=0xf641` means SD-still-present → boots SD on reboot. Whether there are 1 cycle or 2 cycles before NVMe boot depends entirely on WHEN the operator pulls the medium. Pi Expert's own §6 describes 3 cycles; the draft's §1 unanimous row says "TWO." Both are right depending on operator behavior — neither is canonical. Need to define the protocol (leave SD in until cycle 2 completes) or split truth-table rows.
+- **Three-pane TUI worse than one for live view.** Bottom pane (gatewayd SSE) shows same data as middle pane (`:8080/log`) at different latency. Operator reconciles two views of same thing. Gatewayd UI is the right post-mortem tool, not live.
+- **Convergence-audit on 8 unanimous decisions.** Three of eight (rows 4 backup, 6 scope-creep, 7 success-signature) had shared-blind-spot patterns where the framing collapsed underlying disagreement or skipped failure modes. Rows 2, 3, 5, 8 clean. Pattern #14 applies to row 6 and 7.
+- **Cross-host PR silence.** Both this run and the pending Heimdall-finalize cross-host PR modify `Monolith/k3s-control-plane/docker-compose.yml`. Draft says nothing about ordering. Merge-conflict surface unaddressed.
 
 ---
 

@@ -242,7 +242,9 @@ build {
       "mkdir -p /var/log/journal",
       "systemd-tmpfiles --create --prefix=/var/log/journal 2>/dev/null || true",
       "mkdir -p /etc/systemd/journal-upload.conf.d",
-      "printf '[Upload]\\nURL=http://192.168.10.247:19532\\n' > /etc/systemd/journal-upload.conf.d/monolith.conf",
+      # Journal-upload target is Heimdall (192.168.10.4) since the
+      # dev-hyperion-flashing-to-heimdall pipeline cut over.
+      "printf '[Upload]\\nURL=http://192.168.10.4:19532\\n' > /etc/systemd/journal-upload.conf.d/monolith.conf",
       # Cap on-disk journal usage so 32 GiB root partition is never filled.
       "mkdir -p /etc/systemd/journald.conf.d",
       "printf '[Journal]\\nSystemMaxUse=1G\\n' > /etc/systemd/journald.conf.d/sizecap.conf",

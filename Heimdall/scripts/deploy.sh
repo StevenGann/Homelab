@@ -133,7 +133,26 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
             docker compose restart caddy
         fi
 
+        # ─── Hyperion flashing stack (separate Compose project) ─────────────
+        # Lives under /opt/Homelab/Heimdall/hyperion/. Per the dev-hyperion-
+        # flashing-to-heimdall pipeline FINAL.md Tier 1.2, ALL state lives
+        # under a single root so future re-migration is `rsync one root +
+        # change one IP + redeploy`. Do not add bind-mounts that escape this
+        # root.
+        echo "[remote] Bringing up Hyperion flashing stack..."
+        sudo install -d -o root -g root -m 0755 \
+            /opt/Homelab/Heimdall/hyperion/images \
+            /opt/Homelab/Heimdall/hyperion/journal
+        cd /opt/Homelab/Heimdall/hyperion
+        docker compose pull
+        docker compose up -d
+        if git -C /opt/Homelab diff HEAD@{1} HEAD --name-only 2>/dev/null | grep -qE "^Heimdall/hyperion/nginx\.conf$"; then
+            echo "[remote] hyperion/nginx.conf changed in this pull — restarting nginx..."
+            docker compose restart nginx
+        fi
         docker compose ps
+
+        cd /opt/Homelab/Heimdall
 
         echo "[remote] Waiting for Komodo Core HTTP API on :9120..."
         for i in $(seq 1 30); do

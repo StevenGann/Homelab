@@ -10,6 +10,27 @@ Active debug pipeline:
 [`docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/FINAL.md`](pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/FINAL.md).
 Diagnostic runbook: [`Hyperion/docs/runbooks/debug-flashing.md`](../Hyperion/docs/runbooks/debug-flashing.md).
 
+Realtime monitoring tool: `Hyperion/watch-flash.sh <node>` (added 2026-05-21
+during the `dev-hyperion-flashing-to-heimdall` migration). Hyperion flashing
+services (nginx, ci-deploy, journal-remote, gatewayd) now run on Heimdall;
+operator-facing runbook: [`Heimdall/docs/runbooks/flashing-services.md`](../Heimdall/docs/runbooks/flashing-services.md).
+
+## Scheduled — re-evaluate Heimdall as flashing-services home
+
+**By 2027-05-21** (12 months after the Monolith→Heimdall migration), OR
+**when the Monolith-replacement host is in production** (whichever first),
+run a follow-up pipeline to decide:
+
+- (a) re-migrate the Hyperion flashing services to the new host, OR
+- (b) formally adopt Heimdall as the permanent home and update CLAUDE.md /
+  README / network-layout accordingly.
+
+Source: `dev-hyperion-flashing-to-heimdall` FINAL.md Tier 4.3. The temporary-
+posture commitment is what made the migration palatable; this entry exists so
+the trigger doesn't silently slip into permanence. If by 2026-11-21 (6-month
+mark) there is no Monolith-replacement progress, surface the question early
+rather than waiting the full 12 months.
+
 ---
 
 ## Step A — Wait for CI to rebuild Bootstrap IMG

@@ -1,0 +1,106 @@
+# Heimdall — Hyperion flashing services
+#
+# Separate stack from Heimdall/docker-compose.yml. Hosts the three services
+# that were on Monolith and are being migrated to Heimdall while Monolith is
+# retired (per the dev-hyperion-flashing-to-heimdall pipeline FINAL.md):
+#
+#   nginx          (50011) — serves Node IMG and Bootstrap IMG to Pi nodes
+#   ci-deploy             — polls GitHub Releases, pulls new images to the
+#                            shared bind-mount that nginx serves from
+#   journal-remote (19532) — receives systemd-journal-upload pushes from each
+#                            Pi during flashing
+#   gatewayd       (19531) — HTML5 UI for browsing collected journal entries
+#                            (bundled in the same container as journal-remote;
+#                            see journal-remote/Dockerfile for rationale)
+#
+# Posture: TEMPORARY. When Monolith's replacement comes online OR 12 months
+# elapse (whichever first), a follow-up pipeline run decides re-migrate vs.
+# adopt-Heimdall-as-permanent. The §3.11 future-migration playbook depends on
+# this stack staying portable: ALL state lives under a single bind-mount root
+# (/opt/Homelab/Heimdall/hyperion/) so re-migration is `rsync one root + swap
+# one IP + redeploy`. Do not add bind-mounts that escape this root.
+#
+# Image-tag strategy (per FINAL.md Tier 3.3): tags below pin to `:latest`
+# initially. After the first CI build completes (.github/workflows/
+# build-{ci-deploy,journal-remote}-img.yml), swap to the immutable `:sha-…`
+# tag in a follow-up PR. `:latest` continues to be published by CI for
+# operator visibility but is NOT load-bearing here.
+#
+# Deploy on Heimdall:  docker compose -f docker-compose.yml up -d
+# Or via the workstation script: ../scripts/deploy.sh (extends to this stack
+# automatically — see deploy.sh for the path it deploys to).
+
+services:
+
+  # ─── nginx image server ─────────────────────────────────────────────────────
+  # Serves Bootstrap and Node IMG releases (decompressed .img files) to each
+  # Pi during the bootstrap.sh flashing cycle. Bind-mount is read-only; only
+  # ci-deploy writes to the images/ subdir.
+  nginx:
+    image: nginx:1.30.1-alpine
+    restart: unless-stopped
+    volumes:
+      - /opt/Homelab/Heimdall/hyperion/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /opt/Homelab/Heimdall/hyperion/images:/srv/images:ro
+    ports:
+      - "50011:50011"
+    healthcheck:
+      # See Monolith's nginx healthcheck for the IPv4-vs-IPv6 rationale; the
+      # alpine image's busybox wget defaults to ::1 for `localhost`, and our
+      # nginx is IPv4-only because the bind-mounted default.conf is read-only.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:50011/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: journald
+
+  # ─── ci-deploy: GitHub Releases poller ──────────────────────────────────────
+  # Polls the upstream Homelab repo every 5 minutes, fetches new Node and
+  # Bootstrap IMG releases, decompresses them, atomically places under the
+  # /images bind-mount that nginx serves from.
+  #
+  # Image is built by .github/workflows/build-ci-deploy.yml from
+  # Heimdall/hyperion/ci-deploy/ source. After first build, swap :latest below
+  # for the immutable :sha-... tag per FINAL.md Tier 3.3.
+  ci-deploy:
+    image: ghcr.io/stevengann/homelab-ci-deploy:latest
+    restart: unless-stopped
+    environment:
+      - GITHUB_REPO=StevenGann/Homelab
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - POLL_INTERVAL=300
+    volumes:
+      - /opt/Homelab/Heimdall/hyperion/images:/images
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /images/ci-deploy-status.json && test $$(( $(date +%s) - $(date -d $(jq -r .last_poll /images/ci-deploy-status.json) +%s) )) -lt 900"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: journald
+
+  # ─── journal-remote receiver + gatewayd HTML5 browser ───────────────────────
+  # Two daemons in one container (see journal-remote/Dockerfile).
+  #   :19532 — systemd-journal-remote, receives Pi log uploads
+  #   :19531 — systemd-journal-gatewayd, /browse UI for the operator
+  journal-remote:
+    image: ghcr.io/stevengann/homelab-journal-remote:latest
+    restart: unless-stopped
+    volumes:
+      - /opt/Homelab/Heimdall/hyperion/journal:/var/log/journal/remote
+    ports:
+      - "19531:19531"   # gatewayd UI
+      - "19532:19532"   # journal-remote receiver
+    healthcheck:
+      # Either daemon up is enough to keep the container healthy; the supervisor
+      # exits non-zero if EITHER dies, so this check is only ever wrong during
+      # the ~2s window between supervisor-exit and Compose-recreate.
+      test: ["CMD-SHELL", "wget -qO /dev/null --tries=1 --timeout=3 http://127.0.0.1:19532/ 2>&1 | grep -q '404\\|400' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: journald

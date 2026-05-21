@@ -1,8 +1,8 @@
 ---
 agent: IaC/DevOps Expert
 specialization: Packer, Ansible, FluxCD/GitOps, k3s, MetalLB, GitHub Actions, SOPS+age, Docker Compose
-last_compacted_utc: 2026-05-17T18:42:00Z
-last_updated_utc:   2026-05-17T21:50:00Z
+last_compacted_utc: 2026-05-21T15:00:00Z
+last_updated_utc:   2026-05-21T15:00:00Z
 ---
 
 # IaC/DevOps Expert — Notes
@@ -71,7 +71,24 @@ Confirmed 2026-05-04 via Grafana docs. Promtail EOL'd 2026-03-02. For new agents
 
 <!-- Append new items at the bottom: `### YYYY-MM-DDTHH:MM:SSZ — title` -->
 
-### 2026-05-17T18:42:00Z — Heimdall planning conversation kicked off
+### 2026-05-21T15:00:00Z — Compaction + Hyperion-flashing-to-Heimdall Stage 1 kicked off
+
+Compacted the file (notes were 4 days old vs 24h compaction protocol). Most Heimdall-planning observations folded into the proposal artifact for run `20260521T144651Z-dev-hyperion-flashing-to-heimdall`; archived the per-iteration review notes after their pipeline closed.
+
+Web-verified facts (2026-05-21):
+- **GHCR images public+accessible**: anonymous-token HEAD against `ghcr.io/stevengann/homelab-{ci-deploy,journal-remote,healthcheck}/manifests/latest` returns HTTP 200 with `application/vnd.docker.distribution.manifest.v2+json`. Tags list for `homelab-ci-deploy` shows ONLY `["latest"]` — there is no SemVer/SHA pin available. This is a real risk to flag for the proposal (and a defendable item: `docker compose pull` resolves `:latest` to a digest at pull time, but a re-pull after a regressed build is silently destructive).
+- **nginx:alpine current**: mainline `1.31.0-alpine` / stable `1.30.1-alpine` per Docker Hub. The proposal pins `nginx:1.30.1-alpine` (stable channel; matches Monolith's unpinned `nginx:alpine` while moving in the more-stable direction).
+- **Dozzle 9.0** (Jan 2026): real-time Docker log viewer; web UI; reads via the Docker socket; SQL-via-DuckDB+WASM in the browser; pattern-match → webhook. Good for *container* logs but NOT for journald-on-disk logs.
+- **systemd-journal-gatewayd**: ships in the same Debian `systemd-journal-remote` package the journal-remote container already installs. Serves HTTP on :19531 with output formats `plain` / `json` / `json-sse`, query params `follow=1` + `KEY=match`, AND a built-in HTML5 browser. This is the keystone for the realtime tool: zero new image; just an EXPOSE+ENTRYPOINT change OR a second container off the same base. No browser-side framework needed — `?follow=1&output=json-sse` is consumable by `curl` and any web page via `EventSource`.
+- **Caddy + SSE buffering**: Caddy's `reverse_proxy` partially buffers responses; `flush_interval -1` disables buffering and is required for SSE. Documented in caddyserver.com/docs/caddyfile/directives/reverse_proxy. If we route the gateway through Caddy at `flash.lab`, the directive must include `flush_interval -1`.
+- **mongo:7.0 vs mongo:8** (sidebar — Heimdall already pins 7.0; not in scope here).
+
+Decisions baked into the proposal:
+- Storage = local bind-mount on Heimdall NVMe at `/opt/Homelab/Heimdall/hyperion-images/`. Backed up by `backup.sh`. Defended against NFS-from-Monolith (inverts the bootstrapping story the user explicitly named "Heimdall is up; use it") and proxy_cache (over-engineered for two assets that change weekly).
+- Separate Compose stack at `Heimdall/hyperion/docker-compose.yml`, managed as a second Komodo Stack. Defended against same-stack-with-Heimdall because the lifecycles are unrelated and bouncing Hyperion infra shouldn't restart Caddy/Technitium/Komodo.
+- Realtime tool = `systemd-journal-gatewayd` (web UI + JSON-SSE) plus a thin `watch-flash.sh` workstation script that polls each Pi's `:8080/` JSON AND tails the gateway's SSE stream filtered to `_SYSTEMD_UNIT=hyperion-bootstrap.service`. Defended against Dozzle (Dozzle reads container logs via Docker socket — wrong source for Pi-side journald).
+- Posture = PERMANENT (i.e., these three services now live on Heimdall; Monolith retains k3s server + healthcheck only). Defended against "temporary" because temporary means two migrations.
+- ci-deploy on Heimdall (not Monolith) — same reason as Komodo Core on Heimdall: Heimdall is the bootstrap-of-bootstrap host now.
 
 Stage 1 of `20260517T183851Z-dev-heimdall-tech-stack` started. Intake requires: container GUI, filtering DNS (passthrough + ad-block + custom records), reverse proxy + LB with L4 (Minecraft TCP+UDP, FTP active+passive), single ingress, CI/GitOps story, reconstruction runbook. Constraints: no new orchestrators (Docker Compose + Dockge only), no NIH reinvention, single host SPOF acceptable for v1 if stated. Web search mandatory.
 
@@ -172,6 +189,11 @@ Lessons for next iteration: Old Man will likely challenge the custom Caddy build
 - **Komodo connect-servers (auth model)** — Noise protocol asymmetric keys. https://komo.do/docs/setup/connect-servers — accessed 2026-05-17 — confidence: official
 - **Komodo compose.env** — KOMODO_INIT_ADMIN_PASSWORD, KOMODO_RESOURCE_POLL_INTERVAL, etc. https://raw.githubusercontent.com/moghtech/komodo/main/compose/compose.env — accessed 2026-05-17 — confidence: official
 - **Dependabot docker ecosystem scope** — only FROM lines; not COPY --from, not xcaddy. https://github.com/dependabot/dependabot-core/issues/5103 — accessed 2026-05-17 — confidence: official (upstream issue)
+- **systemd-journal-gatewayd(8)** — freedesktop.org manpage; HTTP server for journal events on :19531; output formats plain/json/json-sse; `follow=1` for SSE follow; bundled HTML5 browser; built from same `systemd-journal-remote` Debian package the journal-remote container already installs. https://www.freedesktop.org/software/systemd/man/latest/systemd-journal-gatewayd.service.html — accessed 2026-05-21 — confidence: official
+- **Dozzle 9.0** — Jan 2026 release; reads Docker socket; DuckDB+WASM SQL log queries; webhook pattern-match. Wrong source for journald-on-disk Pi logs. https://github.com/amir20/dozzle and https://linuxiac.com/dozzle-9-0-real-time-docker-log-viewer-improves-log-grouping/ — accessed 2026-05-21 — confidence: official + secondary
+- **Caddy reverse_proxy flush_interval** — `flush_interval -1` disables response buffering, required for SSE. https://caddyserver.com/docs/caddyfile/directives/reverse_proxy — accessed 2026-05-21 — confidence: official
+- **nginx Docker tags** — mainline 1.31.0-alpine, stable 1.30.1-alpine on Docker Hub. https://hub.docker.com/_/nginx/tags — accessed 2026-05-21 — confidence: official
+- **GHCR anonymous pull probe** — `https://ghcr.io/token?scope=repository:stevengann/homelab-ci-deploy:pull&service=ghcr.io` issues a token; HEAD on `/v2/.../manifests/latest` returns 200 with a manifest digest. Tag list shows `["latest"]` only — no version pins exist for these images. Probed 2026-05-21. — confidence: empirical
 
 ---
 

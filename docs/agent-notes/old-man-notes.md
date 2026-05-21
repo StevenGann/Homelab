@@ -2,8 +2,8 @@
 agent: Old Man
 specialization: Root-cause analysis, KISS, complexity pushback, deletion over addition
 secondary_role: Standing adversary to the IaC/DevOps Expert (complexity / tech-debt axis only)
-last_compacted_utc: 2026-05-17T18:50:00Z
-last_updated_utc:   2026-05-17T21:45:00Z
+last_compacted_utc: 2026-05-21T15:00:00Z
+last_updated_utc:   2026-05-21T15:00:00Z
 ---
 
 # Old Man — Notes
@@ -84,6 +84,58 @@ themselves drift into platform-layer complexity.
 ## Active observations
 
 <!-- Append new items at the bottom: `### YYYY-MM-DDTHH:MM:SSZ — title` -->
+
+### 2026-05-21T15:00:00Z — Hyperion-flashing-to-Heimdall (run 20260521T144651Z): NO-MIGRATION counter-proposal
+
+Stage 1 of `dev-hyperion-flashing-to-heimdall`. The intake asks for two things
+stacked together: (a) migrate three Monolith services (nginx + ci-deploy +
+journal-remote) to Heimdall "temporarily", (b) build a realtime monitoring
+tool to debug the SSD-not-flashing bug. My position: **(b) alone meets the
+actual goal; (a) is yak-shaving that aggravates 3 of 10 unresolved Heimdall
+finalize punch-list items.**
+
+**Counter-proposal: `watch-flash.sh` — ~80-line Bash script on the workstation
+that polls each Pi's existing `:8080/` JSON + `:8080/log` endpoints in a
+loop.** The instrumentation is already in `bootstrap.sh` lines 130–232
+(`set_status` + Python `http.server`). Zero new services. No IMG rebuilds.
+No cutover. Half a day of work vs ~1–2 weeks for the full migration.
+
+**Cost-of-migration enumerated** (defended in proposal):
+- Heimdall container count blows past finalize FINAL.md's "five things"
+  ceiling: 4 → 7 (60% violation).
+- Both Bootstrap IMG and Node IMG carry `192.168.10.247` baked in
+  (`rpi-bootstrap.pkr.hcl:131`, `rpi-node.pkr.hcl:245`,
+  `bootstrap.sh:32`). Every move requires CI rebuild of both
+  (~25 min each, fragile QEMU ARM64 builds).
+- 10 identity USBs need cache invalidation across the cluster.
+- Heimdall has "default disk layout, no swap on ZFS" per
+  `Heimdall/docs/manual/03-deployment.md` — single-disk SPOF
+  for image storage vs Monolith's TrueNAS pool.
+- "Temporarily" → double cutover cost with no decision criterion for
+  when to revert. Argue: don't move what you'll move back.
+- Stacks a second cross-host PR on top of the still-outstanding
+  MetalLB-removal cross-host PR from finalize run.
+
+**Middle-ground alternative considered (steelmanned, then rejected):** move
+ONLY nginx; keep ci-deploy on Monolith pushing via rsync/NFS to Heimdall.
+20% ceiling violation instead of 60%. Still rejected because **even this
+delivers zero debug-latency improvement for the SSD-not-flashing bug** —
+the debug surface is :8080 on the Pi, not the server side.
+
+**`:8080` 404-is-not-diagnostic caveat is load-bearing** — `debug-flashing.md`
+critical-reframe section explicitly calls this out (the cleanup() trap kills
+the server on every exit path). The realtime tool must inherit this nuance,
+not reproduce the trap. Documented in the proposal as the only non-obvious
+design choice for `watch-flash.sh`.
+
+**Self-discipline check** (per TEAM.md §6): my counter-proposal ships with
+a concrete alternative, not a "don't do it" rant. Two named alternatives:
+the maximalist migration (rejected) and the minimal-migration middle ground
+(rejected but steelmanned with explicit fallback condition — Phase B
+re-evaluation if Phase A insufficient). Conceded one possibility: if the
+user explicitly wants a web UI not a terminal script, KISS-counter dies on
+contact; intake says "ONE command or ONE URL" — terminal script IS one
+command.
 
 ### 2026-05-17T21:45:00Z — Heimdall finalize (run 20260517T213331Z): three deltas
 
@@ -262,9 +314,13 @@ Areas where I am pre-loaded with skepticism. Re-examine on each compaction.
 - **Two Packer images instead of one.** Justified by bootstrap/production
   divergence, but every divergence is maintenance cost.
 
-**New audit added 2026-05-17:** **Number of edge-tier containers on Heimdall.**
-Defend three; reject any proposal that crosses four without showing that the
-fourth tool does something the first three demonstrably can't.
+**Audit updated 2026-05-21:** **Number of edge-tier containers on Heimdall.**
+Heimdall finalize FINAL.md landed at FIVE ("five things to manage" — 4
+containers + Periphery-as-systemd-binary). Defend FIVE; reject any
+proposal that crosses six without showing that the sixth tool does
+something the first five demonstrably can't. The hyperion-flashing-to-
+Heimdall intake (2026-05-21) tries to push Heimdall to EIGHT by adding
+nginx + ci-deploy + journal-remote — rejected on this axis.
 
 ---
 
@@ -354,6 +410,10 @@ fourth tool does something the first three demonstrably can't.
   flags; can be disabled independently to make way for an external proxy.
   https://docs.k3s.io/networking/networking-services — accessed 2026-05-17
   — confidence: official
+- **curl 8.20.0** — current stable release 2026-04-29; multi-host scripted
+  polling is a textbook well-understood pattern (no new tooling required for
+  `watch-flash.sh`). https://curl.se/ — accessed 2026-05-21 — confidence:
+  vendor (curl maintainers)
 
 ---
 

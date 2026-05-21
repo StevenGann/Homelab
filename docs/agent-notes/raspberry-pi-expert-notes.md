@@ -1,8 +1,8 @@
 ---
 agent: Raspberry Pi Expert
 specialization: Pi 5 hardware, EEPROM, config.txt/cmdline.txt, PoE+/M.2 HATs, NVMe boot, Pi OS
-last_compacted_utc: 2026-05-17T18:45:00Z
-last_updated_utc:   2026-05-17T18:55:00Z
+last_compacted_utc: 2026-05-21T15:10:00Z
+last_updated_utc:   2026-05-21T15:10:00Z
 ---
 
 # Raspberry Pi Expert — Notes
@@ -155,7 +155,82 @@ relevant to the proposal:
   CoreDNS, HAProxy, NGINX, Dockge — already verified available on Docker Hub /
   ghcr for arm64 in past lookups; will re-verify in Stage 1 web search.
 
-### 2026-05-17T18:55:00Z — Stage 1 proposal submitted
+### 2026-05-21T15:10:00Z — Stage 1 dev-hyperion-flashing-to-heimdall — back in for Hyperion
+
+Sidelined during Heimdall pipeline (x86, no Pi value-add). Back for Hyperion work.
+
+Re-verified against current bootstrap.sh (430+ lines):
+- `MONOLITH_BASE` is at **line 32**, not as documented in earlier notes — single
+  point-of-edit for image-server cutover.
+- `:8080` status server is `Python3` baked into `/tmp/bootstrap-httpd.py` —
+  starts at line 174, served via `STATUS_FILE` JSON + `LOG_FILE` tail. Lifecycle
+  fix (2026-05-04 pipeline): status server is now started **before** the
+  MAX_BOOT_ATTEMPTS gate so attempt 4+ exposes `"status":"exhausted_attempts"`
+  instead of connection-refused.
+- Bootstrap IMG has `resolv-conf = "copy-host"` only — **no LAN DNS baked in.**
+  Pi gets DNS via DHCP. Today UCG serves DHCP; UCG hands out itself (`.1`) as
+  DNS unless changed. UCG knows nothing about `.lab`. Therefore using
+  `images.lab` / `journal.lab` hostnames in bootstrap.sh **fails until DHCP
+  option 6 points at Heimdall** — IP-only for early boot is the safe default.
+- `:8080/log` route returns 404 until step 1 (HYPERION-ID USB mount) completes,
+  because `LOG_FILE` lives on the identity USB. JSON status on `/` works from
+  the very first `set_status "starting"` call (line 267).
+
+`set_status` calls and the phase tag exposed at `:8080`:
+| step | phase | status |
+|------|-------|--------|
+| 0 | starting | working |
+| 0 | exhausted_attempts | error (post-MAX_BOOT_ATTEMPTS) |
+| 0 | eeprom_check | working |
+| 1 | usb_wait | working |
+| 2 | network_wait | working |
+| 2 | network_check | working |
+| 3 | downloading | downloading |
+| 3 | verifying | working |
+| 4 | usb_verify | working |
+| 5 | version_check | working |
+| 6 | flashing | flashing |
+| 7 | repartitioning | working |
+| 8 | done | done |
+| any | error | error (via die()) |
+
+That phase string IS the H1–H6 router. The realtime tool doesn't need to
+invent classifications — it just needs to render phase+status+last-log-line.
+
+### 2026-05-21T15:10:00Z — Pi 5 NVMe quirks re-verified (rpi-eeprom #629/#718/#816)
+
+- **#629** (USB-MSD-presence quirk) — confirmed still open per March-2026 forum
+  reports. Affected nodes need a USB-MSD device attached for NVMe to enumerate
+  on cold boot. Bootstrap medium (SD or USB stick) being inserted satisfies
+  this; pulling all USB devices after a successful flash and cold-booting is
+  the failure case.
+- **#718** (warm-reboot PCIe timeout) — confirmed still open, June-2025 reports
+  match the same `PCIe timeout 0x0001e08f` → `Failed to open device: 'nvme'`
+  signature. Workaround = power-cycle, not soft-reboot.
+  **bootstrap.sh:472 and :545 both `systemctl reboot`** — exactly the warm-reboot
+  trigger. Affected nodes will Pi-reboot from SD → bootstrap re-runs → sees
+  NVMe is current → reboots into NVMe — and on that second reboot, NVMe may
+  fail to enumerate. Visible in the realtime tool as: bootstrap cycle 1 ends
+  in `phase=done`, then bootstrap cycle 2 starts (SD card boots again) but
+  shows `NVMe version : 0` again (because NVMe didn't enumerate so the version
+  read at line 457 returns 0).
+- **#816 (new, March-2026)** — Pi 5 + WD SN850X via Argon NEO5 fails to
+  enumerate NVMe at early boot. **Possible third failure mode for the
+  not-flashing bug.** Worth checking SSD model on affected nodes.
+
+### 2026-05-21T15:10:00Z — Two-reboot success signature
+
+After a successful flash, the operator should see (assuming bootstrap medium
+left in):
+1. Cycle 1: phase=starting → ... → phase=flashing → phase=repartitioning → phase=done. systemctl reboot.
+2. Cycle 2: phase=starting → ... → phase=version_check shows USB_VER==NVME_VER → phase=done immediately. systemctl reboot.
+3. Bootstrap medium then removed → next cold boot lands on NVMe (Node IMG running, `:8080` is gone, journal-upload to journal-remote takes over).
+
+If cycle 2 shows NVME_VER=0 again, that's H4 (NVMe didn't re-enumerate on warm
+reboot). The realtime tool should explicitly show NVMe-version readback so
+that signature is visible.
+
+### 2026-05-21T15:10:00Z — Proposal submitted
 
 Submitted `01-proposals/raspberry-pi-expert.md`. Top-line: Heimdall fronts
 MetalLB VIPs (not replaces them); k3s-agent install must add
@@ -206,6 +281,14 @@ New verified facts:
 - **Dzombak — Remote logging for Pi debugging.**
   https://www.dzombak.com/blog/2023/12/remote-logging-for-easier-raspberry-pi-debugging/
   — accessed 2026-05-04 — confidence: community (practitioner blog)
+- **rpi-eeprom #816 — Pi 5 fails to boot WD SN850X via Argon NEO5 (NVMe not
+  enumerated during early boot).**
+  https://github.com/raspberrypi/rpi-eeprom/issues/816 —
+  accessed 2026-05-21 — confidence: community (vendor tracker, open as of Mar 2026)
+- **Forum: BOOT_ORDER right-to-left nibble priority** — confirms `0xf641`
+  reads SD (1) → USB-MSD (4) → NVMe (6) → loop (f).
+  https://forums.raspberrypi.com/viewtopic.php?t=366106 — accessed 2026-05-21
+  — confidence: community (forum, vendor-staff-confirmed)
 
 ---
 

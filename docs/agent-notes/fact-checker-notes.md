@@ -3,7 +3,7 @@ agent: Fact Checker
 specialization: Empirical verification of claims against primary sources or reproducible tests
 role: Adversarial — every other agent's claims are targets
 last_compacted_utc: 2026-05-17T19:00:00Z
-last_updated_utc:   2026-05-17T22:30:00Z
+last_updated_utc:   2026-05-21T16:50:00Z
 ---
 
 # Fact Checker — Notes
@@ -133,6 +133,30 @@ one.
 
 ## Active observations
 
+### 2026-05-21T16:50:00Z — Pipeline run `20260521T144651Z-dev-hyperion-flashing-to-heimdall` iter-1, combined-draft adversarial review
+
+Ledger written to `docs/pipeline-runs/20260521T144651Z-dev-hyperion-flashing-to-heimdall/iter-1/03-adversarial/fact-checker.md`. **14 CONFIRMED, 1 REFUTED, 3 UNVERIFIED.** Highlights:
+
+- **CONFIRMED — gatewayd ships in `systemd-journal-remote` Debian package.** apt-cache Description: *"This package provides tools for sending and receiving remote journal logs: \* systemd-journal-remote \* systemd-journal-upload \* systemd-journal-gatewayd"*. Trixie filelist confirms `/usr/lib/systemd/systemd-journal-gatewayd`, units, manpages, `browse.html`. IaC's "no new apt install" claim correct.
+- **CONFIRMED — gatewayd defaults: port 19531, `/browse` UI, no flags needed for plain HTTP.** Manpage SUPPORTED URLS lists `/boots`, `/browse`, `/entries`, `/machine`, `/fields/_FIELD_`. `/entries` accepts `?follow` (bare, no `=1`) and `?KEY=match` (e.g., `_HOSTNAME`, `_SYSTEMD_UNIT`).
+- **CONFIRMED — `nginx:1.30.1-alpine` is current stable.** nginx.org: "Stable: nginx-1.30.1 (released 2026-05-13)". Docker Hub digest pushed 2026-05-20; same digest as `stable-alpine` and `:alpine`. Multi-arch (amd64/arm/v6/v7/arm64/v8/386/ppc64le/riscv64/s390x). Includes CVE fixes for HTTP/2 injection, buffer overflow, HTTP/3 spoofing, UAF.
+- **CONFIRMED — rpi-eeprom #629 closed-not-planned (2024-11-07).** #718 STILL OPEN as of 2026-05-21 (opened 2025-06-23, "pi5 second PCIe boot fails", PCIE_PROBE=1 ineffective). No fix in recent release notes (latest v2026.05.11-2712). H4 truth-table row stays valid.
+- **CONFIRMED — `ghcr.io/stevengann/homelab-{ci-deploy,journal-remote,healthcheck}` are anonymously pullable and ONLY have `:latest`.** Registry tags/list returns `["latest"]` for all three. IaC's risk flag survives challenge.
+- **CONFIRMED — Caddy auto-disables buffering for `Content-Type: text/event-stream`.** No `flush_interval -1` needed for SSE specifically; the directive exists but is unnecessary when the upstream sets the correct content-type header. Means a future Caddy front for gatewayd is one-line clean.
+- **CONFIRMED — both Packer-image workflows path-filter the planned edits.** `build-bootstrap-img.yml` matches `Hyperion/packer/files/bootstrap.sh` and `rpi-bootstrap.pkr.hcl`. `build-node-img.yml` matches `rpi-node.pkr.hcl` and `Hyperion/packer/files/**`. All three planned edits trigger CI.
+- **CONFIRMED — `Monolith/k3s-control-plane/journal-remote/Dockerfile` shape matches the draft.** `FROM debian:trixie-slim` + apt install systemd-journal-remote + `USER systemd-journal-remote` + exec-form ENTRYPOINT. No CMD. Replacement entrypoint is mechanically clean.
+- **CONFIRMED — `bootstrap.sh:138-161` `set_status` heredoc is trivially extensible.** Adding `MONOLITH_BASE` and `nvme_version` is 2 lines; consumers parse JSON, so additive fields don't break.
+
+- **REFUTED — `watch-flash.sh`'s gatewayd URL `?output=json-sse` is not a documented query parameter.** gatewayd format selection is via `Accept:` header (text/plain, application/json, text/event-stream, application/vnd.fdo.journal). One-line fix in §3.7: use `curl -sN -H 'Accept: text/event-stream' …?follow&_HOSTNAME=…&_SYSTEMD_UNIT=…`. Otherwise the script gets default format, not SSE.
+
+- **UNVERIFIED — Caddy auto-flush behavior under mixed Content-Type responses through one reverse_proxy.** Single Content-Type sniffing per response should handle it but no explicit confirmation in docs. Not load-bearing for v1 (draft defers Caddy front).
+- **UNVERIFIED — Whether `entrypoint.sh` wrapper can run both `systemd-journal-remote` AND `systemd-journal-gatewayd` under `USER systemd-journal-remote`.** Existing Dockerfile drops to that UID before ENTRYPOINT. Gatewayd typically runs as `systemd-journal-gateway` per its package unit file. May work via journal-read access on the bind-mount; pre-deploy smoke-test catches.
+- **UNVERIFIED — Caddy auto-flush for `application/vnd.fdo.journal`.** Not in v1 scope.
+
+- **New fact — Caddy's content-type-based SSE auto-disable is documented** (`reverse_proxy` directive page). Caddy isn't an obstacle to fronting gatewayd; the only risk is mixed-format responses through a single block.
+- **New fact — `MONOLITH_BASE` variable name is becoming misleading post-cutover.** Editorial: revision could rename to `IMG_BASE` (same CI rebuild trigger).
+- **New fact — Monolith's ci-deploy healthcheck uses jq+date arithmetic** (verifies last_poll < 15 min). Draft's `test -f` simplification loses that check; intentional separation-of-concerns is fine if explicitly noted.
+
 ### 2026-05-17T22:30:00Z — Pipeline run `20260517T213331Z-dev-heimdall-finalize` iter-1, combined-draft adversarial review
 
 Ledger written to `docs/pipeline-runs/20260517T213331Z-dev-heimdall-finalize/iter-1/03-adversarial/fact-checker.md`. **19 CONFIRMED, 3 REFUTED, 4 UNVERIFIED.** Highlights:
@@ -236,6 +260,21 @@ Ledger written to `docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/ite
 - **Docker host networking driver** — `https://docs.docker.com/engine/network/drivers/host/`. Accessed 2026-05-17. Confidence: official.
 - **Docker 20.10 release notes (cgroup2 support)** — `https://docs.docker.com/engine/release-notes/20.10/`. Accessed 2026-05-17. Confidence: official.
 - **MetalLB troubleshooting** — `https://metallb.universe.tf/troubleshooting/`. Accessed 2026-05-17 (via WebSearch summary). Confidence: official.
+
+### Hyperion-flashing-to-Heimdall verification (2026-05-21 run)
+
+- **Debian/Ubuntu `systemd-journal-remote` package metadata** — `apt-cache show systemd-journal-remote` output on local workstation (Ubuntu archive entries 255.4-1ubuntu8.14/15); Description enumerates all three binaries shipped. Confidence: official.
+- **Debian Trixie `systemd-journal-remote` filelist** — `https://packages.debian.org/trixie/amd64/systemd-journal-remote/filelist`. Accessed 2026-05-21. Confidence: official. Confirms `/usr/lib/systemd/systemd-journal-gatewayd` + browse.html shipped in same .deb.
+- **systemd-journal-gatewayd.service(8) manpage (Debian Trixie)** — `https://manpages.debian.org/trixie/systemd-journal-remote/systemd-journal-gatewayd.service.8.en.html`. Accessed 2026-05-21. Confidence: official. Documents `/entries?follow&KEY=match`, Accept-header format selection, default port 19531, `/browse` UI.
+- **Docker Hub `library/nginx:1.30.1-alpine` manifest** — `https://hub.docker.com/v2/repositories/library/nginx/tags/1.30.1-alpine/`. Accessed 2026-05-21. Confidence: official registry. Digest `sha256:c819f83c54b0…`, pushed 2026-05-20, multi-arch.
+- **nginx.org homepage release table** — `https://nginx.org/`. Accessed 2026-05-21. Confidence: official. Stable: 1.30.1 (2026-05-13). Mainline: 1.31.0 (2026-05-13).
+- **rpi-eeprom GitHub issues #629 / #718** — `https://github.com/raspberrypi/rpi-eeprom/issues/{629,718}`. Accessed 2026-05-21. Confidence: official upstream tracker. #629 closed-not-planned (2024-11), #718 open (2025-06-23 → 2026-05).
+- **rpi-eeprom releases** — `https://github.com/raspberrypi/rpi-eeprom/releases`. Accessed 2026-05-21. Confidence: official. Latest v2026.05.11-2712; no PCIe re-enumeration fixes in last 12 months of notes.
+- **GHCR registry API for `stevengann/homelab-{ci-deploy,journal-remote,healthcheck}`** — `https://ghcr.io/v2/stevengann/homelab-{…}/tags/list` with anonymous bearer token. Accessed 2026-05-21. Confidence: official registry. All three return `["latest"]` only.
+- **Caddy `reverse_proxy` directive docs** — `https://caddyserver.com/docs/caddyfile/directives/reverse_proxy`. Accessed 2026-05-21. Confidence: official. Quote: `flush_interval` ignored for `Content-Type: text/event-stream`; explicit `-1` disables buffering.
+- **`Monolith/k3s-control-plane/journal-remote/Dockerfile`** — direct read in repo. Confirms `FROM debian:trixie-slim`, apt install systemd-journal-remote, `USER systemd-journal-remote`, exec-form ENTRYPOINT, no CMD.
+- **`.github/workflows/build-{bootstrap,node}-img.yml`** — direct read in repo. Path filters confirmed to catch all three planned edits in §3.6.
+- **`Hyperion/packer/files/bootstrap.sh` lines 32, 138-232** — direct read in repo. Confirms `set_status` heredoc structure, `MONOLITH_BASE` scope, Python HTTP server serves file verbatim.
 
 ### Heimdall-finalize verification (2026-05-17 second run)
 

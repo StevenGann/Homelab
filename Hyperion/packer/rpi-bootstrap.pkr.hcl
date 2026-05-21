@@ -128,7 +128,10 @@ build {
       # Plain HTTP (no TLS) — LAN-only homelab. Trust= is only relevant for
       # HTTPS; omit it. The default systemd-journal-upload behavior with an
       # http:// URL ships logs without TLS validation.
-      "printf '[Upload]\\nURL=http://192.168.10.247:19532\\n' > /etc/systemd/journal-upload.conf.d/monolith.conf",
+      # Journal-upload target is Heimdall (192.168.10.4) since the
+      # dev-hyperion-flashing-to-heimdall pipeline cut over. The conf-d file
+      # is still named monolith.conf for now; renamed once Monolith is gone.
+      "printf '[Upload]\\nURL=http://192.168.10.4:19532\\n' > /etc/systemd/journal-upload.conf.d/monolith.conf",
       "systemctl enable systemd-journal-upload.service",
     ]
   }
