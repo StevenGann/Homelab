@@ -3,6 +3,11 @@
 Infrastructure as Code for a home Kubernetes cluster. Every host's state is
 defined in this repository and recoverable from scratch.
 
+> **Hyperion is currently mid-pivot** from Debian/Packer to NixOS. The
+> Debian path remains active alongside the new NixOS scaffold; both are
+> in-tree until the 2026-08-15 sunset gate. See `Hyperion/nixos/README.md`
+> and `Hyperion/docs/runbooks/first-node-bringup-nixos.md`.
+
 ---
 
 ## Repository Structure
@@ -11,37 +16,44 @@ defined in this repository and recoverable from scratch.
 Homelab/
 ├── docs/                        # Project-wide documentation
 │   ├── todo.md                  # Current task list and next steps
-│   └── design/                  # Architecture planning documents
+│   ├── design/                  # Architecture planning documents
+│   └── pipeline-runs/           # Decision-record outputs (git-ignored, local only)
 │
 ├── Hyperion/                    # Pi 5 k3s worker cluster (10 nodes)
-│   ├── packer/                  # OS image definitions (Bootstrap IMG + Node IMG)
-│   │   ├── rpi-bootstrap.pkr.hcl  # Bootstrap SD card image
-│   │   ├── rpi-node.pkr.hcl       # Production NVMe image
-│   │   └── files/               # Runtime scripts and systemd units baked in
-│   ├── ansible/                 # Post-boot configuration and hardening
+│   ├── nixos/                   # NixOS configuration (Phase 1 scaffold — see README)
+│   ├── packer/                  # Debian Packer images (sunsetting 2026-08-15)
+│   │   ├── rpi-bootstrap.pkr.hcl
+│   │   ├── rpi-node.pkr.hcl
+│   │   └── files/
+│   ├── ansible/                 # Post-boot config (sunsetting alongside Packer)
 │   ├── k8s/                     # Kubernetes manifests (FluxCD GitOps)
-│   ├── flash-identity-usb.sh    # Formats per-node identity USB sticks
-│   ├── reimage.sh               # Reboots running nodes into Bootstrap SD
-│   ├── publish-image.sh         # Manual build-and-publish (pre-CI use)
-│   ├── configure-eeprom.sh      # Sets BOOT_ORDER on all nodes via SSH
+│   ├── flash-identity-usb.sh    # Formats per-node identity USB (NixOS schema v2)
+│   ├── reimage.sh               # Debian-path: reboots node into Bootstrap SD
+│   ├── watch-flash.sh           # Debian-path: live monitor during flashing
+│   ├── publish-image.sh         # Debian-path: manual build-and-publish
+│   ├── configure-eeprom.sh      # Sets BOOT_ORDER on Pis (KEPT under NixOS too)
 │   └── docs/runbooks/           # Hyperion-specific runbooks
 │
-├── Monolith/                    # TrueNAS Scale host (192.168.10.247)
-│   └── k3s-control-plane/       # k3s server + nginx image server
-│       ├── docker-compose.yml
-│       ├── nginx.conf
-│       ├── ci-deploy/           # GitHub Releases poller (downloads images to Monolith)
-│       ├── healthcheck/         # IaC integration test runner (HTTP API on port 50012)
-│       └── docs/runbooks/
+├── Heimdall/                    # Edge-services + Hyperion flashing host (192.168.10.4)
+│   ├── caddy/                   # Reverse proxy / LB / TLS
+│   ├── technitium/              # DNS + ad-blocking
+│   ├── komodo/                  # Container manager
+│   ├── hyperion/                # Flashing services (moved from Monolith 2026-05-21)
+│   │   ├── ci-deploy/           # Polls GH Releases, mirrors images
+│   │   ├── journal-remote/      # journal-upload sink (:19532) + gatewayd (:19531)
+│   │   ├── nginx.conf           # Image server (:50011)
+│   │   └── docker-compose.yml
+│   └── docs/runbooks/
 │
-└── Heimdall/                    # Edge-services host (reverse proxy / LB / DNS)
-    └── docs/                    # Scaffolding only — tech stack pending
+└── Monolith/                    # TrueNAS Scale host (192.168.10.247)
+    └── k3s-control-plane/       # k3s server (the flashing/journal stack moved to Heimdall)
+        ├── docker-compose.yml
+        ├── healthcheck/         # IaC integration test runner (HTTP :50012)
+        └── docs/runbooks/
 ```
 
-Each top-level directory maps to a physical host or cluster. Files for Monolith
-go under `Monolith/`, files for the Pi cluster go under `Hyperion/`, files for
-Heimdall go under `Heimdall/`. This pattern extends as IaC coverage expands to
-other hosts.
+Each top-level directory maps to a physical host or cluster. This pattern
+extends as IaC coverage expands.
 
 ---
 
@@ -49,38 +61,51 @@ other hosts.
 
 ```
 Workstation
-  └── Git push → GitHub → CI builds images automatically
+  └── Git push → GitHub → CI builds images (Debian Packer + NixOS in parallel during pivot)
 
-Monolith (TrueNAS Scale — 192.168.10.247)
-  ├── k3s server (Docker Compose)
-  ├── nginx → HTTP image server (port 50011)
-  │     ├── /node/manifest.json         (current Node IMG version + SHA256)
-  │     ├── /node/rpi-node-<ver>.img    (decompressed Node IMGs, 3 kept)
-  │     └── /bootstrap/rpi-bootstrap.img  (Bootstrap SD card image)
-  ├── ci-deploy → polls GitHub Releases, downloads + decompresses images
-  └── healthcheck → IaC integration tests (port 50012)
-
-Hyperion Cluster (k3s)
-  ├── Control plane: k3s server on Monolith
-  └── 10 × Raspberry Pi 5 worker nodes (192.168.10.101–.110)
-        ├── Boot: PCIe NVMe SSD (256GB) — p1 firmware, p2 root (32GB), p3 storage (~220GB)
-        ├── Identity: HYPERION-ID USB stick (hostname file, Node IMG cache)
-        └── Workloads: reconciled by FluxCD from this repo
+Heimdall (192.168.10.4)                          Monolith (192.168.10.247 — TrueNAS Scale)
+  ├── caddy (reverse proxy + TLS)                  ├── k3s server (Docker Compose) — Hyperion control plane
+  ├── technitium (DNS + adblock)                   └── healthcheck (HTTP :50012)
+  ├── komodo (container manager)
+  └── hyperion/                                  Hyperion Cluster (k3s)
+        ├── nginx :50011 (image server)           ├── Control plane: k3s server on Monolith
+        ├── ci-deploy (GH Releases poller)        └── 10 × Pi 5 worker nodes (192.168.10.101–.110)
+        ├── journal-remote :19532                      ├── NixOS (Phase 1 — scaffold landed)
+        └── journal-gatewayd :19531 (HTML browse)      ├── Identity: HYPERION-ID USB (hostname, age key, SSH host keys)
+                                                      └── Workloads: reconciled by FluxCD from this repo
 ```
 
-### Node imaging flow
+### Node imaging flow (NixOS — Phase 1 forward)
 
 ```
-Bootstrap SD card inserted
-  └── hyperion-bootstrap.service runs on every boot
-        ├── Check Monolith for newer Node IMG → update HYPERION-ID USB cache
-        ├── Compare USB cache version vs NVMe version
-        ├── If NVMe is behind → dd NVMe from USB cache → repartition → reboot
-        └── If NVMe is current → reboot into NVMe immediately
+First install (per node, once per kernel/firmware bump):
+  Workstation: nix build .#installerImage
+  Workstation: zstd -d <img>.zst | sudo dd of=/dev/sdX (USB-to-NVMe adapter)
+  Move NVMe into Pi
+  Insert HYPERION-ID identity USB
+  Power on
+  → Pi 5 EEPROM boots kernel.img from NVMe firmware partition
+  → apply-identity.service stages /run/hyperion/identity.env from USB
+  → sops-nix decrypts secrets using per-node age key from USB
+  → k3s agent registers with Monolith server
 
-NVMe boot (production)
-  ├── apply-identity.service → reads hostname from HYPERION-ID USB → hostnamectl
-  └── detect-node-storage.service → mounts best storage device to /mnt/node-storage
+Day-2 config changes (no NVMe re-flash):
+  Workstation: cd Hyperion/nixos && colmena apply --on hyperion-alpha
+  → nix-copy-closure to target → nixos-rebuild switch → done
+```
+
+### Node imaging flow (Debian — sunsetting 2026-08-15)
+
+```
+Bootstrap SD inserted (hyperion-bootstrap.service):
+  Check Heimdall for newer Node IMG → update HYPERION-ID USB cache
+  Compare USB cache version vs NVMe version (node-img.ver)
+  If NVMe behind → dd NVMe from USB cache → repartition → reboot
+  Else → reboot into NVMe immediately
+
+NVMe boot (production Debian):
+  apply-identity.service → hostname from HYPERION-ID USB
+  detect-node-storage.service → mount best storage device to /mnt/node-storage
 ```
 
 ### Network
@@ -89,66 +114,86 @@ All infrastructure is on the Homelab VLAN (`192.168.10.0/24`):
 
 | Range | Purpose |
 |-------|---------|
+| `.4` | Heimdall (edge services + Hyperion flashing stack) |
 | `.10–.99` | MetalLB LoadBalancer pool |
-| `.101–.110` | Hyperion Pi nodes |
-| `.247` | Monolith |
-| TBD | Heimdall (reverse proxy / LB / DNS — IP plan pending) |
+| `.101–.110` | Hyperion Pi nodes (alpha → kappa) |
+| `.247` | Monolith (TrueNAS + k3s server) |
 
 ---
 
 ## Provisioning a New Cluster from Scratch
 
-See `docs/todo.md` for current status and step-by-step checklist. High-level flow:
+See `docs/todo.md` for the current step-by-step checklist.
 
-1. **Monolith** — deploy `Monolith/k3s-control-plane/docker-compose.yml`
-   - See `Monolith/k3s-control-plane/docs/runbooks/preflight.md`
-2. **CI secrets** — configure GitHub Actions secrets for image publishing
-3. **Build images** — CI builds on push, or run `Hyperion/publish-image.sh` manually
-   - See `Hyperion/docs/runbooks/build-packer-image.md`
-4. **EEPROM** — set boot order on each Pi (`./configure-eeprom.sh --reboot`)
-   - See `Hyperion/docs/runbooks/configure-eeprom.md`
-5. **Identity USBs** — flash one per node (`./flash-identity-usb.sh /dev/sdX hyperion-<name>`)
-6. **Bootstrap SD** — flash once, share across nodes (`dd` the Bootstrap IMG)
-7. **Image nodes** — insert SD + USB per node, power on, Bootstrap handles the rest
-8. **Ansible** — `ansible-playbook bootstrap.yml` after nodes are on NVMe
-9. **FluxCD** — bootstrap GitOps
-   ```bash
-   flux bootstrap github --owner=<user> --repository=Homelab --path=Hyperion/k8s/flux-system
-   ```
+**NixOS path (forward, Phase 1+):**
+
+1. **Heimdall** — deploy the hyperion-flashing stack (see `Heimdall/docs/runbooks/flashing-services.md`).
+2. **Monolith** — deploy `Monolith/k3s-control-plane/docker-compose.yml` (the k3s server).
+3. **Workstation tooling** — install Nix, age, sops, colmena.
+4. **EEPROM** — set boot order on each Pi (`./configure-eeprom.sh --reboot`).
+5. **NixOS pivot** — follow `Hyperion/nixos/README.md` then `Hyperion/docs/runbooks/first-node-bringup-nixos.md`.
+6. **Identity USBs** — flash one per node (`./flash-identity-usb.sh /dev/sdX hyperion-alpha`).
+7. **Cluster deploy** — `colmena apply --on '@hyperion-*' --parallel 4`.
+8. **FluxCD** — bootstrap GitOps.
+
+**Debian path (legacy, until sunset 2026-08-15):**
+
+See `Hyperion/docs/runbooks/build-packer-image.md` and `debug-flashing.md`. The legacy flow remains available for fallback while Phase 1 NixOS validation is in progress.
 
 ---
 
 ## Re-imaging a Node
 
+**NixOS:**
+- Day-2 config: `cd Hyperion/nixos && colmena apply --on hyperion-<greek>`
+- Full re-image (e.g. after NVMe replacement): see `Hyperion/docs/runbooks/replace-dead-node.md`
+
+**Debian (legacy):**
 ```bash
 # Insert Bootstrap SD card into the node, then:
 cd ~/GitHub/Homelab/Hyperion
 ./reimage.sh hyperion-alpha    # or: ./reimage.sh all
-# Node reboots, Bootstrap SD updates USB cache and reflashes NVMe automatically.
-# Remove SD card after node is back on NVMe.
 ```
 
-CI publishes a new Node IMG on every push to `main` touching `Hyperion/packer/`.
+CI publishes a new image on every push to `main` touching the relevant paths.
 
 ---
 
 ## Secrets
 
-Secrets are encrypted with SOPS + age. The age public key is in
-`Hyperion/.sops.yaml`. The private key lives only on the workstation at
-`~/.config/sops/age/keys.txt` — never committed.
+SOPS + age. Each Pi has its own per-node age private key on its HYPERION-ID USB; the public halves are listed in `Hyperion/.sops.yaml`'s `creation_rules`.
 
 ```bash
 SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops --decrypt <file>
 SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops --edit <file>
 ```
 
+See `Hyperion/docs/runbooks/tooling.md` for the SOPS/age/Nix tooling
+cheat-sheet.
+
 ---
 
 ## Reproducibility Checklist
 
-- [ ] Monolith services restored from `docker compose up` alone
-- [ ] Dead node replaced by inserting Bootstrap SD + running `./reimage.sh`
-- [ ] `ansible-playbook bootstrap.yml` against a healthy node makes zero changes
+- [ ] Monolith services restored from `docker compose up` alone (unchanged)
+- [ ] Heimdall services restored from `docker compose up` alone
+- [ ] Dead Hyperion node replaced per `Hyperion/docs/runbooks/replace-dead-node.md` (≤30 min)
 - [ ] Every workload running in the cluster is defined in `Hyperion/k8s/`
 - [ ] All secrets are SOPS-encrypted or stored outside the repo
+
+---
+
+## Pivot status (2026-05-23)
+
+The NixOS pivot for Hyperion completed pipeline approval (2 iterations,
+6 YAE / 0 NAY) on 2026-05-23. Phase 1 hard-gate validation on
+hyperion-alpha is the next step before scaling to the other 9 nodes.
+
+See:
+- `Hyperion/nixos/README.md` — scaffold layout
+- `Hyperion/docs/runbooks/first-node-bringup-nixos.md` — Phase 1 walkthrough
+- `Hyperion/docs/runbooks/replace-dead-node.md` — hardware-swap procedure
+- `docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/FINAL.md` — full design rationale (local-only per .gitignore)
+
+The Debian/Packer path sunsets on 2026-08-15 conditional on Phase 1+2
+hard-gate criteria. Until then, both stacks are tracked.

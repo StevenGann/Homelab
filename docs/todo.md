@@ -1,19 +1,128 @@
 # Homelab IaC — To Do
 
-## Status
+## Status (2026-05-23)
 
-The two-image IaC is implementation-complete and CI is green. **Current focus: get
-one Hyperion node successfully imaged end-to-end, diagnose why nodes aren't
-reaching NVMe boot, then scale to all 10 and finish post-imaging configuration.**
+**Hyperion is mid-pivot to NixOS.** The dev-nixos-identity-usb pipeline
+(approved 6 YAE / 0 NAY across 2 iterations) lands a full NixOS scaffold
+under `Hyperion/nixos/`. **The pivot is not yet hardware-validated —
+that is the Phase 1 hard gate.**
 
-Active debug pipeline:
-[`docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/FINAL.md`](pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/FINAL.md).
-Diagnostic runbook: [`Hyperion/docs/runbooks/debug-flashing.md`](../Hyperion/docs/runbooks/debug-flashing.md).
+The user's mid-pipeline correction (`00b-user-correction.md` in the run
+folder): despite many attempts, the existing Debian-path reflash
+mechanism does not produce a working node end-to-end. The pivot's job
+is to sidestep the broken mechanism with something more IaC-native,
+not to iterate on it further.
 
-Realtime monitoring tool: `Hyperion/watch-flash.sh <node>` (added 2026-05-21
-during the `dev-hyperion-flashing-to-heimdall` migration). Hyperion flashing
-services (nginx, ci-deploy, journal-remote, gatewayd) now run on Heimdall;
-operator-facing runbook: [`Heimdall/docs/runbooks/flashing-services.md`](../Heimdall/docs/runbooks/flashing-services.md).
+**Current focus: execute Phase 1 of the NixOS pivot on `hyperion-alpha`.**
+
+Phase-1 walkthrough: [`Hyperion/docs/runbooks/first-node-bringup-nixos.md`](../Hyperion/docs/runbooks/first-node-bringup-nixos.md).
+
+---
+
+## NixOS Pivot — Phase 1 (active)
+
+Triple-redundant exit signals; any halts and triggers iter-3 with
+Counter-B promoted:
+
+1. **Hard gate:** NVMe boot fails twice on alpha.
+2. **Muddy-failure:** >6 hrs cumulative unplanned operator-intervention
+   time in any rolling 7-day window during the phase. Log in
+   `intervention-log.md`.
+3. **Behavioral:** <3 committed git changes addressing real Phase 1
+   work in 5 days. (Largely retired-as-rhetorical-purpose per the user's
+   00b correction; kept as sanity check.)
+
+### Step 1 — Workstation tooling (one-time)
+
+```bash
+# Install Nix
+curl -L https://install.determinate.systems/nix | sh -s -- install
+
+# Install age + sops + colmena via nix
+nix profile install nixpkgs#age nixpkgs#sops nixpkgs#colmena
+```
+
+### Step 2 — Fill in placeholders in the flake
+
+Three Phase-1 prerequisites in `Hyperion/nixos/`:
+
+- [ ] Replace placeholder SSH pubkey in `modules/hyperion-base.nix`.
+- [ ] Pin `inputs.colmena.url` in `flake.nix` to a specific 2025-11 commit hash. Run `nix flake lock --update-input colmena`.
+- [ ] Decide k3s skew: accept 1.34.5 worker vs 1.35.3 server (within N-1 window) or override `services.k3s.package`.
+
+### Step 3 — Flash alpha's identity USB
+
+- [ ] Run `./flash-identity-usb.sh /dev/sdX hyperion-alpha`.
+- [ ] Note the printed age public key.
+- [ ] Add to `Hyperion/.sops.yaml` `creation_rules` under a new entry for `nixos/secrets/*.yaml`.
+
+### Step 4 — Mint and encrypt the first secret
+
+- [ ] Create `Hyperion/nixos/secrets/common.yaml` with the k3s join token (read from `/var/lib/rancher/k3s/server/node-token` on Monolith).
+- [ ] Encrypt to the operator key + alpha's age pubkey.
+
+### Step 5 — Build the installer image (CI or local)
+
+- [ ] Commit Phase-1 prep changes + push (CI fires the `Build Hyperion NixOS image` workflow on `ubuntu-24.04-arm` native).
+- [ ] Download the published `.img.zst` artifact.
+
+### Step 6 — Flash NVMe on workstation, install in alpha
+
+- [ ] `zstd -d <img>.zst | sudo dd of=/dev/sdX` (USB-to-NVMe adapter).
+- [ ] Move NVMe into alpha's M.2 HAT.
+- [ ] Insert HYPERION-ID identity USB.
+- [ ] Power on.
+
+### Step 7 — Validate the gate criteria
+
+- [ ] SSH `owner@192.168.10.101` succeeds (key auth).
+- [ ] `hostnamectl` reports `hyperion-alpha`.
+- [ ] `apply-identity.service` active (exited).
+- [ ] `kubectl get nodes` on Monolith shows alpha Ready.
+- [ ] journal-upload reaches Heimdall `:19531/browse` shows alpha.
+- [ ] Warm reboot survives (the rpi-eeprom #718 discriminator).
+
+### Step 8 — Soak
+
+- [ ] 24-hour soak on alpha. Track intervention-log.md.
+- [ ] Decision point: continue to Phase 2 (beta) or halt per exit criteria.
+
+---
+
+## NixOS Pivot — Phase 2 (after alpha gate passes)
+
+- [ ] Repeat the Step 3-7 procedure for `hyperion-beta` (a 4 GB Pi — memory-constraint surface).
+- [ ] 2-hour soak.
+- [ ] Decision: continue to Phase 3 (the other 8 nodes) or halt.
+
+## NixOS Pivot — Phase 3 (rollout)
+
+- [ ] `colmena apply --on hyperion-delta,hyperion-epsilon,hyperion-zeta,hyperion-eta --parallel 4` (batch 1).
+- [ ] 30-min soak.
+- [ ] `colmena apply --on hyperion-gamma,hyperion-theta,hyperion-iota,hyperion-kappa --parallel 4` (batch 2).
+- [ ] All 10 nodes registered with k3s server.
+
+## NixOS Pivot — Phase 4 (day-2 rehearsal)
+
+- [ ] Make a trivial config change, push via Colmena, verify rollout.
+- [ ] Test rollback via `nixos-rebuild --rollback switch` on one node.
+- [ ] Rotate the k3s token via sops-edit + Colmena. Confirm zero-downtime.
+
+## NixOS Pivot — Phase 5 (docs + retire)
+
+- [ ] Move legacy files into `Hyperion/retired/`:
+  - `bootstrap.sh`, `rpi-bootstrap.pkr.hcl`, `rpi-node.pkr.hcl`, `reimage.sh`, `watch-flash.sh`, `publish-image.sh`, `ansible/`
+- [ ] Mark `Hyperion/docs/runbooks/{build-packer-image,debug-flashing}.md` as historical.
+- [ ] Update `Heimdall/hyperion/` so its `ci-deploy` only polls for the `nvme-*` tag pattern (the Debian Node IMG path retires once retired).
+
+## NixOS Pivot — Phase 6 (sunset gate)
+
+- **2026-08-15 sunset gate.** GitHub Actions workflow `hyperion-sunset-review.yml` auto-opens an issue on 2026-08-01 with the three pass/fail criteria.
+- [ ] On all-green: `git rm -r Hyperion/retired/` in a commit titled `chore(hyperion): retire Debian/Packer artifacts at sunset`.
+- [ ] On any-red: extend by 4 weeks (max 2 extensions before mandatory revert).
+- [ ] Channel bump 25.11 → 26.05 lands inside this window (25.11 EOL 2026-06-30). See `Hyperion/docs/runbooks/nixos-channel-upgrade.md`.
+
+---
 
 ## Scheduled — re-evaluate Heimdall as flashing-services home
 
@@ -22,205 +131,52 @@ operator-facing runbook: [`Heimdall/docs/runbooks/flashing-services.md`](../Heim
 run a follow-up pipeline to decide:
 
 - (a) re-migrate the Hyperion flashing services to the new host, OR
-- (b) formally adopt Heimdall as the permanent home and update CLAUDE.md /
-  README / network-layout accordingly.
+- (b) formally adopt Heimdall as the permanent home and update CLAUDE.md / README / network-layout accordingly.
 
-Source: `dev-hyperion-flashing-to-heimdall` FINAL.md Tier 4.3. The temporary-
-posture commitment is what made the migration palatable; this entry exists so
-the trigger doesn't silently slip into permanence. If by 2026-11-21 (6-month
-mark) there is no Monolith-replacement progress, surface the question early
-rather than waiting the full 12 months.
-
----
-
-## Step A — Wait for CI to rebuild Bootstrap IMG
-
-Recent commits (`ee41010`, `a46cc5f`, …) touched `Hyperion/packer/files/bootstrap.sh`
-and the Packer files. The Bootstrap IMG must be rebuilt before Step C is meaningful.
-
-```bash
-gh run list -w 'Build Bootstrap Image' -L 3
-gh run watch                                   # if a run is in progress
-```
-
-Verify ci-deploy on Monolith picked it up:
-
-```bash
-ssh truenas_admin@192.168.10.247 \
-    'cat /mnt/Media-Storage/Infra-Storage/images/ci-deploy-status.json'
-# bootstrap timestamp should be newer than the GitHub Actions run finish time
-curl -I http://192.168.10.247:50011/bootstrap/rpi-bootstrap.img
-```
+Source: `dev-hyperion-flashing-to-heimdall` FINAL.md Tier 4.3. The
+temporary-posture commitment is what made the migration palatable; this
+entry exists so the trigger doesn't silently slip into permanence. If
+by 2026-11-21 (6-month mark) there is no Monolith-replacement progress,
+surface the question early rather than waiting the full 12 months.
 
 ---
 
-## Step B — Deploy `journal-remote` to Monolith
+## Legacy Debian path (sunsetting — kept until 2026-08-15)
 
-Phase 1 networked log collection. Required for Step C diagnostics to land in a
-queryable place rather than staying on the identity USB only.
+The Debian/Packer path remains in-tree as the fallback if the NixOS
+pivot's Phase 1+2 gates fail. **All Debian-path TODO items are paused
+pending Phase 1 outcome.** If Phase 1 fails, the iter-3 pipeline opens
+with Counter-B promoted (delete the reflash loop, keep Debian, gate
+reflashes behind an operator-touched `force-reflash` sentinel) — see
+the pipeline run's iter-1 Old Man proposal.
 
-The image is built and published by `.github/workflows/build-journal-remote-img.yml`
-on every push touching `Monolith/k3s-control-plane/journal-remote/**`. After the
-first successful run, **make the `homelab-journal-remote` package public** on
-`https://github.com/users/StevenGann/packages/container/homelab-journal-remote/settings`
-(matches the existing `homelab-ci-deploy` and `homelab-healthcheck` setup).
+The pre-pivot debug pipeline FINAL.md is at
+`docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/FINAL.md`.
 
-Deployment via Dockge (the container manager on Monolith):
+### Tools that remain useful regardless of pivot outcome
 
-1. **Trigger the workflow** — first push of the new compose file alone won't fire
-   it because the path filter is `Monolith/k3s-control-plane/journal-remote/**`:
-
-   ```bash
-   gh workflow run build-journal-remote-img.yml
-   gh run watch
-   ```
-
-2. **Make the published package public** on GitHub (one-time, see link above).
-
-3. **Drop the new compose file into the Dockge stack** over SMB:
-
-   ```
-   smb://monolith.local/container-data/k3s-control-plane/docker-compose.yml
-   ```
-
-   Replace with the version at `Monolith/k3s-control-plane/docker-compose.yml`
-   from this repo.
-
-4. **Create the journal storage directory** on Monolith (host-side path, used as
-   a bind-mount target in the compose file):
-
-   ```bash
-   ssh truenas_admin@192.168.10.247 \
-       'mkdir -p /mnt/Media-Storage/Infra-Storage/journal-remote'
-   ```
-
-5. **In Dockge UI**: open the `k3s-control-plane` stack → click **Update**
-   (this runs `docker compose pull && docker compose up -d` against the stack).
-
-6. **Verify** from any host on the LAN:
-
-   ```bash
-   curl -s http://192.168.10.247:19532/ -o /dev/null -w '%{http_code}\n'   # 404 = listener up
-   ```
-
-Full runbook: [`Monolith/k3s-control-plane/docs/runbooks/preflight.md`](../Monolith/k3s-control-plane/docs/runbooks/preflight.md).
+- `Hyperion/configure-eeprom.sh` — EEPROM is below the OS; this script is KEEP under both paths.
+- `Hyperion/watch-flash.sh` — live monitor during Debian flashing attempts; gets retired if Phase 1+2 pass.
+- `Heimdall/hyperion/` flashing services — serve both Debian and NixOS images via the same nginx.
 
 ---
 
-## Step C — Re-flash one Bootstrap medium and run Experiment 1
+## k3s + FluxCD bring-up (orthogonal to the pivot)
 
-The new `bootstrap.sh` and Packer files address several diagnosed defects (better
-`die()` messages, `:8080/log` route, network-online wait, post-flash `node-img.ver`
-write, UART boot output baked in). Validate on hardware before touching anything else.
-
-```bash
-# Workstation — flash a fresh bootstrap medium with the new image
-curl -O http://192.168.10.247:50011/bootstrap/rpi-bootstrap.img
-sudo dd if=rpi-bootstrap.img of=/dev/sdX bs=4M conv=fsync status=progress
-```
-
-On one node (`hyperion-alpha` is fine — see test-node selection in the runbook):
-
-1. Insert **both** the Bootstrap medium **and** the per-node HYPERION-ID identity USB.
-2. Power on.
-3. Run **Experiment 1** from `Hyperion/docs/runbooks/debug-flashing.md`:
-   - Find node IP (`arp -an | grep -i 'b8:27:eb\|d8:3a:dd\|dc:a6:32'`).
-   - SSH in (`ssh pi@<node-ip>`, password `raspberry`) **or** `curl http://<node-ip>:8080/log`.
-   - Capture `bootstrap.log`, `journalctl -u hyperion-bootstrap.service`, `nvme0n1` partition state, EEPROM config, `dmesg | grep -iE 'nvme|pcie'`.
-
-The runbook's hypothesis-routing table maps log content to one of H1–H6.
-**Once you have the diagnostic output, post it back and we'll route to the fix branch.**
-
-If Experiment 1 is inconclusive: run Experiments 2–3 (USB inspection, Monolith
-plumbing) before resorting to Experiment 5 (UART, requires hardware).
-
----
-
-## Step D — Apply hypothesis-specific fix and verify
-
-Contingent on Step C diagnosis. Per `FINAL.md` §F:
-
-- **H1a** (missing/mislabeled identity USB) — operator-facing runbook update; no code change.
-- **H1b/H1c** (cache empty / literal-glob miss) — cache-population fix in `bootstrap.sh`.
-- **H2** (version-comparison short-circuit) — `bootstrap.sh` rewrite of the `-ge` branch.
-- **H3** (MAX_BOOT_ATTEMPTS exceeded) — better surfacing; status route already added.
-- **H4** (Pi 5 NVMe re-enumeration, rpi-eeprom #629/#718) — bake firmware update + `PCIE_PROBE=1` into Bootstrap IMG. **Per FC NAY-fix #2: update firmware → reboot → verify version → only then write `PCIE_PROBE=1`.**
-- **H5** (flash worked, user misidentified) — runbook update only.
-- **H6** (`dd`/`partprobe` race) — `udevadm settle` placement fix in `bootstrap.sh`.
-
-After landing the fix: re-image the test node, re-run Experiment 1, confirm clean
-NVMe boot AND that no new failure mode emerged (multi-cause failures are the
-modal outcome on never-worked systems — `FINAL.md` §F closing).
-
----
-
-## Step E — Roll out to all 10 nodes
-
-Once Step D is green on the test node:
-
-```bash
-cd ~/GitHub/Homelab/Hyperion
-./reimage.sh all
-```
-
-Watch via `:8080/log` on each node, or via Monolith journal-remote query:
-
-```bash
-ssh truenas_admin@192.168.10.247
-sudo journalctl --directory=/mnt/Media-Storage/Infra-Storage/journal-remote/ \
-    --unit=hyperion-bootstrap.service -f
-```
-
-Expected: each node flashes NVMe → reboots → boots into Node IMG → SSH-as-`owner`
-works on the assigned `192.168.10.10X` address.
-
----
-
-## Step F — Post-imaging configuration (Ansible)
-
-```bash
-cd ~/GitHub/Homelab/Hyperion/ansible
-ansible-playbook -i inventory.yaml bootstrap.yml
-# or limit to one node for incremental verification:
-ansible-playbook -i inventory.yaml bootstrap.yml --limit hyperion-alpha
-```
-
----
-
-## Step G — k3s and FluxCD
-
-- [ ] Bring k3s online on the worker nodes (`server` already running on Monolith).
+- [ ] Bring k3s agents online on the worker nodes (NixOS handles this via `services.k3s.enable = true`; pivot does this automatically once nodes are imaged).
 - [ ] Bootstrap FluxCD against `Hyperion/k8s/`.
 - [ ] Migrate existing workloads into `Hyperion/k8s/apps/`.
 
----
-
-## Re-imaging a node (ongoing)
-
-```bash
-# 1. Insert Bootstrap medium (SD card or USB stick) into target node
-# 2. Trigger reboot:
-cd ~/GitHub/Homelab/Hyperion
-./reimage.sh hyperion-alpha     # or: ./reimage.sh all
-
-# Bootstrap handles the rest automatically.
-# 3. Remove Bootstrap medium after node is back on NVMe.
-```
-
-CI publishes a new Node IMG automatically on every push to `main` that touches
-`Hyperion/packer/rpi-node.pkr.hcl` or `Hyperion/packer/files/**`.
+These are pre-existing TODOs and survive the pivot unchanged.
 
 ---
 
-## Node storage layout
+## Node storage layout (NixOS)
 
 | Partition | Size | FS | Mount | Purpose |
 |-----------|------|----|-------|---------|
-| `nvme0n1p1` | 512 MB | FAT32 | — | Pi 5 boot firmware |
-| `nvme0n1p2` | 32 GB | ext4 | `/` | Root OS |
+| `nvme0n1p1` | 512 MB | FAT32 | `/boot/firmware` | Pi 5 boot firmware (`kernel.img`, `config.txt`) |
+| `nvme0n1p2` | 32 GB | ext4 | `/` | Root OS (NixOS generations live here) |
 | `nvme0n1p3` | ~220 GB | ext4 | `/mnt/node-storage` | Node-local ephemeral storage |
 
-`/mnt/node-storage` mount logic (via `detect-node-storage.service`):
-- USB stick labeled `node-storage-usb` → use it
-- Any USB block device >200 GB → use its first partition
-- Otherwise → use `nvme0n1p3`
+Declarative source of truth: `Hyperion/nixos/disko/nvme-layout.nix`.
