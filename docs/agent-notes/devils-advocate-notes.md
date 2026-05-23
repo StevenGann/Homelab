@@ -3,7 +3,7 @@ agent: Devil's Advocate
 specialization: Strategic and logical adversary — attacks design, assumptions, scope, reasoning
 role: Adversarial — every other agent's positions are targets
 last_compacted_utc: 2026-05-21T16:35:00Z
-last_updated_utc:   2026-05-21T16:35:00Z
+last_updated_utc:   2026-05-23T05:30:00Z
 ---
 
 # Devil's Advocate — Notes
@@ -89,6 +89,37 @@ attack vectors without re-deriving them each time.
     does not qualify; only failure modes the current N cannot mitigate do").
     Otherwise it's a narrative device for narrating the next breach.
     (From dev-heimdall-finalize Challenge 1.)
+17. **The renamed-not-eliminated bug class.** When a plan claims to eliminate
+    a bug class via architectural change, check whether the bug class is
+    actually structurally gone or just relocated to a different host /
+    different code path / different layer. "Eliminated" only holds if the
+    new architecture cannot express the bug at all. (From C-1, C-4
+    dev-nixos-identity-usb iter-1.)
+18. **Learning-curve hours vs operational-tax hours are different costs.**
+    "20 hours of ramp-up" estimates fluency, not the recurring quarterly
+    fight with the new tool's failure modes. Demand both numbers when a
+    plan invokes a learning curve. (From C-5 dev-nixos-identity-usb iter-1.)
+19. **The clean-failure gate without a muddy-failure rule.** A go/no-go
+    gate that names only "fails twice" leaves the team rationalizing sunk
+    cost on every intermittent or partial failure. Demand a metric +
+    threshold + window for the muddy case. (From C-6 dev-nixos-identity-usb
+    iter-1; generalizes #16 recurring-ceiling-rule to phase gates.)
+20. **The sunset date without enforcement.** Naming a retirement date is
+    necessary but not sufficient. Without an accountable person, a concrete
+    trigger (calendar item, auto-issue, CI check), and explicit
+    extend-vs-execute criteria, "sunset" is doc-as-deflection.
+    (From C-8 dev-nixos-identity-usb iter-1; generalizes pattern #5
+    disposable-abstraction.)
+21. **The single-host pivot leaks to multi-host scope creep.** When a
+    pipeline pivots one host to a new platform, the unanswered question
+    "do the other hosts follow?" usually means "yes, eventually,
+    unbudgeted." Force the answer up-front: dual-stack-forever or
+    cluster-wide-pivot-on-success. (From C-7 dev-nixos-identity-usb iter-1.)
+22. **The pivot-as-procrastination pattern.** When a team that hasn't been
+    finishing its current backlog proposes a platform pivot, the freshness
+    of the new platform can mask the underlying execution-debt issue.
+    Demand a behavioral acceptance test (commit velocity, defect-close
+    rate) as a phase exit criterion. (From C-11 dev-nixos-identity-usb iter-1.)
 
 ---
 
@@ -137,120 +168,50 @@ project evolves.
 
 ---
 
-## Active observations — dev-heimdall-tech-stack iter-1
+## Active observations — dev-nixos-identity-usb iter-1 (2026-05-23)
 
-Scenarios I ran while reviewing `02-combined-draft.md` on 2026-05-17:
+Stage 3 review of `02-combined-draft.md` targeting the orchestrator's choice
+to recommend PROCEED WITH THE PIVOT (Counter-C) over the Old Man's NAY
+(Counter-B). Full ledger at
+`docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/iter-1/03-adversarial/devils-advocate.md`.
+16 challenges issued: 1 CRITICAL, 6 HIGH, 6 MEDIUM, 3 LOW (revised tally per
+ledger summary table including C-15 LOW).
 
-- **caddy-l4 stability scenario.** Maintainer is Matt Holt (Caddy author). The
-  "experimental" warning may be conservative-by-default rather than
-  load-bearing. Survived attack: still a real signal because the README is the
-  maintainer's chosen advertisement; a team optimizing for *stability*
-  shouldn't override an author's own hedge unless the FC produces release-
-  history evidence of stability.
-- **FTP-in-2026 scenario.** No FTP-only dependency named by user. SFTP solves
-  the same surface without PASV / stick-tables / conntrack helper / port-range
-  forwarding. Recommendation: strike from v1 unless dependency named.
-- **AdGuard SPOF scenario.** Run-the-room: phone wakes from sleep at 0300,
-  AdGuard container OOM'd 4 hours ago, phone has no DNS cache, can't resolve
-  *anything*. Operator SSH'ing back to Heimdall by hostname also fails. The
-  "24h cache cushion" only applies to AdGuard's *own* cache for already-asked
-  names — clients without their own resolver cache (most consumer devices)
-  break immediately. Mitigation: DHCP secondary DNS = UCG or Monolith.
-- **Operator-in-the-loop GitOps tax scenario.** Caddyfile changes every time a
-  new service hostname is added. At "20 services churning monthly" the Dockge-
-  click tax compounds. But: same flow on Monolith works fine at 5 services
-  rarely changing. Threshold question. Survives attack at current churn level.
-- **Backup-punt scenario.** Heimdall NVMe dies. caddy/data/ is gone. Operator
-  rebuilds host per runbook. First boot, Caddy requests cert for
-  service-a.example.com — request blocked by LE rate limit if the operator has
-  more than 5 certs and the rebuild hits within 168 hours of last issuance.
-  Documented LE Failed Authorization limit: 5/hour/account/hostname (Failed)
-  and 50/week/registered-domain (Issued). Real risk for any non-trivial
-  number of public hostnames.
-- **Hostconf-files-as-shadow-Ansible scenario.** §4.2 has 12 steps each
-  `sudo install -m 0644 /opt/Homelab/Heimdall/hostconf/X /etc/Y`. That's an
-  Ansible task list spelled out as shell. The "no Ansible" win evaporates if
-  the failure mode (operator-typos-one-path) is the same.
+**Top 3 most consequential (would flip orchestrator's recommendation if
+unaddressed):**
 
----
+- **C-6 muddy-failure exit rule (CRITICAL).** Phase 1 gate names "fails
+  twice" but not "fails intermittently / partially / on day 5." Without a
+  named metric + threshold + window for the muddy case, sunk-cost
+  rationalization will keep the pivot alive even when it's failing —
+  exactly the failure mode the Old Man's 24-of-25-defects-uncommitted
+  evidence documents.
+- **C-5 bus-factor as operational tax (HIGH).** AC-12's 20-40 hour ramp-up
+  estimate is fluency cost, not the recurring quarterly fight (estimated
+  6-12 hours per quarter) when Nix breaks in non-obvious ways at 2am.
+- **C-11 pivot-as-procrastination (HIGH).** The combined draft's assertion
+  that "architecture switch IS the escape from the quagmire" is not
+  falsifiable. The team that hasn't been finishing its Debian backlog may
+  not finish its NixOS backlog either; the pivot changes vocabulary, not
+  execution.
 
-## Active observations — dev-heimdall-finalize iter-1
+**STEELMANNED (came in primed to attack, conceded):**
 
-Scenarios I ran while reviewing `02-combined-draft.md` on 2026-05-17:
+- Native ARM runners as load-bearing argument — IaC Expert's 5-25 min
+  benchmark vs 50 min QEMU baseline checks out per actuated.com.
+- `imports` is evaluation-time — Linux Expert's hard NAY on user's
+  stated config-on-USB-imported-at-boot model is structurally correct;
+  the hybrid (runtime EnvironmentFile + sops-nix from USB-staged age key)
+  preserves user intent while honoring constraint.
+- H2 (version-compare) genuinely structurally gone under NixOS;
+  generations are store-path-keyed, not integer-keyed.
+- Counter-B is preserved as a real fallback (Phase 0 items 1, 2, 3 are
+  load-bearing under both paths; the bridge is concrete not rhetorical).
 
-- **"Five-tool ceiling" rule audit.** Iter-1 had a "three-container budget"
-  that broke 67% in one run (3 → 5). The new "defend five, reject sixth
-  without demonstrable case" rule is the same shape, one tick higher. Every
-  candidate sixth tool (backup daemon, metrics exporter, cert-watcher) will
-  arrive with a real failure as its "demonstrable case." Rule is trivially
-  overridable. Made into pattern #16 below (the recurring-ceiling-rule).
-- **Soft-deferral hit rate.** Repo only has two prior pipeline runs on
-  disk — empirical base too thin to score the 2-month Technitium-secondary
-  deadline. But the parent run (3 days ago) had three of its unanimous
-  decisions re-opened by user-surfacing new info. "Days, not months" is the
-  observed re-open velocity. Recommendation: replace soft "the swap was a
-  mistake" rhetoric with a binary action-tagged deadline (revert OR ship).
-- **Komodo onboarding step scenario.** §3.3 Phase 2 step 4 prescribes 8
-  discrete operator actions (browser nav + clipboard + ssh + sed + restart)
-  yet calls itself "one-shot manual step." Proposal §Risks #2 admits it's
-  not yet scripted; doesn't admit it could be scripted with a `curl + jq`
-  wrapper. 9-months-later failure mode: UI changes between v2.2 and v2.x
-  (active development) and runbook describes a screen that no longer exists.
-- **`bootstrap-zones.sh` failure-mode audit.** Specification gaps:
-  prune-vs-additive semantics, retry on 5xx, API-version coupling. The
-  "binary config changes across versions" argument against committing
-  `dns.config` is asymmetric — API also changes across versions. Either
-  defend the asymmetry or rename to `seed-zones.sh` and own the additive-only
-  contract.
-- **Drift-detection alert-volume scenario.** Komodo `RESOURCE_POLL_INTERVAL=1-hr`
-  at week-12 steady state: ~3 drift alerts/week (Dependabot, poll-caddy-l4,
-  Caddyfile edits). Not alert fatigue strictly; alert background-noise.
-  Operator's mental model: orange badge always there; ignore. Worse:
-  Dependabot PRs cause false-positive drift between PR-open and merge.
-- **NodePort fanout multi-edit operator scenario.** Adding a k8s service:
-  3 coordinated edits (Service manifest, Caddyfile, allocation table) vs
-  MetalLB's 1 (LoadBalancer Service). Couples to iter-1 §C5 churn-threshold
-  decision: NodePort fanout *guarantees* an edit per service. The two
-  decisions will collide as service count grows.
-- **MetalLB-deletion-tripwire premortem.** Read `Hyperion/k8s/` directly:
-  `apps/.gitkeep`, `flux-system/.gitkeep`, MetalLB manifests only. Zero
-  `Service: type=LoadBalancer` exist. Deletion is a free move today.
-  Steelmanned: the cross-host PR's pre-flight discipline is correct *as a
-  discipline* but vacuous on current cluster state.
-- **Mongo working-set drift scenario.** `wiredTigerCacheSizeGB=0.25` caps
-  WT cache at 250 MB; "under 256 MB combined" applies to idle Komodo.
-  At month 6: audit log 500–2000 entries, Stack history 50–100 versions,
-  100-connection pool ≈ 100 MB process RSS not in WT cache. Heimdall has
-  32 GB so not a blocker; but the runbook should set expectations.
-- **`.lab` internal-CA + IoT trust scenario.** Steelmanned: printers /
-  Smart TVs / Chromecasts / game consoles don't reach `.lab` HTTPS in
-  normal use. Trust-burden falls on operator-controlled devices, not IoT.
-  Residual risk: future cluster pods reaching `.lab` HTTPS will fail
-  trust check until CA root is distributed into pod images. Add a section
-  to `trust-store-distribution.md` for k8s-pod trust before someone wastes
-  2 hours on `x509: certificate signed by unknown authority`.
-- **Phase 2 acceptance honesty audit.** Phase 2 acceptance = containers
-  healthy + Periphery onboarded + CA root fetchable + Technitium resolves.
-  Phase 2 does NOT prove: any LAN client uses Heimdall, any service is
-  routed, any `.lab` record resolves. "Project complete at end of Phase 2"
-  framing (Old Man) is technically correct per user phasing but
-  operationally misleading — three Phase-3-ish runbook files exist as
-  *steady-state* docs. Honest gate: at least one Phase 3 deliverable
-  shipped (e.g., `komodo.lab` resolves end-to-end).
-- **Cross-host PR ordering scenario.** (a) cross-host first: cluster has
-  no LB between MetalLB removal and Heimdall Phase 3. Today empty
-  (Challenge 7) so blast radius zero, but conditional on Flux-bootstrap
-  timing. (b) Heimdall Phase 1+2 first, cross-host second, Phase 3 third:
-  Heimdall stands up next to cluster; both LBs coexist briefly; safest
-  given empty cluster. (c) parallel: 3-day inconsistent-state window
-  cost. (b) wins.
-- **Convergence-audit on Periphery-as-systemd.** All three specialists
-  cited the *same* root constraint (Docker daemon restart). 3-of-3
-  consensus is single-constraint × three witnesses, not triple-independent.
-  Honest framing: "one constraint, three confirmations, container mode
-  is also upstream-supported." Decision survives; framing is overconfident.
-
-Pattern added to settled patterns (below): #16 recurring-ceiling-rule.
+**Patterns promoted to settled patterns**: #17 renamed-not-eliminated,
+#18 learning-curve-vs-operational-tax, #19 clean-failure-gate-without-muddy-rule,
+#20 sunset-date-without-enforcement, #21 single-host-pivot-multi-host-creep,
+#22 pivot-as-procrastination.
 
 ---
 
@@ -299,7 +260,15 @@ Scenarios I ran while reviewing `02-combined-draft.md` on 2026-05-21:
 
 ## Archive
 
-Prior pipeline-run summaries (dbg-nvme-not-flashing iter-1) are retained in
-git history of this file; promoted patterns are now in §"Settled patterns"
-above. Detailed ledger lives at
-`docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/iter-1/03-adversarial/devils-advocate.md`.
+Prior pipeline-run summaries are retained in git history of this file;
+promoted patterns are now in §"Settled patterns" above. Detailed ledgers
+live with their respective pipeline runs:
+
+- `docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/iter-1/03-adversarial/devils-advocate.md`
+- `docs/pipeline-runs/<dev-heimdall-tech-stack>/iter-1/03-adversarial/devils-advocate.md`
+  (if landed) — observations compacted 2026-05-23 (patterns promoted, raw
+  scenarios in git history of this file).
+- `docs/pipeline-runs/<dev-heimdall-finalize>/iter-1/03-adversarial/devils-advocate.md`
+  (if landed) — observations compacted 2026-05-23 (patterns promoted, raw
+  scenarios in git history of this file).
+- `docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/iter-1/03-adversarial/devils-advocate.md`

@@ -2,7 +2,7 @@
 agent: Linux Expert
 specialization: Debian/Trixie, systemd, networking, filesystems, kernel, package management, shell
 last_compacted_utc: 2026-05-21T15:00:00Z
-last_updated_utc:   2026-05-21T15:00:00Z
+last_updated_utc:   2026-05-23T07:00:00Z
 ---
 
 # Linux Expert — Notes
@@ -249,6 +249,162 @@ Surprise: I expected to need to add a forward-chain rule for Docker, but
 `forward { policy accept; }` is already there from Heimdall finalize. The
 three new services need only their input-chain ports added.
 
+### 2026-05-23T05:01:33Z — Stage 1 research for nixos-identity-usb DEVELOPMENT pivot
+
+Run `20260523T050133Z-dev-nixos-identity-usb`. User wants to abandon
+Packer+Debian Node-IMG-reflash for NixOS-flashed-once + per-host config on
+identity USB. Wrote proposal at
+`docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/01-proposals/linux-expert.md`.
+
+**Headline:** Cautious YAE on NixOS, hard NAY on the user's literal "USB carries
+configuration.nix, node imports at boot" model — that pattern does not exist
+because `imports` is evaluation-time, not boot-time. Recommended shape:
+**closure is static across all 10 nodes; identity is runtime** via an
+`apply-identity.service` that reads USB and stages an `EnvironmentFile=` +
+`LoadCredential=` for k3s and friends. Same contract as today's Debian
+`apply-identity.service`, NixOS-flavored.
+
+Key Linux/sysadmin findings to promote to settled knowledge after compaction:
+
+- **NixOS `imports` is evaluation-time.** Build host evaluates the config; at
+  that moment the USB is not mounted on the build host. There is no Nix
+  language feature for "import this path at runtime on the target machine."
+  Common newbie mistake; worth naming loudly to the team. (Source: Discourse
+  "What takes evaluation time?" thread.)
+- **`raspberry-pi-nix` is archived (2025-03-23, read-only).** Its README still
+  flags Pi 5 USB/NVMe boot as non-working. Do not propose depending on it.
+- **`nvmd/nixos-raspberrypi` is the live successor flake.** Latest release
+  `v1.20260517.0` (six days before this run). Modules `raspberry-pi-5.base`,
+  `raspberry-pi-5.page-size-16k`, `raspberry-pi-5.display-vc4`. Cachix:
+  `https://nixos-raspberrypi.cachix.org` / key
+  `nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI=`.
+  Three bootloader options; `kernel` (new, generational) recommended for Pi 5
+  installer images. Uses Pi vendor kernel fork.
+- **Pi 5 NVMe boot under NixOS is plausible but not the documented happy
+  path.** Multiple Discourse threads (2026-05) show users piecing it together
+  with disko + nixos-anywhere + nixos-raspberrypi. Treat as "single biggest
+  unknown" in the proposal — budget Phase 1 explicitly for it.
+- **`services.k3s` NixOS module** exposes 44 options including `enable`,
+  `role`, `tokenFile`, `serverAddr`, `extraFlags`, `manifests`,
+  `environmentFile`, `nodeName`, `nodeIP`, `clusterInit`, `disable`.
+  `tokenFile` reads at service-start, can be a runtime path
+  (`/run/credentials/...`). This is materially more declarative than
+  `INSTALL_K3S_EXEC` curl-pipe-bash.
+- **`services.journald.upload`** supports plain HTTP `URL =
+  "http://192.168.10.247:19532"` — drops in cleanly against current
+  journal-remote on Monolith. mTLS path: `ServerKeyFile`,
+  `ServerCertificateFile`, `TrustedCertificateFile` paths set per drop-in.
+  Real-world deployer reported `Buffer space is too small to write entry`
+  crash when fronting receiver with TLS-terminating proxy; resolution was raw
+  TCP. Keep direct receiver.
+- **sops-nix decrypts at activation time, not evaluation time.** Decrypted
+  secrets land at `/run/secrets`. For an architecture where the closure is
+  generic across hosts (recommended), sops-nix is not the right tool for
+  per-host secrets — the USB is. Keep sops-nix in reserve for shared
+  secrets that change rarely.
+- **GHActions ubuntu-latest QEMU aarch64 build cost** for a Pi-class system:
+  ~55 min cold cache, ~5–15 min warm (Cachix + nixos-raspberrypi cache).
+  Actuated.com benchmark independently corroborated by multiple bloggers.
+  Within free-tier budget; visible but tolerable.
+- **NixOS 25.11 "Xantusia"** is the current stable channel (released
+  2025-11-30, supported through 2026-06-30). 26.05 "Yarara" mid-2026.
+  Pin `flake.lock` to 25.11 for now; revisit at 26.05 release.
+- **Impermanence (tmpfs root + persistent state)** is a viable v2 follow-on
+  but rejected for v1 — k3s agent dir, containerd image store, journald, SSH
+  host keys, machine-id all need explicit persistence; getting it wrong
+  wedges nodes in subtle ways. Revisit month 6.
+- **`requires=` on a `dev-disk-by-label-*.device` unit** is the clean
+  failure-mode design for "USB absent → identity not applied → k3s does not
+  start." Node remains SSH-reachable for repair. systemd does NOT
+  auto-stop dependent units if the device disappears at runtime — that's
+  what we want for a flaky USB connector mid-operation.
+- **Pi 5 EEPROM `BOOT_ORDER=0xf641` / `PCIE_PROBE=1`** is below NixOS; the
+  existing `configure-eeprom.sh` keeps working unmodified. `rpi-eeprom`
+  package is available in nixpkgs (verify path; `pkgs.raspberrypi-eeprom`
+  or via `nixos-raspberrypi`).
+- **Bus factor honesty**: 20–40 hours of solo NixOS ramp-up before fluent
+  ops; team should commit to a 4–6 week ramp and document runbooks for
+  every routine task. AC-10 sunset (Debian path stays in repo for 12 weeks)
+  is the safety valve.
+
+### 2026-05-23T07:00:00Z — Stage 5.1 re-review of iter-1 revision (nixos-identity-usb)
+
+Wrote `docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/iter-1/05-review/linux-expert.md`.
+
+User correction (00b) shifts framing from "execution debt" to
+"architectural failure of reflash mechanism." Under that reframing my
+Stage 1 YAE-with-correction position is stronger: replacing a
+demonstrated-broken mechanism (vs. iterating on it) is the right move.
+
+**New sysadmin findings promoted from this re-review (worth promoting to
+settled knowledge after compaction):**
+
+- **k3s native config drop-ins are the clean per-host-divergence
+  mechanism**, not a `lib.mkForce` ExecStart wrapper. k3s reads
+  `/etc/rancher/k3s/config.yaml` plus `/etc/rancher/k3s/config.yaml.d/*.yaml`
+  in alphabetical order. YAML keys: `node-label:`, `node-taint:`,
+  `node-name:`, plus everything else. An activation-time service can
+  generate `/etc/rancher/k3s/config.yaml.d/00-identity.yaml` from the
+  USB-staged `identity.env`. The NixOS k3s module's `services.k3s` config
+  options bake into the closure at evaluation time, which is fine for
+  cluster-wide settings (server URL, token file path, role) but **cannot**
+  vary per-host from runtime data — the drop-in YAML pattern fills that
+  gap without touching ExecStart. Source: docs.k3s.io/installation/configuration.
+- **`services.k3s.nodeLabel` and `services.k3s.nodeTaint` are
+  evaluation-time list options** in nixpkgs release-25.11 k3s module
+  (`nixos/modules/services/cluster/rancher/default.nix` lines 503, 509).
+  Listed in the module's ExecStart construction at lines 936-937. Useful
+  for cluster-uniform labels but not for per-host divergence under the
+  one-closure model.
+- **`nixos-raspberrypi` Pi 5 module initrd module set** is:
+  `nvme` (from `modules/raspberry-pi-5/default.nix:15-17`) plus
+  `xhci_pci`, `usbhid`, `usb_storage`, `vc4`, `pcie_brcmstb`,
+  `reset-raspberrypi` (from `modules/raspberrypi.nix:35-42`). So
+  `fileSystems."/var/lib/hyperion-id".neededForBoot = true` on a USB
+  device by label works in stage-1 *given* the modules are loaded —
+  but Pi 5 USB enumeration in stage-1 can be 5–10s slow under cold
+  boot. The default `x-systemd.device-timeout=15s` is tight; 60s is
+  safer. If the mount times out in stage-1 the node drops to
+  initramfs rescue, NOT stage-2 with SSH — different failure class
+  than apply-identity-service-fails.
+- **`boot.initrd.systemd.enable` controls whether stage-1 uses systemd
+  or scripted initrd.** NixOS default is scripted; opt-in to systemd
+  initrd. Either way `neededForBoot` does the right thing but the
+  failure-mode shell differs (initramfs `sh` vs. systemd emergency
+  shell).
+- **NixOS `fileSystems.<mount>.neededForBoot` definition** lives at
+  `nixos/modules/system/boot/stage-1.nix:704-712`. The option's
+  description: "If set, this file system will be mounted in the
+  initial ramdisk." Path-specific defaults (`/`, `/nix`, `/nix/store`,
+  `/var`, `/var/log`, `/var/lib`, `/etc`, `/usr`) are always mounted
+  in stage-1 regardless of the option.
+- **GHA scheduled workflows are best-effort, not guaranteed.** Cron
+  triggers can lag hours-to-a-day or skip during GitHub platform
+  incidents. For sunset enforcement (or any other date-sensitive
+  trigger), back the workflow with a git-committed file the workflow
+  reads from, so the operator's routine `git pull` surfaces the same
+  information.
+- **SSH-session-based intervention-time instrumentation pattern**: journal-remote
+  already collects `sshd[*]: Accepted publickey for owner from ...`
+  lines from every node. A periodic timer on Monolith can grep these,
+  sum durations, and auto-write to `intervention-log-auto.md` to
+  backstop the operator's manual log. Useful for the muddy-failure
+  gate in the NixOS pipeline.
+
+**Outstanding gaps from Stage 1 that the revision didn't address (carried
+forward to Phase 1):**
+
+- `services.openssh.hostKeys = lib.mkForce [...]` to suppress first-boot
+  key regeneration when the node has USB-supplied persistent keys.
+- Identity USB schema-version refusal contract (what does the node do
+  with schema 1 vs schema 2 vs schema 3?).
+- `users.users.owner` + `services.openssh.passwordAuthentication = false`
+  in `hyperion-base.nix` — routine but unspecified.
+
+Vote-shape: trending YAE with conditions. Would flip to NAY if §G.3
+wrapper-ExecStart stays as-written without commitment to drop-in pattern,
+or if §C.1 muddy-failure threshold gets watered down in Stage 6.
+
 ---
 
 ## Sources
@@ -294,6 +450,69 @@ three new services need only their input-chain ports added.
   recursive-ro kernel ≥5.12.
   https://docs.docker.com/engine/storage/bind-mounts/ — accessed 2026-05-21 —
   confidence: official
+- **NixOS Wiki — NixOS on ARM / Raspberry Pi 5** — current community
+  recommendation for Pi 5 (nvmd/nixos-raspberrypi); Cachix URL+key.
+  https://wiki.nixos.org/wiki/NixOS_on_ARM/Raspberry_Pi_5 — accessed
+  2026-05-23 — confidence: community wiki / official
+- **GitHub — nix-community/raspberry-pi-nix (archived)** — Pi 5
+  USB/NVMe boot listed as non-working; project archived 2025-03-23.
+  https://github.com/nix-community/raspberry-pi-nix — accessed
+  2026-05-23 — confidence: official upstream (archived)
+- **GitHub — nvmd/nixos-raspberrypi** — live Pi 5 flake; latest tag
+  v1.20260517.0 (six days before this run); Cachix details; bootloader
+  module options.
+  https://github.com/nvmd/nixos-raspberrypi — accessed 2026-05-23 —
+  confidence: community active
+- **NixOS Discourse — Pi 5 Desktop on NVME with LUKS** — community
+  thread confirming disko + nixos-anywhere on Pi 5 NVMe is being
+  done; resources scattered.
+  https://discourse.nixos.org/t/raspberry-pi-5-desktop-on-nvme-with-luks/60110
+  — accessed 2026-05-23 — confidence: community
+- **NixOS Discourse — Flake: NixOS on Raspberry Pi 5 (May 2026)** —
+  current state of community-maintained flake options.
+  https://discourse.nixos.org/t/flake-nixos-on-raspberry-pi-5/77589 —
+  accessed 2026-05-23 — confidence: community
+- **services.k3s module options (MyNixOS)** — 44 options enumerated;
+  agent vs server role, tokenFile path semantics.
+  https://mynixos.com/options/services.k3s — accessed 2026-05-23 —
+  confidence: derived from upstream nixpkgs
+- **NixOS K3s wiki** — config patterns, extraFlags for disable, token
+  change gotchas (issue #308201).
+  https://nixos.wiki/wiki/K3s — accessed 2026-05-23 — confidence:
+  community wiki
+- **NixOS Discourse — centralized logging journal-remote/journal-upload**
+  — services.journald.upload settings.Upload interface; HTTP and TLS
+  paths; TLS-via-proxy bug.
+  https://discourse.nixos.org/t/setting-up-centralized-logging-with-journal-remote-and-journal-upload/49588
+  — accessed 2026-05-23 — confidence: community
+- **GitHub — Mic92/sops-nix** — activation-time decryption,
+  `/run/secrets` path, evaluation-vs-activation timing.
+  https://github.com/Mic92/sops-nix — accessed 2026-05-23 —
+  confidence: community / well-maintained
+- **NixOS Wiki — Impermanence** — tmpfs-root pattern, what must persist
+  (k3s, containerd, machine-id, journal), trade-offs.
+  https://wiki.nixos.org/wiki/Impermanence — accessed 2026-05-23 —
+  confidence: community wiki / official module
+- **NixOS 25.11 release announcement (Xantusia)** — current channel,
+  EOL 2026-06-30, 26.05 Yarara next.
+  https://nixos.org/blog/announcements/2025/nixos-2511/ — accessed
+  2026-05-23 — confidence: official
+- **Actuated.com — faster Nix builds with GitHub Actions** —
+  ubuntu-latest QEMU aarch64 benchmark (~55 min cold for Pi-class
+  build); comparison to native ARM runners.
+  https://actuated.com/blog/faster-nix-builds — accessed 2026-05-23
+  — confidence: vendor blog (benchmark numbers independent)
+- **NixOS Discourse — What takes evaluation time?** — authoritative
+  thread on `imports` and what runs at evaluation vs activation vs
+  runtime. The basis for refuting the "USB imported at boot" mental
+  model.
+  https://discourse.nixos.org/t/what-takes-evaluation-time/47692 —
+  accessed 2026-05-23 — confidence: community / authoritative
+- **Jeff Geerling — Pi 5 NVMe SSD boot** — BOOT_ORDER=0xf641 syntax,
+  PCIE_PROBE=1 for non-HAT+ adapters. Already used by current
+  `configure-eeprom.sh`.
+  https://www.jeffgeerling.com/blog/2023/nvme-ssd-boot-raspberry-pi-5/
+  — accessed 2026-05-23 — confidence: vendor-adjacent authority
 
 ---
 

@@ -1,5 +1,15 @@
 name: Build and publish Node IMG
 
+# Build the Node IMG natively on ubuntu-24.04-arm.
+# Native ARM runners (GA 2025-08-07 for public repos) drop wall-clock from
+# ~60-90 min (QEMU emulation on ubuntu-latest) to ~5-8 min. The QEMU binfmt
+# setup is no longer needed.
+#
+# This file is retired alongside the Node IMG itself on 2026-08-15 (see
+# docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/FINAL.md).
+# Until then, the native-runner cut is a no-regret win that survives the
+# pivot's outcome.
+
 on:
   push:
     branches: [main]
@@ -17,8 +27,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -32,10 +42,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq qemu-user-static binfmt-support zstd curl jq
-
-      - name: Register QEMU binfmt handlers
-        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          sudo apt-get install -y -qq zstd curl jq
 
       - name: Install Packer
         run: |

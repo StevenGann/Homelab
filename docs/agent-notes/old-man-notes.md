@@ -3,7 +3,7 @@ agent: Old Man
 specialization: Root-cause analysis, KISS, complexity pushback, deletion over addition
 secondary_role: Standing adversary to the IaC/DevOps Expert (complexity / tech-debt axis only)
 last_compacted_utc: 2026-05-21T15:00:00Z
-last_updated_utc:   2026-05-21T15:00:00Z
+last_updated_utc:   2026-05-23T07:30:00Z
 ---
 
 # Old Man — Notes
@@ -61,11 +61,26 @@ themselves drift into platform-layer complexity.
 
 ## Settled knowledge (project-specific)
 
-- **The two-image (Bootstrap + Node) split is good.** It exists because PXE/TFTP
-  was tried first and failed. The current SD-card approach is simpler in operation,
-  not just in code. Don't let "we should add netboot" creep back in.
-- **USB-authoritative imaging is the right invariant.** Network → USB cache →
-  NVMe means a node can re-image from cold storage with zero network.
+- **The two-image (Bootstrap + Node) split is good _given a re-flash loop that
+  produces working nodes_.** Re-examined 2026-05-23 (twice). First revision:
+  justified because Node IMG had to be redistributable as a block image. Second
+  revision (after user correction 00b in run 20260523T050133Z): the split
+  presupposes the re-flash *mechanism* works. 00b establishes that the
+  mechanism does not produce a working node end-to-end despite many attempts.
+  The split is therefore now justified only as a historical artifact, not as a
+  live invariant. Under any successor architecture (C = NixOS pivot, D =
+  workstation `dd` of upstream Ubuntu, or other), the split is dropped or
+  redefined. Don't let "we should add netboot" creep back in either way.
+- **USB-authoritative imaging is the right invariant — _but the invariant is
+  about identity, not OS bits, and is independent of whether on-Pi reflash
+  works_.** Re-examined 2026-05-23 (twice). First revision: load-bearing
+  property is hardware swap = move USB stick + update DHCP, power on. Second
+  revision (post-00b): this invariant survives the user correction because it
+  is a property of *identity portability*, not of *reflash mechanism*. Under
+  Counter-C, identity USB carries hostname+labels+secrets+age-key. Under
+  Counter-D (workstation `dd` of upstream Ubuntu, named only — not promoted),
+  identity USB carries hostname+secrets+Ansible-vars. Both honor the
+  invariant. The invariant is the durable thing; the reflash mechanism is not.
 - **One mechanism per outcome.** `mnt-node-storage.mount` is the *only* thing
   that mounts `/mnt/node-storage`. Two mechanisms = duplicate-unit conflicts.
 - **Monolith already runs Dockge** as its container manager (see preflight runbook
@@ -136,6 +151,148 @@ re-evaluation if Phase A insufficient). Conceded one possibility: if the
 user explicitly wants a web UI not a terminal script, KISS-counter dies on
 contact; intake says "ONE command or ONE URL" — terminal script IS one
 command.
+
+### 2026-05-23T05:01:33Z — Hyperion NixOS-pivot Stage 1: A/B/C ledger, headline = B
+
+**Git-archaeology finding (load-bearing for this entire pipeline).**
+`git log ee41010..HEAD -- Hyperion/` shows exactly **two** commits to Hyperion
+since the dbg-nvme-not-flashing FINAL.md landed on May 4: `ee41010` (the
+single Linux M-1 fix — write `node-img.ver` post-flash) and `ba4185b`
+(shellcheck CI). One out of ~25 enumerated implementation defects landed.
+The other ~24 (UART sed bug, journal-remote apt-at-start, EEPROM step
+ordering, `dtparam=pciex1_gen=3` cross-link, `Trust=` for HTTP journal-upload,
+`SystemMaxUse=` cap, healthcheck HTTP vs SSH, disk-usage monitoring, etc.)
+were never landed. Repo focus pivoted entirely to Heimdall after May 4
+(see the long chain of `heimdall:` commits). **The user's "quagmire" is not
+a problem with the architecture; it's that the debug pipeline produced a
+plan and the operator didn't execute it.** The pivot to NixOS, in the most
+honest framing, is the user wanting a clean reset because the to-do list
+got long. That's a real feeling, but it's not a design verdict.
+
+**On the two settled-knowledge claims I had to reconsider:** Updated above.
+USB-authoritative is about identity-portability, not OS-portability — that
+distinction was implicit in my prior position and the pivot exposes it.
+Two-image split's justification weakens if the re-flash loop goes away.
+Concede cleanly on both; no contortion.
+
+**Counter-proposal ledger entries (this pipeline):**
+
+- **A (do-nothing-more, finish the debug):** ~25 defects in FINAL.md;
+  2–3 of them are load-bearing (UART sed bug from Pi-Expert N-1, EEPROM
+  step ordering from FC NAY #2, the journal-remote `--listen-http=-3`
+  bug from FC NAY #1). The rest are quality fixes that don't block
+  imaging-end-to-end. A focused 2–3 day execution sprint *should* close
+  it. The risk is that we run that sprint and discover a hypothesis the
+  debug pipeline didn't rank (an H7) — and we still don't have a node up.
+  Probability that's the world we're in: **non-trivial** given 21 days
+  of debugging already.
+
+- **B (simpler-pivot-than-NixOS — keep Debian, kill the reflash loop):**
+  Drop Node IMG versioning entirely. Bootstrap script only flashes on
+  *operator demand* (a sentinel file `force-reflash` on the identity USB,
+  or via `reimage.sh` which already exists). Steady-state boot reads
+  identity-USB-hostname → boots straight from NVMe. Config drift handled
+  by Ansible (already exists in `Hyperion/ansible/`) or a small `apply-
+  identity.sh` extension to read more than just hostname from USB. **Cuts
+  the entire H2/H5/H6 hypothesis class** (version-compare, USB-version-
+  authority, dd race) because the comparison is gone. Eliminates `node-
+  img.ver`, manifest.json, ci-deploy version-poll, and the auto-reflash
+  failure modes. The IaC/DevOps surface shrinks. This is the *KISS-native*
+  answer the team should put on the table opposite NixOS.
+
+- **C (steelman NixOS, smallest form):** Pin nvmd/nixos-raspberrypi at a
+  release tag, use its sd-image generator, configure via a flake with
+  one hostname-keyed module per node, identity USB carries `hostname`
+  + `ssh-host-keys.tar.gz` + `k3s-token` (sops-encrypted), k3s declared
+  by `services.k3s.*` in the base image. **NO** flake-monorepo, **NO**
+  impermanence, **NO** nixos-anywhere remote-deploy, **NO** declarative
+  manifests yet. Just s/Debian Trixie/NixOS/ and let `nixos-rebuild
+  switch` do the config-drift work. Even this minimum form imports:
+  Nix language, a third-party flake (archived predecessor a cautionary
+  tale), a cachix cache to pin against, and a 55-minute QEMU image
+  build on GHA. Plus learning curve. Three innovation tokens at minimum.
+
+**My honest recommendation: B.** The current system, with the ~3 known-
+load-bearing fixes from FINAL.md applied, would probably work. NixOS pivot
+spends innovation tokens to solve a problem (operator-overwhelm at the
+size of the to-do list) that has a structural KISS answer (delete the
+half of the architecture that's causing the to-dos). The reflash loop is
+the source of most of the debt; deleting the loop deletes the debt.
+
+**On bus factor and cost (AC-12/AC-13 — my turf).** NixOS as a tool the
+user (a solo homelabber) does not currently use brings: Nix-the-language,
+flakes, channels/inputs, sops-nix or agenix, raspberry-pi-nix
+(archived March 2025!) or its successor (nvmd/nixos-raspberrypi, active
+but a single-maintainer fork — bus factor 1 on the platform). Operator
+must learn the rollback semantics deeply enough to trust them under
+pressure, not just in calm-conditions reading. Six months in, an
+operator who is comfortable with Debian and shell scripts will hit a
+Nix evaluation error at 2am and that's the bus factor materialising.
+
+**Sources consulted (this session) — see Sources section.**
+
+### 2026-05-23T07:30:00Z — Hyperion NixOS-pivot Stage 5.1: NAY → STEELMANNED-trending-YAE on C
+
+**00b user correction is dispositive.** The user (via 00b mid-pipeline message)
+clarified that the team *has* been trying repeatedly to get a successful NVMe
+reflash; nothing produces a working node end-to-end; the absence of commits
+is consequence-of-no-fix-being-worth-committing, not absence-of-effort.
+
+Two of my three Stage 1 load-bearing claims are refuted: (1) "architecture
+fine, execution debt" — refuted, the mechanism itself is broken; (2) "`dd`
+mechanism works, just stop auto-triggering it" — refuted, the `dd`/repartition
+flow does not produce a working node. Counter-B's sentinel preserves a broken
+thing; quietude by not-pressing-the-button-that-doesn't-work is not a real fix.
+
+Only claim 3 survives (operator-on-site reduces NixOS-rollback feature value),
+at reduced weight: it was load-bearing in combination with the now-refuted
+claims 1+2; standing alone it is a small downward pressure on C's value, not
+a NAY-grade objection.
+
+**Counter-D named for the record (NOT promoted in Stage 5):** workstation `dd`
+of upstream Ubuntu ARM64 server image + Ansible config + identity USB
+carrying hostname+secrets. No Packer, no NixOS, no reflash loop. Sidesteps
+the broken on-Pi reflash by relocating `dd` to the workstation (same
+relocation the revision proposes for C) without importing NixOS. Bus-factor
+zero. Recommended for iter-2 *only if* Phase 1 of C trips the muddy-failure
+or behavioral gate; parked otherwise. C is the team's chosen path for this
+iteration; D is on the bench.
+
+**Vote-trend: STEELMANNED-trending-YAE on Counter-C with four narrow
+preserved conditions** (k3s wrapper retirement, auto-issue actionability,
+sunset re-vote on +5 tooling, weekly-retro rollup for muddy-failure gate).
+The conditions are preferences for the team's complexity discipline going
+forward; they are not blockers.
+
+**Discipline-log entry (new lesson):** my Stage 1 reading of "0 of 25 commits
+in 21 days" as evidence of execution debt was an *interpretation* error, not
+a *citation* error. Git log captures landed code; in a single-operator
+hard-debug stretch where the operator is on-hardware, absence of landed code
+is consistent with both procrastination and grinding-without-result. I
+cannot distinguish those from the log alone. The team's communication
+protocol now has this as a known blind spot for my role: **when I diagnose
+execution debt from git, the team should challenge me to surface non-git
+evidence before I treat git-archaeology as load-bearing in future runs.**
+
+**Standing audits preserved as Stage-5 conditions, not Stage-1 objections:**
+- The +5 operator-facing tooling delta (Nix CLI, Colmena, sops-nix,
+  nixos-raspberrypi flake, two Cachix substituters) is named and accepted
+  *for this iteration*. Re-vote at 2026-08-15 sunset on whether all 5 still
+  earn their keep, with explicit option to drop one back.
+- §G's k3s wrapper-ExecStart shell-interpolation is a new failure-mode
+  surface introduced by the revision; track as tech-debt that must be
+  retired before sunset OR justified in writing.
+- §E's auto-issue workflow must link to a copy-pasteable `git rm`
+  invocation, not just open an issue with a checklist; otherwise it is
+  process-as-theater.
+- The muddy-failure 6-hour gate needs a weekly-retro rollup convention
+  (single-operator self-reporting fails without it).
+
+Sources consulted (this session, in addition to prior notes):
+- `iter-1/04-revision.md` (Stage 4 target of review)
+- `iter-1/03-adversarial/{fact-checker.md,devils-advocate.md}` (Stage 3)
+- `00b-user-correction.md` (mid-pipeline addendum — dispositive)
+- `01-proposals/old-man.md` (my own Stage 1, re-read for re-examination)
 
 ### 2026-05-17T21:45:00Z — Heimdall finalize (run 20260517T213331Z): three deltas
 
@@ -265,6 +422,79 @@ Format per entry:
 - Tradeoffs given up: <what the simpler version cannot do>
 - Resolution: WITHDRAWN | ADOPTED | PARTIAL | STEELMANNED <how>
 ```
+
+### 2026-05-23T07:30:00Z — Eliminate the auto-reflash loop (Hyperion) — STEELMANNED
+- IaC/DevOps proposal: NixOS pivot (Counter-C). Detailed in
+  `docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/iter-1/04-revision.md`.
+- Requirement: **produce a working node end-to-end.** (Per 00b user correction
+  mid-pipeline: the current architecture does not do this regardless of execution
+  effort. This *replaces* the Stage-1 requirement "stop the iteration loop" —
+  the iteration loop is a symptom; the broken mechanism is the disease.)
+- My Stage-1 counter-proposal B (sentinel-gated `dd` reflash, keep Debian):
+  **REFUTED by user correction.** B preserved the `dd`/repartition mechanism
+  behind a `force-reflash` sentinel; 00b establishes that mechanism does not
+  produce a working node. B's quietude was purchased by not-pressing-the-button-
+  that-doesn't-work — not a real fix.
+- Updated counter-proposal **D** (named for record, NOT promoted in Stage 5):
+  workstation `dd` of upstream Ubuntu ARM64 server image + Ansible config +
+  identity USB carrying hostname+secrets. No Packer Node IMG, no NixOS, no
+  reflash loop. Sidesteps the broken on-Pi reflash by relocating `dd` to the
+  workstation (same relocation §H of revision proposes for NixOS) without
+  importing NixOS. Bus-factor: zero. Bug-class elimination: less than C
+  (no H2-by-content-addressing win). Recommended only if Phase 1 of C trips
+  the muddy-failure gate or behavioral gate; otherwise parked.
+- Surviving anti-complexity objections to C (preserved as Stage-5 conditions,
+  not Stage-1 NAY blockers):
+  - §G's k3s wrapper-ExecStart shell-interpolation must be retired before
+    2026-08-15 sunset OR justified in writing.
+  - §E's auto-issue workflow on 2026-08-01 must link directly to a copy-
+    pasteable `git rm` invocation; otherwise it is theater.
+  - §B-3's +5 tooling delta is named, accepted *for this iteration*, and
+    revisited at 2026-08-15 sunset as a Stage-6 vote item.
+  - §C.1's muddy-failure 6-hour gate self-reporting needs a weekly-retro
+    rollup convention to be sustainable in single-operator settings.
+- Discipline-log entry: my Stage-1 reading of "0 of 25 commits in 21 days"
+  as evidence of execution debt was an *interpretation* error, not a
+  *citation* error. Lesson: git log captures landed code; in a single-
+  operator hard-debug stretch, absence of landed code is consistent with
+  both procrastination and grinding-without-result. Cannot distinguish from
+  log alone.
+- Resolution: **STEELMANNED — flipping NAY → YAE-with-conditions on C.** The
+  anti-complexity discipline survives in the four conditions; the diagnostic
+  claim does not. Stage 6 vote-trend: YAE.
+
+### 2026-05-23T05:01:33Z — Eliminate the auto-reflash loop (Hyperion) — SUPERSEDED
+Stage-1 position; see entry above (same UTC date, later time) for the
+Stage-5.1 STEELMANNED resolution after the user's 00b correction.
+- IaC/DevOps proposal (anticipated): replace Debian+Packer with NixOS, identity
+  USB carries declarative config, `nixos-rebuild switch` on every boot.
+- Requirement: stop the "21 days of debug, 28 commits, still no node imaged"
+  cycle. Make Hyperion reach steady state.
+- My counter-proposal **B**: keep Debian/Packer, **delete Node IMG versioning
+  and auto-reflash entirely.** Bootstrap only flashes when an operator places
+  a `force-reflash` sentinel file on the identity USB (or runs `reimage.sh`,
+  which already exists). Steady-state boot = NVMe directly, no version compare.
+  Config drift handled by the existing Ansible playbooks; identity-USB-driven
+  hostname unchanged. Cuts H2/H5/H6 hypothesis classes from FINAL.md by
+  construction. Eliminates `node-img.ver`, `manifest.json`, ci-deploy
+  version-poll, the `--listen-http=-3` journal-remote bug becomes scope-out
+  (we may not even need journal-remote at this scale), and the `H4`
+  PCIE/EEPROM defects can be addressed with a read-only check + die
+  pointing at `configure-eeprom.sh` (Old Man complexity-2 from prior pipeline,
+  already debated).
+- Complexity delta: `bootstrap.sh` shrinks from 545 lines to <200; `rpi-
+  node.pkr.hcl` `node-img.ver`-write removed; `publish-image.sh` Node IMG
+  path retired; ci-deploy Node IMG branch deleted; GitHub Releases Node IMG
+  tag retired. Bootstrap IMG keeps the hostname-from-USB logic. NixOS surface
+  not imported.
+- Tradeoffs given up: no automated propagation of a new Node IMG to all 10
+  nodes "for free." But that automation has not yet worked even once
+  end-to-end, so the tradeoff is hypothetical. An operator-driven reimage
+  cadence (yearly Debian point release; opportunistic when a security CVE
+  matters) is honest and fits the size of the cluster.
+- Resolution: SUPERSEDED 2026-05-23T07:30:00Z — see entry above. Stage-1
+  premise (the `dd` mechanism works, just need to stop triggering it)
+  refuted by user correction 00b.
 
 ### 2026-05-04T00:25:00Z — Networked log collection — RESOLVED: PARTIAL, ADOPTED as Phase 1
 - IaC/DevOps proposal: Vector + Loki + Grafana (Phase 2).
@@ -414,6 +644,50 @@ nginx + ci-deploy + journal-remote — rejected on this axis.
   polling is a textbook well-understood pattern (no new tooling required for
   `watch-flash.sh`). https://curl.se/ — accessed 2026-05-21 — confidence:
   vendor (curl maintainers)
+- **NixOS Wiki — NixOS on ARM/Raspberry Pi 5** — "NixOS is not officially
+  supported on the Raspberry Pi 5." Recommends nvmd/nixos-raspberrypi as the
+  current best community option; relies on proprietary Pi-Foundation
+  firmware; cachix at `nixos-raspberrypi.cachix.org`; advises Pi 4 for
+  "critical projects." Last updated 2026-01-11.
+  https://wiki.nixos.org/wiki/NixOS_on_ARM/Raspberry_Pi_5 — accessed
+  2026-05-23 — confidence: official wiki (community-maintained but canonical)
+- **nix-community/raspberry-pi-nix — ARCHIVED 2025-03-23.** The flake the
+  earlier Pi-5 NixOS write-ups all reference is read-only. v0.4.1 last
+  release Nov 2024. Pi-5 NVMe boot explicitly listed as "not working" in
+  the README. Load-bearing for the bus-factor analysis: the obvious-
+  first-search community flake is dead.
+  https://github.com/nix-community/raspberry-pi-nix — accessed 2026-05-23
+  — confidence: official (project page)
+- **nvmd/nixos-raspberrypi** — current active Pi-5 NixOS flake. 11 releases
+  (latest 2026-05-17), 543 stars, 40 open issues. Maintained by single
+  named contributor — bus factor 1 on the platform layer. Provides
+  `raspberry-pi-5.base`, `page-size-16k`, `display-vc4`/`-rp1`, `bluetooth`
+  modules. NVMe boot / k3s / HAT support not documented in README.
+  https://github.com/nvmd/nixos-raspberrypi — accessed 2026-05-23 —
+  confidence: official (project page)
+- **NixOS aarch64 image build time on GitHub Actions** — QEMU-emulated
+  sd-image build on `ubuntu-latest` ~55 min. Native aarch64 EC2 ~10 min;
+  Pi 4 native 11–47 min; Pi 5 native ~90 min for a full kernel. cache.
+  nixos.org carries aarch64 binaries broadly, so the typical user does
+  *not* recompile the kernel — but if you use the Pi-vendor kernel
+  (required for full Pi 5 GPU/IO support), expect to depend on the
+  nix-community/nixos-raspberrypi cachix cache, not cache.nixos.org.
+  Synthesised across multiple results — accessed 2026-05-23.
+- **fd93 — "Why I Left NixOS for Ubuntu"** — primary-source cautionary tale
+  on solo-operator NixOS maintenance burden. Counterweight to the
+  "NixOS just clicked" success blogs. Not load-bearing on its own; useful
+  as evidence that the bus-factor concern is not invented.
+  https://fd93.me/nixos-to-ubuntu — accessed 2026-05-23 — confidence:
+  individual blog (treat as opinion, not fact)
+- **Earezki — Reproducible Edge Kubernetes (NixOS + K3s + Forgejo)** —
+  2026-04 essay arguing NixOS for k3s edge specifically because
+  "imperative tools like Ansible fail to prevent drift or ensure atomic
+  rollbacks." Steelman source for Counter-proposal C. Treats rollback as
+  load-bearing for headless edge; my position: at 10-node homelab scale,
+  the operator is already on-site, so rollback's value is reduced.
+  https://earezki.com/ai-news/2026-04-25-code-in-cluster-out-building-reproducible-edge-kubernetes-with-nixos-k3s-and-forgejo/
+  — accessed 2026-05-23 — confidence: individual blog (treat as
+  opinion-with-architecture-sketch)
 
 ---
 

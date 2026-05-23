@@ -3,7 +3,7 @@ agent: Fact Checker
 specialization: Empirical verification of claims against primary sources or reproducible tests
 role: Adversarial — every other agent's claims are targets
 last_compacted_utc: 2026-05-17T19:00:00Z
-last_updated_utc:   2026-05-21T16:50:00Z
+last_updated_utc:   2026-05-23T05:30:00Z
 ---
 
 # Fact Checker — Notes
@@ -33,6 +33,74 @@ with the evidence that produced it.
 
 Stable facts verified by past runs that remain true and load-bearing. Cited
 inline by run summaries below.
+
+### NixOS / Pi 5 ecosystem (nixos-identity-usb run, 2026-05-23)
+
+- **`nvmd/nixos-raspberrypi`** is the active Pi 5 NixOS flake. Default branch
+  `develop`, not archived, ~543 stars. Latest release **`v1.20260517.0`**
+  (2026-05-17). API: `nixos-raspberrypi.lib.nixosSystem { ... }`. Pi 5 module
+  selects `linuxPackages_rpi5`, adds `nvme` to initrd modules, and sets
+  `bootloader = "kernelboot"` by default; `"kernel"` (generational) is the
+  recommended new-install value per upstream README. The flake's modules emit
+  `enable_uart=1` and base console params, but DO NOT auto-emit
+  `dtparam=nvme`, `dtparam=pciex1_gen=3`, `auto_initramfs=1`, or
+  `usb_max_current_enable=1` — operator must add via
+  `hardware.raspberry-pi.config`. (Verified 2026-05-23.)
+- **`nix-community/raspberry-pi-nix`** archived 2025-03-23. README's
+  "What's not working?" section explicitly lists "Pi 5 u-boot devices other
+  than sd-cards (i.e. usb, nvme)." (Verified 2026-05-23.)
+- **Cachix substituter `https://nixos-raspberrypi.cachix.org`** operational;
+  returns valid `nix-cache-info` (StoreDir=/nix/store, Priority=41). Public
+  key `nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI=`.
+  (Verified 2026-05-23.)
+- **`services.k3s` NixOS module options exist:** `tokenFile` (`nullOr path`),
+  `serverAddr`, `role`, `extraFlags`, `manifests`, `environmentFile` — all
+  present at release-25.11. Module lives under
+  `nixos/modules/services/cluster/rancher/{default.nix,k3s.nix}` (shared base
+  with `rke2`), NOT `services/cluster/k3s/`. Service unit interpolates token
+  path as `--token-file ${cfg.tokenFile}`, so `sops.secrets.<name>.path`
+  works as a runtime-resolved value. (Verified 2026-05-23.)
+- **`services.journald.upload`** exists in release-25.11
+  (`nixos/modules/system/boot/systemd/journald-upload.nix`). Interface is
+  `settings.Upload.URL` as a `str`. Module is freeform-typed via
+  `pkgs.formats.systemd`. Plain HTTP works. (Verified 2026-05-23.)
+- **sops-nix activation timing.** Does NOT automatically order itself after
+  arbitrary `fileSystems.` mounts. Operator must set `neededForBoot = true`
+  on any filesystem hosting the age key. (Verified 2026-05-23 from
+  `Mic92/sops-nix` README.)
+- **Colmena release lag.** Latest tag **v0.4.0 (2023-05-15)**; no 2024/25/26
+  releases. Active commits in 2025 (most recent 2025-11-01). Supports parallel
+  deploy and `deployment.keys`-style secret upload. No native sops-nix
+  integration — composition via `sops.secrets.<name>.path` is the idiom.
+  (Verified 2026-05-23.)
+- **NixOS 25.11 "Xantusia"** released 2025-11-30, EOL **2026-06-30**. NixOS
+  channels move every 6 months; no LTS line. (Verified 2026-05-23.)
+- **GitHub Actions `ubuntu-24.04-arm` runners GA 2025-08-07** for public
+  repos at no cost. 4 vCPU. Also `ubuntu-22.04-arm` and `windows-11-arm`.
+  Per GitHub changelog
+  `github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/`.
+  (Verified 2026-05-23.)
+- **firmware-2712 latest:** 2026-05-22 ("Allow string values to enable
+  fragments"). Default release: 2026-05-11. (Verified 2026-05-23.)
+- **rpi-eeprom #629 / #718 still open or closed-not-planned.** #629 ("Rpi 5
+  NVMe boots only if USB-MSD is there") closed as not-planned. #718 ("pi5
+  second PCIe boot fails", warm-reboot NVMe enumeration failure with
+  `0x0001e08f`) created 2025-06-23, still open. (Verified 2026-05-23.)
+- **`nixos-anywhere` Pi 5 kexec status.** Upstream README requires x86-64
+  Linux with kexec by default; aarch64 supported via BYO image. Pi 5
+  specifically not singled out. Practitioner reports suggest kexec on Pi 5
+  is fragile; `dd` of installer image to NVMe on workstation is the safer
+  pattern. (Verified 2026-05-23.)
+- **Phase 0 "load-bearing fixes" from prior FINAL.md mostly non-applicable
+  in HEAD.** `Monolith/.../journal-remote/Dockerfile` already has
+  `--listen-http=19532`. `Hyperion/packer/rpi-node.pkr.hcl:229–230` UART
+  inserts already use `grep -q ... ||` idempotent guard (introduced in
+  commit `a46cc5f` on 2026-05-03, BEFORE the prior debug anchor `ee41010`).
+  `Hyperion/configure-eeprom.sh` contains no `rpi-eeprom-update -a` and no
+  `PCIE_PROBE=1` writes — nothing to re-order. (Verified 2026-05-23 via
+  direct file read + grep.)
+
+### Older settled (kept for context)
 
 - **Node IMG version-stamp lifecycle** — `Hyperion/packer/rpi-node.pkr.hcl`
   step 7 writes `/boot/firmware/node-img.ver` at Packer build time;
@@ -132,6 +200,34 @@ one.
 ---
 
 ## Active observations
+
+### 2026-05-23T05:30:00Z — Pipeline run `20260523T050133Z-dev-nixos-identity-usb` iter-1, combined-draft adversarial review
+
+Ledger written to `docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/iter-1/03-adversarial/fact-checker.md`. **22 verdicts: 13 CONFIRMED, 5 REFUTED, 3 PARTIAL, 1 UNVERIFIED.**
+
+Most-consequential findings:
+
+- **REFUTED (V-15) — Phase 0's three named "load-bearing fixes" are all non-applicable.** journal-remote `--listen-http=19532` is already in HEAD's Dockerfile (the FC NAY #1 fix landed earlier). The UART sed in `rpi-node.pkr.hcl` is already idempotent via `grep -q ... ||` (introduced in commit `a46cc5f`, 2026-05-03, BEFORE the `ee41010` anchor). `configure-eeprom.sh` contains no `rpi-eeprom-update -a` or `PCIE_PROBE=1` — there is nothing to re-order. Phase 0 as written is a no-op except for the ARM-runner migration item.
+
+- **PARTIAL/REFUTED (V-9) — AC-11 overstates what `nvmd/nixos-raspberrypi` produces.** The Pi 5 modules set NVMe initrd kernel modules, the rpi5 kernel package, and `enable_uart=1`, but DO NOT auto-emit `dtparam=nvme`, `dtparam=pciex1_gen=3`, `auto_initramfs=1`, `usb_max_current_enable=1`, or `kernel=kernel_2712.img`. Operator must add these via `hardware.raspberry-pi.config.<board>.options.*` explicitly. Phase 1 gate condition, not plan-killer.
+
+- **PARTIAL (V-6) — sops-nix activation timing.** Does NOT automatically wait for `fileSystems.` mounts. Combined plan must explicitly set `fileSystems."/var/lib/hyperion-id".neededForBoot = true;` for the age key to be available at activation. The "should hold" framing in §F.4 is too soft — without `neededForBoot`, it bites quietly.
+
+- **CONFIRMED (V-3) — load-bearing pivot economics.** `ubuntu-24.04-arm` runners are GA for public repos at no cost since 2025-08-07 per the GitHub blog URL. 4 vCPU. Labels exact. The build-cost lever the pivot rides on survives empirical challenge.
+
+- **CONFIRMED (V-1, V-2, V-14) — flake ecosystem holds up.** `nvmd/nixos-raspberrypi` v1.20260517.0 active (released 6 days before this run). Cachix substituter reachable. `raspberry-pi-nix` archived 2025-03-23 with Pi 5 USB/NVMe listed as not-working — both load-bearing facts hold.
+
+- **CONFIRMED (V-5, V-7, V-22) — NixOS module surface area.** `services.k3s.{tokenFile,serverAddr,role,extraFlags,manifests,environmentFile}` all exist (module path moved to `rancher/`). `services.journald.upload.settings.Upload.URL` exists. tokenFile works with `sops.secrets.<name>.path` (path is string-coerced at build time).
+
+- **CONFIRMED, stronger than claimed (V-8) — Old Man's "1 of 25" empirical observation.** Actual count: **0 of 25** FINAL.md defects committed between `ee41010` and HEAD. Only 2 commits touch `Hyperion/` in that window; both are lint/scope tweaks, neither is from the defect catalog. The §B-1 reasoning is reinforced.
+
+- **PARTIAL (V-4) — NixOS 25.11 EOL hits inside Phase 6 sunset window.** Channel EOLs 2026-06-30; sunset is 2026-08-15. AC-13 mentions "biannual channel bump" but does not name 26.05 as the target during the sunset.
+
+- **PARTIAL (V-16) — Colmena last release v0.4.0 (2023-05-15).** Active commits in 2025, but pin by commit hash, not tag. Watch list.
+
+### Verdict file location
+
+`docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/iter-1/03-adversarial/fact-checker.md`.
 
 ### 2026-05-21T16:50:00Z — Pipeline run `20260521T144651Z-dev-hyperion-flashing-to-heimdall` iter-1, combined-draft adversarial review
 
@@ -260,6 +356,41 @@ Ledger written to `docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/ite
 - **Docker host networking driver** — `https://docs.docker.com/engine/network/drivers/host/`. Accessed 2026-05-17. Confidence: official.
 - **Docker 20.10 release notes (cgroup2 support)** — `https://docs.docker.com/engine/release-notes/20.10/`. Accessed 2026-05-17. Confidence: official.
 - **MetalLB troubleshooting** — `https://metallb.universe.tf/troubleshooting/`. Accessed 2026-05-17 (via WebSearch summary). Confidence: official.
+
+### nixos-identity-usb verification (2026-05-23 run)
+
+- **`nvmd/nixos-raspberrypi` repo/releases/issues** —
+  `https://api.github.com/repos/nvmd/nixos-raspberrypi` and
+  `.../releases`, `.../issues/{117,159}`, plus
+  `https://github.com/nvmd/nixos-raspberrypi/blob/develop/README.md`. Accessed
+  2026-05-23. Confidence: official.
+- **`nix-community/raspberry-pi-nix` README** —
+  `https://github.com/nix-community/raspberry-pi-nix`. Accessed 2026-05-23.
+  Confidence: official (project itself).
+- **GitHub Actions ARM runner GA announcement** —
+  `https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/`. Accessed 2026-05-23. Confidence: official (GitHub).
+- **NixOS 25.11 release notes** —
+  `https://nixos.org/blog/announcements/`. Accessed 2026-05-23. Confidence:
+  official.
+- **NixOS k3s module @ release-25.11** —
+  `repos/NixOS/nixpkgs/contents/nixos/modules/services/cluster/rancher/{default.nix,k3s.nix}?ref=release-25.11`. Accessed via `gh api` 2026-05-23. Confidence: official (nixpkgs source).
+- **NixOS journald-upload module @ release-25.11** —
+  `repos/NixOS/nixpkgs/contents/nixos/modules/system/boot/systemd/journald-upload.nix?ref=release-25.11`. Accessed via `gh api` 2026-05-23.
+- **sops-nix activation docs** —
+  `https://github.com/Mic92/sops-nix/blob/master/README.md`. Accessed
+  2026-05-23. Confidence: official.
+- **Colmena releases/commits + features/keys docs** —
+  `https://api.github.com/repos/zhaofengli/colmena/{releases,commits}` and
+  `https://colmena.cli.rs/unstable/features/keys.html`. Accessed 2026-05-23.
+- **rpi-eeprom firmware-2712 release notes** —
+  `https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/master/firmware-2712/release-notes.md`. Accessed 2026-05-23.
+- **rpi-eeprom issues #629/#718** —
+  `https://github.com/raspberrypi/rpi-eeprom/issues/{629,718}`. Accessed
+  2026-05-23.
+- **Cachix substituter operational** — `curl
+  https://nixos-raspberrypi.cachix.org/nix-cache-info` returned valid
+  `StoreDir: /nix/store / WantMassQuery: 1 / Priority: 41`. Accessed
+  2026-05-23.
 
 ### Hyperion-flashing-to-Heimdall verification (2026-05-21 run)
 
