@@ -1,0 +1,77 @@
+name: Hyperion NixOS sunset review
+
+# Auto-opens a GitHub Issue on 2026-08-01 13:00 UTC reminding the operator
+# to evaluate the three pass/fail criteria from the nixos-identity-usb
+# pipeline (FINAL.md §E). If all green: `git rm -r Hyperion/retired/`.
+# If any red: extend by 4 weeks. Max 2 extensions.
+#
+# Modeled on the existing poll-caddy-l4-releases.yml pattern.
+
+on:
+  schedule:
+    - cron: '0 13 1 8 *'    # 2026-08-01 13:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: hyperion-sunset-review
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  open-review-issue:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Year-gate (only fire in 2026)
+        run: |
+          YEAR=$(date -u +%Y)
+          if [ "$YEAR" != "2026" ]; then
+            echo "Sunset review only fires in 2026; current year is $YEAR. Exiting."
+            exit 0
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Open sunset review issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          body_file=$(mktemp)
+          {
+            echo "Per the dev-nixos-identity-usb pipeline FINAL.md §E, the 8-week NixOS sunset window closes on **2026-08-15**. Evaluate the three pass/fail criteria below and either retire the Debian/Packer artifacts or extend the window."
+            echo ""
+            echo "## Pass/fail criteria (all three must be green to retire)"
+            echo ""
+            echo "- [ ] **Stability:** <1 unplanned operator-intervention event/week in any of the last 4 weeks pre-sunset."
+            echo "- [ ] **Reproducibility:** time to onboard a hypothetical 11th node <30 minutes (dry-run on test hardware OR paper trail)."
+            echo "- [ ] **Supply-chain:** no substituter outage longer than 4 hours during the 8-week sunset window."
+            echo ""
+            echo "## Action on retire (all green)"
+            echo ""
+            echo "From the operator workstation:"
+            echo ""
+            echo '```bash'
+            echo "git rm -r Hyperion/retired/"
+            echo "git commit -m 'chore(hyperion): retire Debian/Packer artifacts at sunset'"
+            echo '```'
+            echo ""
+            echo "Closes this issue."
+            echo ""
+            echo "## Action on extend (any red)"
+            echo ""
+            echo "Extend by 4 weeks. Re-fire this workflow with the extended date by editing the cron expression in \`.github/workflows/hyperion-sunset-review.yml\`. Max 2 extensions before revert is mandatory."
+            echo ""
+            echo "## Action on revert"
+            echo ""
+            echo "If the pivot has failed during the window (Phase 1 hard gate, muddy-failure, or behavioral exit signals fired), \`git revert\` the retirement commits, restore Debian/Packer paths, and reopen the dev pipeline."
+            echo ""
+            echo "Accountable: repo operator."
+          } > "$body_file"
+
+          gh issue create \
+            --title "Hyperion NixOS sunset review (2026-08-15)" \
+            --label "hyperion,sunset-review" \
+            --body-file "$body_file"
