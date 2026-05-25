@@ -1,3 +1,15 @@
 creation_rules:
   - path_regex: k8s/.*secret.*\.yaml
     age: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
+
+  # NixOS-path secrets are decrypted at activation time on each worker
+  # using a per-node age key resident on its HYPERION-ID USB. Per-node
+  # pubkeys are appended below by:
+  #   ./register-node-key.sh hyperion-<greek> age1...
+  # which also runs `sops updatekeys` on any existing nixos/secrets/*.yaml.
+  # Hostname → key mapping lives in git history (one commit per
+  # registration). Currently operator-only.
+  - path_regex: nixos/secrets/.*\.yaml
+    age: >-
+      age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm,
+      age1qh63rn0lgewdu9g5fwcexc87xnp99yykvfw0yzjh40kf9q3cu9kqklu849

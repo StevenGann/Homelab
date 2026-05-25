@@ -35,8 +35,7 @@
       # Operator's SSH public key — pinned here as the build-time source of
       # truth. Same value as NODE_SSH_PUBLIC_KEY GitHub Actions secret.
       # Rotated by editing this file and `colmena apply`.
-      # TODO Phase 1: replace with actual operator pubkey on first build.
-      "ssh-ed25519 AAAA... operator@workstation"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPRlnV15+a4pjzB8BqGq33LaOk9sBtLyaaE+WqWLxUIy owner@owner-thinkpad"
     ];
   };
 

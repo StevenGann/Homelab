@@ -28,10 +28,11 @@
     # Day-2 deploys. Pin by commit because Colmena's last formal release
     # (v0.4.0, 2023-05-15) predates this work; 2025-11 commits keep the
     # repo alive. Tracking only; replace with a tag input when one ships.
+    # Pin 349b035 (2025-11-01) merges PR #316 — replaces deprecated
+    # pkgs.system with pkgs.stdenv.hostPlatform.system, required for clean
+    # build against nixpkgs nixos-25.11.
     colmena = {
-      # TODO Phase 1: pin to a specific commit hash known to build clean
-      # against nixpkgs nixos-25.11. Current main is the placeholder.
-      url = "github:zhaofengli/colmena";
+      url = "github:zhaofengli/colmena/349b035a5027f23d88eeb3bc41085d7ee29f18ed";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
