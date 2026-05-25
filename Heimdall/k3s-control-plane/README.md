@@ -26,28 +26,32 @@ plaintext token, encrypted to different recipient sets.
 
 On the workstation:
 
-```bash
-cd ~/GitHub/Homelab
+**Important:** sops walks up from **cwd** to find `.sops.yaml`, not from
+the input file path. So run each `sops` invocation from inside the host
+directory that owns the relevant `.sops.yaml`.
 
-# Mint a 32-byte hex token (64 chars).
+```bash
+# Mint a 32-byte hex token (64 chars). $TOKEN stays in the shell only
+# briefly — encrypted into both files, then unset.
 TOKEN=$(openssl rand -hex 32)
 
-# 1. Heimdall side — encrypt to the operator key
-#    (Heimdall/.sops.yaml matches Heimdall/secrets/*.sops.env)
-printf 'K3S_TOKEN=%s\n' "$TOKEN" > Heimdall/secrets/k3s-control-plane.sops.env
+# 1. Heimdall side — encrypt to the operator key only.
+cd ~/GitHub/Homelab/Heimdall
+printf 'K3S_TOKEN=%s\n' "$TOKEN" > secrets/k3s-control-plane.sops.env
 sops --encrypt --input-type dotenv --output-type dotenv --in-place \
-    Heimdall/secrets/k3s-control-plane.sops.env
+    secrets/k3s-control-plane.sops.env
 
-# 2. Hyperion side — encrypt to operator + every per-node age key
-#    (Hyperion/.sops.yaml matches Hyperion/nixos/secrets/*.yaml)
-mkdir -p Hyperion/nixos/secrets
-printf 'k3s-token: %s\n' "$TOKEN" > Hyperion/nixos/secrets/common.yaml
-sops --encrypt --in-place Hyperion/nixos/secrets/common.yaml
+# 2. Hyperion side — encrypt to operator + every per-node age key.
+cd ~/GitHub/Homelab/Hyperion
+mkdir -p nixos/secrets
+printf 'k3s-token: %s\n' "$TOKEN" > nixos/secrets/common.yaml
+sops --encrypt --in-place nixos/secrets/common.yaml
 
 # Drop the plaintext from the shell.
 unset TOKEN
 
 # Commit the two encrypted files.
+cd ~/GitHub/Homelab
 git add Heimdall/secrets/k3s-control-plane.sops.env Hyperion/nixos/secrets/common.yaml
 git commit -m "feat: mint k3s control-plane join token"
 ```
@@ -87,18 +91,19 @@ Each Hyperion worker also has the token embedded via sops-nix; rotating
 means re-encrypting both sides and re-deploying everything.
 
 ```bash
-cd ~/GitHub/Homelab
 TOKEN=$(openssl rand -hex 32)
 
-# Re-encrypt both sides
-printf 'K3S_TOKEN=%s\n' "$TOKEN" > Heimdall/secrets/k3s-control-plane.sops.env
+cd ~/GitHub/Homelab/Heimdall
+printf 'K3S_TOKEN=%s\n' "$TOKEN" > secrets/k3s-control-plane.sops.env
 sops --encrypt --input-type dotenv --output-type dotenv --in-place \
-    Heimdall/secrets/k3s-control-plane.sops.env
+    secrets/k3s-control-plane.sops.env
 
-printf 'k3s-token: %s\n' "$TOKEN" > Hyperion/nixos/secrets/common.yaml
-sops --encrypt --in-place Hyperion/nixos/secrets/common.yaml
+cd ~/GitHub/Homelab/Hyperion
+printf 'k3s-token: %s\n' "$TOKEN" > nixos/secrets/common.yaml
+sops --encrypt --in-place nixos/secrets/common.yaml
 unset TOKEN
 
+cd ~/GitHub/Homelab
 git add Heimdall/secrets/ Hyperion/nixos/secrets/
 git commit -m "chore: rotate k3s join token"
 

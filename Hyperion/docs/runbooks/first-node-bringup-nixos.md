@@ -94,21 +94,21 @@ The token must exist in two encrypted files: `Heimdall/secrets/k3s-control-plane
 Both hold the **same** plaintext, encrypted to different recipient sets.
 
 Detailed walkthrough: `Heimdall/k3s-control-plane/README.md` §"Initial
-mint". One-block form:
+mint". One-block form (each `sops` invocation runs from the host
+directory that owns its `.sops.yaml`, since sops walks up from cwd):
 
 ```bash
-cd ~/GitHub/Homelab
 TOKEN=$(openssl rand -hex 32)
 
-# Heimdall side (k3s server's env)
-printf 'K3S_TOKEN=%s\n' "$TOKEN" > Heimdall/secrets/k3s-control-plane.sops.env
+cd ~/GitHub/Homelab/Heimdall
+printf 'K3S_TOKEN=%s\n' "$TOKEN" > secrets/k3s-control-plane.sops.env
 sops --encrypt --input-type dotenv --output-type dotenv --in-place \
-    Heimdall/secrets/k3s-control-plane.sops.env
+    secrets/k3s-control-plane.sops.env
 
-# Hyperion side (worker sops-nix secret)
-mkdir -p Hyperion/nixos/secrets
-printf 'k3s-token: %s\n' "$TOKEN" > Hyperion/nixos/secrets/common.yaml
-sops --encrypt --in-place Hyperion/nixos/secrets/common.yaml
+cd ~/GitHub/Homelab/Hyperion
+mkdir -p nixos/secrets
+printf 'k3s-token: %s\n' "$TOKEN" > nixos/secrets/common.yaml
+sops --encrypt --in-place nixos/secrets/common.yaml
 
 unset TOKEN
 ```
@@ -116,6 +116,7 @@ unset TOKEN
 Commit:
 
 ```bash
+cd ~/GitHub/Homelab
 git add Heimdall/secrets/k3s-control-plane.sops.env Hyperion/nixos/secrets/common.yaml
 git commit -m "feat: mint k3s join token"
 ```

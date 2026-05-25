@@ -1,6 +1,11 @@
 creation_rules:
-  # Match any of .sops, .sops.yaml, .sops.env under Heimdall/secrets/.
-  # Inherits the same age recipient as Hyperion/.sops.yaml — single homelab age key,
-  # one private key file (~/.config/sops/age/keys.txt) decrypts everything.
-  - path_regex: Heimdall/secrets/.*\.sops(\.yaml|\.env|)$
+  # Match any of .sops, .sops.yaml, .sops.env under secrets/.
+  # The leading "Heimdall/" was previously baked into the regex, but sops
+  # matches against the path-as-passed and walks up from cwd to find this
+  # file — so the convention is `cd Heimdall && sops -i secrets/<file>`,
+  # making the path it sees just `secrets/<file>`. Match accordingly.
+  # Inherits the same age recipient as Hyperion/.sops.yaml — single homelab
+  # age key, one private key file (~/.config/sops/age/keys.txt) decrypts
+  # everything.
+  - path_regex: (^|/)secrets/.*\.sops(\.yaml|\.env|)$
     age: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
