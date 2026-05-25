@@ -73,17 +73,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "nvme-${{ env.VERSION }}" \
-            --title "Hyperion NixOS NVMe image (${{ env.VERSION }})" \
-            --notes "SHA256: ${{ env.IMG_SHA256 }}
+          cat > /tmp/release-notes.md <<NOTES
+          SHA256: ${IMG_SHA256}
 
-Flash to a blank NVMe on the operator workstation:
+          Flash to a blank NVMe on the operator workstation:
 
-\`\`\`
-curl -OL https://192.168.10.4:50011/nvme/hyperion-nvme-${{ env.VERSION }}.img.zst
-zstd -d hyperion-nvme-${{ env.VERSION }}.img.zst | sudo dd of=/dev/nvmeXn1 bs=4M conv=fsync status=progress
-sync
-\`\`\`
+          \`\`\`
+          curl -OL https://192.168.10.4:50011/nvme/${IMG_FILE}
+          zstd -d ${IMG_FILE} | sudo dd of=/dev/nvmeXn1 bs=4M conv=fsync status=progress
+          sync
+          \`\`\`
 
-Then move the NVMe into the target Pi, insert HYPERION-ID identity USB, power on." \
-            "${{ env.IMG_FILE }}"
+          Then move the NVMe into the target Pi, insert HYPERION-ID identity USB, power on.
+          NOTES
+          gh release create "nvme-${VERSION}" \
+            --title "Hyperion NixOS NVMe image (${VERSION})" \
+            --notes-file /tmp/release-notes.md \
+            "${IMG_FILE}"
