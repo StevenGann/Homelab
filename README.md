@@ -34,23 +34,26 @@ Homelab/
 │   ├── configure-eeprom.sh      # Sets BOOT_ORDER on Pis (KEPT under NixOS too)
 │   └── docs/runbooks/           # Hyperion-specific runbooks
 │
-├── Heimdall/                    # Edge-services + Hyperion flashing host (192.168.10.4)
-│   ├── caddy/                   # Reverse proxy / LB / TLS
-│   ├── technitium/              # DNS + ad-blocking
-│   ├── komodo/                  # Container manager
-│   ├── hyperion/                # Flashing services (moved from Monolith 2026-05-21)
-│   │   ├── ci-deploy/           # Polls GH Releases, mirrors images
-│   │   ├── journal-remote/      # journal-upload sink (:19532) + gatewayd (:19531)
-│   │   ├── nginx.conf           # Image server (:50011)
-│   │   └── docker-compose.yml
-│   └── docs/runbooks/
-│
-└── Monolith/                    # TrueNAS Scale host (192.168.10.247)
-    └── k3s-control-plane/       # k3s server (the flashing/journal stack moved to Heimdall)
-        ├── docker-compose.yml
-        ├── healthcheck/         # IaC integration test runner (HTTP :50012)
-        └── docs/runbooks/
+└── Heimdall/                    # Edge-services + Hyperion flashing + k3s control plane (192.168.10.4)
+    ├── caddy/                   # Reverse proxy / LB / TLS
+    ├── technitium/              # DNS + ad-blocking (composed in root compose)
+    ├── komodo-data/             # Container manager state (composed in root compose)
+    ├── hyperion/                # Flashing services (moved from Akasha 2026-05-21)
+    │   ├── ci-deploy/           # Polls GH Releases, mirrors images
+    │   ├── journal-remote/      # journal-upload sink (:19532) + gatewayd (:19531)
+    │   ├── nginx.conf           # Image server (:50011)
+    │   └── docker-compose.yml
+    ├── k3s-control-plane/       # k3s server (moved from Akasha 2026-05-24)
+    │   ├── docker-compose.yml   # rancher/k3s:v1.34.5-k3s1
+    │   ├── .env.example
+    │   └── README.md            # Initial mint + deploy + token rotation
+    └── docs/
 ```
+
+Akasha (`192.168.10.247`) is the TrueNAS Scale host, renamed from Monolith on
+2026-05-24 and being renovated to a pure-storage role once Hyperion is
+operational. No tracked code under `Akasha/` — the old broken k3s control
+plane was deleted along with the rename.
 
 Each top-level directory maps to a physical host or cluster. This pattern
 extends as IaC coverage expands.
@@ -63,16 +66,20 @@ extends as IaC coverage expands.
 Workstation
   └── Git push → GitHub → CI builds images (Debian Packer + NixOS in parallel during pivot)
 
-Heimdall (192.168.10.4)                          Monolith (192.168.10.247 — TrueNAS Scale)
-  ├── caddy (reverse proxy + TLS)                  ├── k3s server (Docker Compose) — Hyperion control plane
-  ├── technitium (DNS + adblock)                   └── healthcheck (HTTP :50012)
-  ├── komodo (container manager)
-  └── hyperion/                                  Hyperion Cluster (k3s)
-        ├── nginx :50011 (image server)           ├── Control plane: k3s server on Monolith
-        ├── ci-deploy (GH Releases poller)        └── 10 × Pi 5 worker nodes (192.168.10.101–.110)
-        ├── journal-remote :19532                      ├── NixOS (Phase 1 — scaffold landed)
-        └── journal-gatewayd :19531 (HTML browse)      ├── Identity: HYPERION-ID USB (hostname, age key, SSH host keys)
-                                                      └── Workloads: reconciled by FluxCD from this repo
+Heimdall (192.168.10.4)                          Hyperion Cluster (k3s)
+  ├── caddy (reverse proxy + TLS)                  ├── 10 × Pi 5 worker nodes (192.168.10.101–.110)
+  ├── technitium (DNS + adblock)                   │     ├── NixOS (Phase 1 — scaffold landed)
+  ├── komodo (container manager)                   │     ├── Identity: HYPERION-ID USB (hostname, age key, SSH host keys)
+  ├── hyperion/                                    │     └── Workloads: reconciled by FluxCD from this repo
+  │   ├── nginx :50011 (image server)              │
+  │   ├── ci-deploy (GH Releases poller)           └── Control plane: rancher/k3s container on Heimdall (:6443)
+  │   ├── journal-remote :19532
+  │   └── journal-gatewayd :19531 (HTML browse)
+  └── k3s-control-plane/
+        └── rancher/k3s:v1.34.5-k3s1 (server, :6443)
+
+Akasha (192.168.10.247 — TrueNAS Scale)
+  └── renovating to pure storage; no tracked code here
 ```
 
 ### Node imaging flow (NixOS — Phase 1 forward)
@@ -87,7 +94,7 @@ First install (per node, once per kernel/firmware bump):
   → Pi 5 EEPROM boots kernel.img from NVMe firmware partition
   → apply-identity.service stages /run/hyperion/identity.env from USB
   → sops-nix decrypts secrets using per-node age key from USB
-  → k3s agent registers with Monolith server
+  → k3s agent registers with Heimdall control plane (https://192.168.10.4:6443)
 
 Day-2 config changes (no NVMe re-flash):
   Workstation: cd Hyperion/nixos && colmena apply --on hyperion-alpha
@@ -114,10 +121,10 @@ All infrastructure is on the Homelab VLAN (`192.168.10.0/24`):
 
 | Range | Purpose |
 |-------|---------|
-| `.4` | Heimdall (edge services + Hyperion flashing stack) |
+| `.4` | Heimdall (edge services + Hyperion flashing stack + k3s control plane) |
 | `.10–.99` | MetalLB LoadBalancer pool |
 | `.101–.110` | Hyperion Pi nodes (alpha → kappa) |
-| `.247` | Monolith (TrueNAS + k3s server) |
+| `.247` | Akasha (TrueNAS Scale; renovating to pure storage) |
 
 ---
 
@@ -127,14 +134,13 @@ See `docs/todo.md` for the current step-by-step checklist.
 
 **NixOS path (forward, Phase 1+):**
 
-1. **Heimdall** — deploy the hyperion-flashing stack (see `Heimdall/docs/runbooks/flashing-services.md`).
-2. **Monolith** — deploy `Monolith/k3s-control-plane/docker-compose.yml` (the k3s server).
-3. **Workstation tooling** — install Nix, age, sops, colmena.
-4. **EEPROM** — set boot order on each Pi (`./configure-eeprom.sh --reboot`).
-5. **NixOS pivot** — follow `Hyperion/nixos/README.md` then `Hyperion/docs/runbooks/first-node-bringup-nixos.md`.
-6. **Identity USBs** — flash one per node (`./flash-identity-usb.sh /dev/sdX hyperion-alpha`).
-7. **Cluster deploy** — `colmena apply --on '@hyperion-*' --parallel 4`.
-8. **FluxCD** — bootstrap GitOps.
+1. **Heimdall** — deploy the hyperion-flashing stack and the **k3s control plane**: `bash Heimdall/scripts/deploy.sh` (see `Heimdall/docs/runbooks/flashing-services.md` + `Heimdall/k3s-control-plane/README.md`).
+2. **Workstation tooling** — install Nix, age, sops, colmena.
+3. **EEPROM** — set boot order on each Pi (`./configure-eeprom.sh --reboot`).
+4. **NixOS pivot** — follow `Hyperion/nixos/README.md` then `Hyperion/docs/runbooks/first-node-bringup-nixos.md`.
+5. **Identity USBs** — flash one per node (`./flash-identity-usb.sh /dev/sdX hyperion-alpha`), then `./register-node-key.sh hyperion-alpha age1...`.
+6. **Cluster deploy** — `colmena apply --on '@hyperion-*' --parallel 4`.
+7. **FluxCD** — bootstrap GitOps.
 
 **Debian path (legacy, until sunset 2026-08-15):**
 
@@ -175,8 +181,7 @@ cheat-sheet.
 
 ## Reproducibility Checklist
 
-- [ ] Monolith services restored from `docker compose up` alone (unchanged)
-- [ ] Heimdall services restored from `docker compose up` alone
+- [ ] Heimdall services (k3s control plane + flashing stack + edge services) restored from `bash Heimdall/scripts/deploy.sh` alone
 - [ ] Dead Hyperion node replaced per `Hyperion/docs/runbooks/replace-dead-node.md` (≤30 min)
 - [ ] Every workload running in the cluster is defined in `Hyperion/k8s/`
 - [ ] All secrets are SOPS-encrypted or stored outside the repo

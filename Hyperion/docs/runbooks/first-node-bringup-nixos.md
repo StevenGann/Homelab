@@ -46,21 +46,24 @@ or failing, sort it out before continuing.
 
 Three placeholders in the scaffold need real values before the first build:
 
-1. **Operator SSH pubkey.** Edit `Hyperion/nixos/modules/hyperion-base.nix`,
-   line marked `TODO Phase 1` under `users.users.owner.openssh.authorizedKeys.keys`. Paste the operator's actual `ssh-ed25519 ...` line.
+1. **Operator SSH pubkey.** Edit `Hyperion/nixos/modules/hyperion-base.nix`
+   under `users.users.owner.openssh.authorizedKeys.keys`. Paste the
+   operator's actual `ssh-ed25519 ...` line.
 
 2. **Colmena pin.** Edit `Hyperion/nixos/flake.nix`,
-   `inputs.colmena.url`. Replace `github:zhaofengli/colmena` with
-   `github:zhaofengli/colmena/<commit-hash>` — pick a 2025-11 commit per the iter-2 verification finding. Run `nix flake lock --update-input colmena` to refresh `flake.lock`.
+   `inputs.colmena.url`, pinning to a specific 2025-11 commit hash. Run
+   `nix flake lock --update-input colmena` to refresh `flake.lock`.
 
-3. **k3s version skew check.** Confirm k3s 1.34.5 (nixpkgs 25.11) against
-   Monolith's 1.35.3 server is acceptable. If not, override `services.k3s.package` in `modules/hyperion-k3s.nix`. Default: accept the 1-minor skew, within k3s's N-1 supported window.
+3. **k3s version alignment.** The workers run k3s 1.34.5 (from nixpkgs
+   nixos-25.11). The Heimdall control plane is pinned to the matching
+   `rancher/k3s:v1.34.5-k3s1`. Same-minor = no skew workaround needed.
+   Bump in lockstep when you bump nixpkgs.
 
 ## Step 2 — Flash the alpha identity USB
 
 ```bash
 cd ~/GitHub/Homelab/Hyperion
-./flash-identity-usb.sh /dev/sdX hyperion-alpha
+sudo ./flash-identity-usb.sh /dev/sdX hyperion-alpha
 ```
 
 The script:
@@ -70,47 +73,72 @@ The script:
 - generates persistent SSH host keys → `/secrets/`
 - writes `/meta/schema-version=2`
 
-**Note the printed age public key.** You'll need it in Step 3.
+It prints the per-node **age pubkey** at the end (`age1...`). Capture it
+for Step 3.
 
-## Step 3 — Register the new age key
+## Step 3 — Register alpha's age key
 
-Edit `Hyperion/.sops.yaml`. Add the alpha age public key under a new
-creation_rule for `Hyperion/nixos/secrets/*.yaml`:
-
-```yaml
-creation_rules:
-  - path_regex: k8s/.*secret.*\.yaml
-    age: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
-  - path_regex: nixos/secrets/.*\.yaml
-    age: >-
-      age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm,
-      age1...alpha-pubkey-from-flash-identity...
-```
-
-Create the first encrypted secret:
+The companion script appends the pubkey to `Hyperion/.sops.yaml` under
+the `nixos/secrets/*.yaml` creation_rule and runs `sops updatekeys` on
+any existing encrypted files (none yet on the first node — that's fine):
 
 ```bash
-cd Hyperion
-mkdir -p nixos/secrets
-# Generate a k3s join token (operator picks one; persists in sops):
-TOKEN=$(openssl rand -hex 32)
-sops --encrypt --age "$(grep -oE 'age1[a-z0-9]+' /etc/sops/keys.txt | head -1),age1...alpha-pubkey..." \
-     --output nixos/secrets/common.yaml <<EOF
-k3s-token: $TOKEN
-EOF
+cd ~/GitHub/Homelab/Hyperion
+./register-node-key.sh hyperion-alpha age1<pubkey-from-step-2>
 ```
 
-The token must match what's configured on the Monolith k3s server. If
-unsure, SSH to Monolith and read `/var/lib/rancher/k3s/server/node-token`.
+## Step 4 — Mint the k3s join token
+
+The token must exist in two encrypted files: `Heimdall/secrets/k3s-control-plane.sops.env` (for the k3s server container) and
+`Hyperion/nixos/secrets/common.yaml` (for the workers, via sops-nix).
+Both hold the **same** plaintext, encrypted to different recipient sets.
+
+Detailed walkthrough: `Heimdall/k3s-control-plane/README.md` §"Initial
+mint". One-block form:
+
+```bash
+cd ~/GitHub/Homelab
+TOKEN=$(openssl rand -hex 32)
+
+# Heimdall side (k3s server's env)
+printf 'K3S_TOKEN=%s\n' "$TOKEN" > Heimdall/secrets/k3s-control-plane.sops.env
+sops --encrypt --input-type dotenv --output-type dotenv --in-place \
+    Heimdall/secrets/k3s-control-plane.sops.env
+
+# Hyperion side (worker sops-nix secret)
+mkdir -p Hyperion/nixos/secrets
+printf 'k3s-token: %s\n' "$TOKEN" > Hyperion/nixos/secrets/common.yaml
+sops --encrypt --in-place Hyperion/nixos/secrets/common.yaml
+
+unset TOKEN
+```
 
 Commit:
 
 ```bash
-git add .sops.yaml nixos/secrets/common.yaml
-git commit -m "feat(hyperion): add alpha age key + initial sops common.yaml"
+git add Heimdall/secrets/k3s-control-plane.sops.env Hyperion/nixos/secrets/common.yaml
+git commit -m "feat: mint k3s join token"
 ```
 
-## Step 4 — Build the installer image
+## Step 5 — Deploy the Heimdall control plane
+
+```bash
+bash Heimdall/scripts/deploy.sh
+```
+
+`deploy.sh` decrypts both env files on the workstation, ships cleartext
+to Heimdall via SSH, then brings up the k3s control plane container.
+Verify on Heimdall:
+
+```bash
+ssh owner@192.168.10.4 'docker compose -f /opt/Homelab/Heimdall/k3s-control-plane/docker-compose.yml ps'
+ssh owner@192.168.10.4 'sudo curl -ksf https://localhost:6443/readyz'   # → "ok"
+```
+
+The control plane is now listening on `https://192.168.10.4:6443` and
+waiting for worker registrations.
+
+## Step 6 — Build the installer image
 
 Two paths.
 
@@ -132,7 +160,7 @@ nix build .#installerImage --print-build-logs
 ls -lh result/sd-image/*.img
 ```
 
-## Step 5 — Flash NVMe (workstation)
+## Step 7 — Flash NVMe (workstation)
 
 Put the blank Pi 5 NVMe in a USB-to-NVMe adapter on the workstation.
 Confirm the device path with `lsblk` — it'll be something like `/dev/sdb`
@@ -150,7 +178,7 @@ lsblk /dev/sdb
 # Expect: firmware (FAT32), root (ext4), node-storage (ext4)
 ```
 
-## Step 6 — Insert in alpha
+## Step 8 — Insert in alpha
 
 1. Power off `hyperion-alpha` if it's running.
 2. Move the freshly-flashed NVMe from the workstation adapter into
@@ -159,7 +187,7 @@ lsblk /dev/sdb
 4. Verify EEPROM is configured for NVMe-first boot: `./configure-eeprom.sh hyperion-alpha --reboot` if not already done.
 5. Power on alpha.
 
-## Step 7 — Validate the gate criteria
+## Step 9 — Validate the gate criteria
 
 Five things must hold for the Phase 1 hard gate to pass. Track them in a
 local `intervention-log.md`:
@@ -188,23 +216,25 @@ ssh owner@192.168.10.101 'cat /run/hyperion/identity.env'
 # Expect: HYPERION_HOSTNAME=hyperion-alpha, HYPERION_NODE_IP=192.168.10.101
 ```
 
-### Gate 3 — k3s agent registered with Monolith
+### Gate 3 — k3s agent registered with the Heimdall control plane
 
 ```bash
-ssh truenas_admin@192.168.10.247 'sudo k3s kubectl get nodes'
+# Quickest path: ask the control plane container directly.
+ssh owner@192.168.10.4 'sudo docker exec $(docker ps -qf name=k3s-server) k3s kubectl get nodes'
 # Expect: hyperion-alpha appears with status Ready
 ```
+
+For repeat use, fetch the kubeconfig once per `Heimdall/k3s-control-plane/README.md` §"Getting kubectl access", then `kubectl get nodes` from the workstation.
 
 ### Gate 4 — journal-upload reaches Heimdall
 
 ```bash
-ssh truenas_admin@192.168.10.4 'curl -s http://localhost:19531/browse | head -20'
+ssh owner@192.168.10.4 'curl -s http://localhost:19531/browse | head -20'
 # Expect: HTML page lists hyperion-alpha as a journal source
 ```
 
-(Note: journal-remote moved from Monolith to Heimdall per the prior
-flashing-to-Heimdall pipeline. The `hyperion-journal.nix` module points
-at `192.168.10.4:19532`.)
+(`journal-remote` runs on Heimdall via `Heimdall/hyperion/docker-compose.yml`;
+`hyperion-journal.nix` ships there at `192.168.10.4:19532`.)
 
 ### Gate 5 — Warm reboot survives (the load-bearing one)
 
@@ -225,7 +255,7 @@ within 90 seconds), you've hit #718. Two options:
   the workaround is documented in `replace-dead-node.md`.)
 - Halt Phase 1, attempt an EEPROM firmware update via `configure-eeprom.sh`, retry. If still fails after current-firmware-2712, the pivot has not bought us anything operationally — see the FINAL.md §B-1 H4 discriminator paragraph.
 
-## Step 8 — Soak
+## Step 10 — Soak
 
 Leave alpha running for 24 hours. Track:
 - `kubectl get nodes` continuously shows Ready

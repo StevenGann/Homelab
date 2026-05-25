@@ -28,8 +28,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HEIMDALL_HOST="${HEIMDALL_HOST:-owner@192.168.10.4}"
 ENV_SOPS="${REPO_ROOT}/Heimdall/secrets/env.sops.env"
 PW_SOPS="${REPO_ROOT}/Heimdall/secrets/technitium-admin-pw.sops"
+K3S_ENV_SOPS="${REPO_ROOT}/Heimdall/secrets/k3s-control-plane.sops.env"
 ENV_REMOTE="/opt/Homelab/Heimdall/.env"
 PW_REMOTE="/opt/Homelab/Heimdall/secrets/technitium-admin-pw"
+K3S_ENV_REMOTE="/opt/Homelab/Heimdall/k3s-control-plane/.env"
 
 DO_SECRETS=1
 DO_DEPLOY=1
@@ -93,6 +95,24 @@ if [ "$DO_SECRETS" -eq 1 ]; then
             ssh "$HEIMDALL_HOST" "tee $PW_REMOTE > /dev/null && chmod 600 $PW_REMOTE" \
             || die "Failed to ship technitium-admin-pw"
     fi
+
+    # k3s control plane env — present only after the operator has minted the
+    # join token (see Heimdall/k3s-control-plane/README.md §"Initial mint").
+    # Tolerate absence so the rest of the deploy still works during bring-up.
+    if [ -f "$K3S_ENV_SOPS" ]; then
+        log "Shipping k3s-control-plane .env (decrypted from $K3S_ENV_SOPS)..."
+        if [ -n "$DRY_RUN" ]; then
+            printf '\033[1;36m[dry-run]\033[0m sops --decrypt --input-type dotenv --output-type dotenv %s | ssh %s "sudo install -d -m 0755 $(dirname %s) && sudo tee %s > /dev/null && sudo chmod 600 %s"\n' \
+                "$K3S_ENV_SOPS" "$HEIMDALL_HOST" "$K3S_ENV_REMOTE" "$K3S_ENV_REMOTE" "$K3S_ENV_REMOTE"
+        else
+            K3S_DIR="$(dirname "$K3S_ENV_REMOTE")"
+            sops --decrypt --input-type dotenv --output-type dotenv "$K3S_ENV_SOPS" | \
+                ssh "$HEIMDALL_HOST" "sudo install -d -m 0755 $K3S_DIR && sudo tee $K3S_ENV_REMOTE > /dev/null && sudo chmod 600 $K3S_ENV_REMOTE" \
+                || die "Failed to ship k3s-control-plane .env"
+        fi
+    else
+        warn "k3s-control-plane.sops.env not found — skipping (mint it first per Heimdall/k3s-control-plane/README.md)."
+    fi
 else
     log "Skipping secrets shipment (--no-secrets)"
 fi
@@ -151,6 +171,23 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
             docker compose restart nginx
         fi
         docker compose ps
+
+        # ─── k3s control plane (separate Compose project) ────────────────
+        # Lives under /opt/Homelab/Heimdall/k3s-control-plane/. Same
+        # single-root portability rule as the hyperion stack. Skip if the
+        # .env was not shipped (token not yet minted).
+        if [ -f /opt/Homelab/Heimdall/k3s-control-plane/.env ]; then
+            echo "[remote] Bringing up k3s control plane..."
+            sudo install -d -o root -g root -m 0755 \
+                /opt/Homelab/Heimdall/k3s-control-plane/server \
+                /opt/Homelab/Heimdall/k3s-control-plane/kubeconfig
+            cd /opt/Homelab/Heimdall/k3s-control-plane
+            docker compose pull
+            docker compose up -d
+            docker compose ps
+        else
+            echo "[remote] k3s control plane .env not present — skipping (mint the token first)."
+        fi
 
         cd /opt/Homelab/Heimdall
 

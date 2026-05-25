@@ -51,7 +51,7 @@ new modules), deploy to a canary first:
 # Step 1: alpha canary
 colmena apply --on hyperion-alpha
 # Wait 10 minutes; confirm alpha is still Ready and joining workloads
-ssh truenas_admin@192.168.10.247 'sudo k3s kubectl get nodes'
+ssh owner@192.168.10.4 'sudo docker exec $(docker ps -qf name=k3s-server) k3s kubectl get nodes'
 
 # Step 2: 4 GB nodes (beta + gamma) — memory-constraint surface
 colmena apply --on hyperion-beta,hyperion-gamma --parallel 2
@@ -77,13 +77,10 @@ sops nixos/secrets/common.yaml
 cd nixos && colmena apply --on '@hyperion-*' --parallel 4
 ```
 
-Watch for: a token rotation requires the Monolith k3s server to also
-accept the new token. The simplest approach is to read the current
-server-side token and put it in sops, rather than minting a new one:
-
-```bash
-ssh truenas_admin@192.168.10.247 'sudo cat /var/lib/rancher/k3s/server/node-token'
-```
+Token rotation requires updating **both** encrypted halves (Heimdall
+control plane side + Hyperion worker side) — see
+`Heimdall/k3s-control-plane/README.md` §"Rotating the join token" for
+the canonical procedure.
 
 ## When NOT to use Colmena
 

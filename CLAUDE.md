@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Top-level directories map to **physical hosts or clusters**:
 
 - `Hyperion/` — the 10-node Raspberry Pi 5 k3s worker cluster
-- `Monolith/` — the TrueNAS Scale host at `192.168.10.247` (k3s server + healthcheck)
-- `Heimdall/` — edge-services host at `192.168.10.4` (Caddy reverse proxy, Technitium DNS, Komodo container manager; **also hosts the Hyperion flashing services** moved from Monolith on 2026-05-21)
+- `Heimdall/` — edge-services host at `192.168.10.4` (Caddy reverse proxy, Technitium DNS, Komodo container manager; **also hosts the Hyperion flashing services** moved from Akasha on 2026-05-21 and the **k3s control plane** moved from Akasha on 2026-05-24)
+- `Akasha/` — the TrueNAS Scale host at `192.168.10.247`. Formerly Monolith; renamed and being renovated to a pure-storage role once Hyperion is operational. The old broken k3s control plane was deleted 2026-05-24 — currently no tracked code under `Akasha/`.
 - `docs/` — repo-wide design and planning docs
 
 This pattern extends as IaC coverage grows. New hosts get their own top-level directory.
@@ -30,7 +30,7 @@ GitHub push (Hyperion/nixos/**, main)
   → CI builds installer image via nix on ubuntu-24.04-arm (5-25 min)
   → Publishes to GitHub Releases (tag: nvme-<datestamp>-<sha>)
 
-Heimdall ci-deploy (polls GitHub every 5 min — moved from Monolith 2026-05-21)
+Heimdall ci-deploy (polls GitHub every 5 min — moved from Akasha 2026-05-21)
   → Downloads release asset to /opt/Homelab/Heimdall/hyperion/images/nvme/
   → nginx (192.168.10.4:50011) serves to the LAN
 
@@ -44,7 +44,7 @@ First install per Pi (operator-driven, once per kernel/firmware bump):
   → activationScripts.hyperionIdentitySchemaCheck verifies meta/schema-version="2"
   → sops-nix decrypts /run/secrets/* using per-node age key from USB
   → apply-identity.service stages /run/hyperion/identity.env (hostname, IP)
-  → services.k3s.agent registers with Monolith server at 192.168.10.247:6443
+  → services.k3s.agent registers with Heimdall control plane at 192.168.10.4:6443
   → services.journald.upload ships to Heimdall :19532
 
 Day-2 changes (no NVMe re-flash):
@@ -61,7 +61,7 @@ Day-2 changes (no NVMe re-flash):
 - **No `kernel=kernel_2712.img` directive.** The `kernelboot` builder stages the kernel as literal `kernel.img`; the Pi 5 EEPROM (BCM2712) boots it by default. The `kernel_2712.img` filename is a Debian/Pi-OS convention.
 - **Rollback under `bootloader = "kernelboot"` has NO boot-time menu.** Recovery from a broken generation requires installer-SD boot to manually re-stage a previous kernel.img. See `Hyperion/docs/runbooks/rollback-a-node.md`. Switching to `bootloader = "uboot"` provides an extlinux menu but is less-traveled on Pi 5.
 - **Pin `nvmd/nixos-raspberrypi` by tag.** Predecessor `nix-community/raspberry-pi-nix` was archived 2025-03-23 with Pi 5 USB/NVMe boot listed under "What's not working." Current pin: `v1.20260517.0`.
-- **k3s worker-server skew:** nixpkgs release-25.11 ships k3s 1.34.5; Monolith runs 1.35.3. Within k3s's N-1 supported window. If Monolith bumps to 1.36+, override `services.k3s.package`.
+- **k3s worker-server alignment:** the Heimdall control plane runs `rancher/k3s:v1.34.5-k3s1` (pinned in `Heimdall/k3s-control-plane/docker-compose.yml`), matching what nixpkgs nixos-25.11 ships for workers. Same-minor — no skew workarounds needed. Bump server + workers in lockstep when nixpkgs rolls a newer k3s.
 
 ### Debian/Packer architecture (sunsetting 2026-08-15)
 
@@ -177,12 +177,12 @@ Single VLAN `192.168.10.0/24`. UCG (`.1`) is the DHCP server.
 
 | Range | Purpose |
 |-------|---------|
-| `.4` | Heimdall (Caddy, Technitium, Komodo, Hyperion-flashing-stack) |
+| `.4` | Heimdall (Caddy, Technitium, Komodo, Hyperion-flashing-stack, k3s control plane) |
 | `.10–.99` | MetalLB LoadBalancer pool |
 | `.101–.110` | Hyperion nodes (alpha → kappa, in Greek-letter order) |
-| `.247` | Monolith (k3s server `:6443`, healthcheck `:50012`) |
+| `.247` | Akasha (TrueNAS Scale; renovating to pure storage) |
 
-Heimdall hyperion-stack ports: nginx `:50011` (images), journal-remote `:19532` (upload sink), journal-gatewayd `:19531` (HTML browse). Bootstrap status endpoint `:8080` per-Pi (Debian path only).
+Heimdall ports: k3s API `:6443`, Flannel VXLAN `:8472/udp`, nginx `:50011` (images), journal-remote `:19532` (upload sink), journal-gatewayd `:19531` (HTML browse). Bootstrap status endpoint `:8080` per-Pi (Debian path only).
 
 ## When you change something
 
@@ -191,8 +191,8 @@ Heimdall hyperion-stack ports: nginx `:50011` (images), journal-remote `:19532` 
 - **`Hyperion/.sops.yaml`** → re-encrypt all secrets: `sops updatekeys nixos/secrets/common.yaml`.
 - **`Hyperion/packer/**`** (Debian, still tracked until sunset) → CI rebuilds the relevant Packer image. Same `concurrency: build-images`.
 - **`Hyperion/configure-eeprom.sh`** → re-run against affected nodes; not auto-deployed.
-- **`Monolith/k3s-control-plane/docker-compose.yml`** → not auto-deployed. Re-run `docker compose up -d` on Monolith manually.
-- **`Heimdall/hyperion/`** → see `Heimdall/docs/runbooks/flashing-services.md`. Currently operator-deployed via Komodo or `docker compose pull`.
+- **`Heimdall/k3s-control-plane/`** → not auto-deployed. Re-run `bash Heimdall/scripts/deploy.sh` from the workstation (ships both env secrets + restarts the stack). See `Heimdall/k3s-control-plane/README.md`.
+- **`Heimdall/hyperion/`** → same deploy script; see `Heimdall/docs/runbooks/flashing-services.md`.
 - **k8s manifests under `Hyperion/k8s/`** → reconciled by FluxCD (when bootstrapped — currently TODO).
 
 ## Pipeline-run records (decision history)

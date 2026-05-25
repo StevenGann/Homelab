@@ -12,7 +12,7 @@ All Hyperion infrastructure lives here.
 | `.10–.99` | MetalLB LoadBalancer pool |
 | `.101–.110` | Hyperion Pi nodes (static, assigned in UCG) |
 | `.129+` | DHCP dynamic range (UCG) |
-| `.247` | Monolith (TrueNAS Scale) |
+| `.247` | Akasha (TrueNAS Scale) |
 
 ### Node Roster
 
@@ -36,5 +36,5 @@ All Hyperion infrastructure lives here.
 
 | Host | IP | Role |
 |------|----|------|
-| Monolith | 192.168.10.247 | TrueNAS Scale — k3s control plane, HTTP image server (nginx:50011), ci-deploy, healthcheck |
+| Akasha | 192.168.10.247 | TrueNAS Scale — k3s control plane, HTTP image server (nginx:50011), ci-deploy, healthcheck |
 | UCG | 192.168.10.1 | Router, DHCP server for all VLANs |

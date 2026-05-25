@@ -56,33 +56,43 @@ Three Phase-1 prerequisites in `Hyperion/nixos/`:
 - [ ] Note the printed age public key.
 - [ ] Add to `Hyperion/.sops.yaml` `creation_rules` under a new entry for `nixos/secrets/*.yaml`.
 
-### Step 4 — Mint and encrypt the first secret
+### Step 4 — Mint the k3s join token (dual-encrypted)
 
-- [ ] Create `Hyperion/nixos/secrets/common.yaml` with the k3s join token (read from `/var/lib/rancher/k3s/server/node-token` on Monolith).
-- [ ] Encrypt to the operator key + alpha's age pubkey.
+- [ ] `openssl rand -hex 32` → encrypt to **both** sides:
+  - `Heimdall/secrets/k3s-control-plane.sops.env` (`K3S_TOKEN=...`)
+  - `Hyperion/nixos/secrets/common.yaml` (`k3s-token: ...`)
+- [ ] Same plaintext; different recipient sets (operator key on Heimdall;
+      operator + per-node keys on Hyperion).
+- [ ] Canonical incantation: `Heimdall/k3s-control-plane/README.md` §"Initial mint".
 
-### Step 5 — Build the installer image (CI or local)
+### Step 5 — Deploy the Heimdall k3s control plane
+
+- [ ] `bash Heimdall/scripts/deploy.sh` (ships both secrets + brings up
+      the `rancher/k3s:v1.34.5-k3s1` container at `192.168.10.4:6443`).
+- [ ] Confirm `curl -ksf https://192.168.10.4:6443/readyz` returns `ok`.
+
+### Step 6 — Build the installer image (CI or local)
 
 - [ ] Commit Phase-1 prep changes + push (CI fires the `Build Hyperion NixOS image` workflow on `ubuntu-24.04-arm` native).
 - [ ] Download the published `.img.zst` artifact.
 
-### Step 6 — Flash NVMe on workstation, install in alpha
+### Step 7 — Flash NVMe on workstation, install in alpha
 
 - [ ] `zstd -d <img>.zst | sudo dd of=/dev/sdX` (USB-to-NVMe adapter).
 - [ ] Move NVMe into alpha's M.2 HAT.
 - [ ] Insert HYPERION-ID identity USB.
 - [ ] Power on.
 
-### Step 7 — Validate the gate criteria
+### Step 8 — Validate the gate criteria
 
 - [ ] SSH `owner@192.168.10.101` succeeds (key auth).
 - [ ] `hostnamectl` reports `hyperion-alpha`.
 - [ ] `apply-identity.service` active (exited).
-- [ ] `kubectl get nodes` on Monolith shows alpha Ready.
+- [ ] `kubectl get nodes` on the Heimdall control plane shows alpha Ready.
 - [ ] journal-upload reaches Heimdall `:19531/browse` shows alpha.
 - [ ] Warm reboot survives (the rpi-eeprom #718 discriminator).
 
-### Step 8 — Soak
+### Step 9 — Soak
 
 - [ ] 24-hour soak on alpha. Track intervention-log.md.
 - [ ] Decision point: continue to Phase 2 (beta) or halt per exit criteria.
@@ -126,8 +136,8 @@ Three Phase-1 prerequisites in `Hyperion/nixos/`:
 
 ## Scheduled — re-evaluate Heimdall as flashing-services home
 
-**By 2027-05-21** (12 months after the Monolith→Heimdall migration), OR
-**when the Monolith-replacement host is in production** (whichever first),
+**By 2027-05-21** (12 months after the Akasha→Heimdall migration), OR
+**when the Akasha-replacement host is in production** (whichever first),
 run a follow-up pipeline to decide:
 
 - (a) re-migrate the Hyperion flashing services to the new host, OR
@@ -136,7 +146,7 @@ run a follow-up pipeline to decide:
 Source: `dev-hyperion-flashing-to-heimdall` FINAL.md Tier 4.3. The
 temporary-posture commitment is what made the migration palatable; this
 entry exists so the trigger doesn't silently slip into permanence. If
-by 2026-11-21 (6-month mark) there is no Monolith-replacement progress,
+by 2026-11-21 (6-month mark) there is no Akasha-replacement progress,
 surface the question early rather than waiting the full 12 months.
 
 ---

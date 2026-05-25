@@ -17,7 +17,7 @@ Hyperion/nixos/
 │   ├── hyperion-identity.nix  ← /var/lib/hyperion-id mount, schema check, apply-identity, sops-nix
 │   ├── hyperion-pi5.nix       ← hardware.raspberry-pi.config (config.txt directives)
 │   ├── hyperion-journal.nix   ← journal-upload → Heimdall :19532
-│   └── hyperion-k3s.nix       ← services.k3s agent → Monolith :6443
+│   └── hyperion-k3s.nix       ← services.k3s agent → Akasha :6443
 ├── hosts/
 │   └── hyperion-{alpha..kappa}.nix  ← per-host nodeLabel / nodeTaint
 ├── disko/
@@ -61,7 +61,7 @@ Before the first `nix build`:
    keys + the operator's key. Place encrypted `common.yaml` in
    `secrets/`.
 4. Confirm k3s worker-server skew acceptable: nixpkgs 25.11 ships k3s
-   1.34.5; Monolith runs 1.35.3. Within N-1 supported window per
+   1.34.5; Akasha runs 1.35.3. Within N-1 supported window per
    pipeline FINAL.md §C-13. If you need to override, set
    `services.k3s.package` in `modules/hyperion-k3s.nix`.
 
