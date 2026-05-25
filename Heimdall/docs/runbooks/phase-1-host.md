@@ -4,7 +4,7 @@
 > Heimdall stack is ready to be deployed in Phase 2. At the end of Phase 1 no
 > Heimdall-stack containers are running yet; the host has Docker CE, nftables,
 > systemd-resolved configured for port 53 to be free, journal-upload pointed at
-> Monolith, and the Komodo Periphery agent installed as a systemd service.
+> Akasha, and the Komodo Periphery agent installed as a systemd service.
 
 ## Prerequisites
 
@@ -53,7 +53,7 @@ What it does:
 2. Netplan static `192.168.10.4`
 3. systemd-resolved with `DNSStubListener=no`; `/etc/resolv.conf` symlinked to upstream view
 4. nftables ruleset (default-deny inbound, allow-list for the Heimdall services)
-5. systemd-journal-upload to Monolith `:19532`
+5. systemd-journal-upload to Akasha `:19532`
 6. Docker daemon config (`log-driver: journald`, `live-restore`, `userland-proxy: false`)
 7. Repo cloned to `/opt/Homelab/`
 8. Komodo Periphery installed via upstream `setup-periphery.py` and enabled in systemd
@@ -85,7 +85,7 @@ sudo nft list ruleset | head -20
 resolvectl status | head -10
 # Should show DNS Servers from /etc/systemd/resolved.conf.d/no-stub.conf.
 
-# Journal upload working (tail Monolith's journal-remote to confirm)
+# Journal upload working (tail Akasha's journal-remote to confirm)
 ssh truenas_admin@192.168.10.247 \
     'sudo journalctl --directory=/mnt/Media-Storage/Infra-Storage/journal-remote/ -n 10'
 # Should show heimdall hostname in entries from approximately when journal-upload started.

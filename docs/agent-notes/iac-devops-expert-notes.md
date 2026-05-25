@@ -23,12 +23,12 @@ distribution, cluster bring-up, observability of the IaC pipeline itself.
 
 ### Repo conventions (verified 2026-05-17, re-checked 2026-05-23)
 
-- **One physical host per top-level directory** (`Hyperion/`, `Monolith/`, `Heimdall/`).
-- **Static host + containers for dynamic config.** The reference is `Monolith/k3s-control-plane/`: bind-mounted state on host filesystem, services pulled from `ghcr.io/stevengann/homelab-*`, managed via Dockge.
+- **One physical host per top-level directory** (`Hyperion/`, `Akasha/`, `Heimdall/`).
+- **Static host + containers for dynamic config.** The reference is `Akasha/k3s-control-plane/`: bind-mounted state on host filesystem, services pulled from `ghcr.io/stevengann/homelab-*`, managed via Dockge.
 - **CI builds + publishes via path-filtered push to `main`.** Workflow naming pattern: `.github/workflows/build-<name>-img.yml`. Each uses `concurrency.group` to serialize, `docker/build-push-action@v5` for containers (or the Packer + QEMU action chain for raw Pi images), ghcr.io tag `:latest`. See `build-healthcheck-img.yml`, `build-ci-deploy.yml`, `build-journal-remote-img.yml`, `build-node-img.yml`, `build-bootstrap-img.yml`.
 - **Deploy mechanism is operator-in-the-loop**, not pure GitOps: Dockge polls registry / operator clicks Update. The compose file is the source of truth, drop it into the stack via SMB or SSH.
 - **SOPS + age for secrets.** Repo-root `.sops.yaml` does not exist; `Hyperion/.sops.yaml` is the only one and is narrowly scoped (`k8s/.*secret.*\.yaml`). Public key: `age1hmxzj58j4vlr7w7kffx9k5dvx8kgp4dtq3235vt4lwjxlrp8u53sjkv2cx`. New hosts must add their own `.sops.yaml` with the relevant `path_regex` or extend a top-level one.
-- **Healthcheck pattern**: `Monolith/k3s-control-plane/healthcheck/healthcheck.py` exposes `:50012/{,summary,scan}`, decorate functions with `@check(name, category, description)` to extend.
+- **Healthcheck pattern**: `Akasha/k3s-control-plane/healthcheck/healthcheck.py` exposes `:50012/{,summary,scan}`, decorate functions with `@check(name, category, description)` to extend.
 - **journal-remote** runs on `192.168.10.247:19532` (plain HTTP, LAN-only) and accepts `systemd-journal-upload` POST to `/upload`. Hyperion sends to it from BOTH Bootstrap and Node IMGs (Packer §15).
 
 ### Build → distribute → consume pipeline (Hyperion, current)
@@ -56,7 +56,7 @@ The exFAT choice was deliberate (4 GB+ files for the uncompressed image). Mount-
 ### Secrets policy
 
 - Only required GitHub Actions secret: `NODE_SSH_PUBLIC_KEY`. Everything else uses the auto-provided `GITHUB_TOKEN`.
-- Monolith-deploy-key approach (CI SSHes to Monolith) was **abandoned**. Monolith pulls from GitHub Releases via `ci-deploy`.
+- Akasha-deploy-key approach (CI SSHes to Akasha) was **abandoned**. Akasha pulls from GitHub Releases via `ci-deploy`.
 - Workstation-only age private key at `~/.config/sops/age/keys.txt`. Never committed.
 
 ### Versioning
@@ -65,13 +65,13 @@ The exFAT choice was deliberate (4 GB+ files for the uncompressed image). Mount-
 
 ### Cluster status (per `docs/todo.md`)
 
-- Monolith stack (k3s server + nginx + ci-deploy + healthcheck + journal-remote) implemented.
+- Akasha stack (k3s server + nginx + ci-deploy + healthcheck + journal-remote) implemented.
 - Packer images, CI workflows, identity USB tooling, EEPROM tooling, reimage tooling — implemented.
 - **Not yet done:** k3s + FluxCD bring-up. MetalLB manifests exist under `Hyperion/k8s/infrastructure/metallb/` but FluxCD reconciliation is not wired. "GitOps reconciles the cluster" is aspirational.
 
 ### Observability — Vector + Loki is the live path
 
-Confirmed 2026-05-04 via Grafana docs. Promtail EOL'd 2026-03-02. For new agents we choose Vector (single ARM64-native static binary, journald source, disk-backed buffer) and ship to Monolith. Loki monolithic mode (`-target=all`) sized for ~20 GB/day per Grafana — comfortably covers a 10-Pi + Heimdall load.
+Confirmed 2026-05-04 via Grafana docs. Promtail EOL'd 2026-03-02. For new agents we choose Vector (single ARM64-native static binary, journald source, disk-backed buffer) and ship to Akasha. Loki akashaic mode (`-target=all`) sized for ~20 GB/day per Grafana — comfortably covers a 10-Pi + Heimdall load.
 
 ### NixOS-on-Pi5 state (verified 2026-05-23 — relevant to this run)
 
@@ -96,31 +96,31 @@ Compacted the file (notes were 4 days old vs 24h compaction protocol). Most Heim
 
 Web-verified facts (2026-05-21):
 - **GHCR images public+accessible**: anonymous-token HEAD against `ghcr.io/stevengann/homelab-{ci-deploy,journal-remote,healthcheck}/manifests/latest` returns HTTP 200 with `application/vnd.docker.distribution.manifest.v2+json`. Tags list for `homelab-ci-deploy` shows ONLY `["latest"]` — there is no SemVer/SHA pin available. This is a real risk to flag for the proposal (and a defendable item: `docker compose pull` resolves `:latest` to a digest at pull time, but a re-pull after a regressed build is silently destructive).
-- **nginx:alpine current**: mainline `1.31.0-alpine` / stable `1.30.1-alpine` per Docker Hub. The proposal pins `nginx:1.30.1-alpine` (stable channel; matches Monolith's unpinned `nginx:alpine` while moving in the more-stable direction).
+- **nginx:alpine current**: mainline `1.31.0-alpine` / stable `1.30.1-alpine` per Docker Hub. The proposal pins `nginx:1.30.1-alpine` (stable channel; matches Akasha's unpinned `nginx:alpine` while moving in the more-stable direction).
 - **Dozzle 9.0** (Jan 2026): real-time Docker log viewer; web UI; reads via the Docker socket; SQL-via-DuckDB+WASM in the browser; pattern-match → webhook. Good for *container* logs but NOT for journald-on-disk logs.
 - **systemd-journal-gatewayd**: ships in the same Debian `systemd-journal-remote` package the journal-remote container already installs. Serves HTTP on :19531 with output formats `plain` / `json` / `json-sse`, query params `follow=1` + `KEY=match`, AND a built-in HTML5 browser. This is the keystone for the realtime tool: zero new image; just an EXPOSE+ENTRYPOINT change OR a second container off the same base. No browser-side framework needed — `?follow=1&output=json-sse` is consumable by `curl` and any web page via `EventSource`.
 - **Caddy + SSE buffering**: Caddy's `reverse_proxy` partially buffers responses; `flush_interval -1` disables buffering and is required for SSE. Documented in caddyserver.com/docs/caddyfile/directives/reverse_proxy. If we route the gateway through Caddy at `flash.lab`, the directive must include `flush_interval -1`.
 - **mongo:7.0 vs mongo:8** (sidebar — Heimdall already pins 7.0; not in scope here).
 
 Decisions baked into the proposal:
-- Storage = local bind-mount on Heimdall NVMe at `/opt/Homelab/Heimdall/hyperion-images/`. Backed up by `backup.sh`. Defended against NFS-from-Monolith (inverts the bootstrapping story the user explicitly named "Heimdall is up; use it") and proxy_cache (over-engineered for two assets that change weekly).
+- Storage = local bind-mount on Heimdall NVMe at `/opt/Homelab/Heimdall/hyperion-images/`. Backed up by `backup.sh`. Defended against NFS-from-Akasha (inverts the bootstrapping story the user explicitly named "Heimdall is up; use it") and proxy_cache (over-engineered for two assets that change weekly).
 - Separate Compose stack at `Heimdall/hyperion/docker-compose.yml`, managed as a second Komodo Stack. Defended against same-stack-with-Heimdall because the lifecycles are unrelated and bouncing Hyperion infra shouldn't restart Caddy/Technitium/Komodo.
 - Realtime tool = `systemd-journal-gatewayd` (web UI + JSON-SSE) plus a thin `watch-flash.sh` workstation script that polls each Pi's `:8080/` JSON AND tails the gateway's SSE stream filtered to `_SYSTEMD_UNIT=hyperion-bootstrap.service`. Defended against Dozzle (Dozzle reads container logs via Docker socket — wrong source for Pi-side journald).
-- Posture = PERMANENT (i.e., these three services now live on Heimdall; Monolith retains k3s server + healthcheck only). Defended against "temporary" because temporary means two migrations.
-- ci-deploy on Heimdall (not Monolith) — same reason as Komodo Core on Heimdall: Heimdall is the bootstrap-of-bootstrap host now.
+- Posture = PERMANENT (i.e., these three services now live on Heimdall; Akasha retains k3s server + healthcheck only). Defended against "temporary" because temporary means two migrations.
+- ci-deploy on Heimdall (not Akasha) — same reason as Komodo Core on Heimdall: Heimdall is the bootstrap-of-bootstrap host now.
 
 ### 2026-05-23T05:01:33Z — Stage 1 proposal for nixos-identity-usb pivot
 
 Submitted `01-proposals/iac-devops-expert.md` for run `20260523T050133Z-dev-nixos-identity-usb`. Headline architectural decisions:
 
 1. **Build mechanism:** `nix build` of a custom installer image via `nvmd/nixos-raspberrypi` flake, running on the new **free linux-arm64 GitHub runners** (`ubuntu-24.04-arm`). No QEMU emulation. Expected wall-clock ~5–10 min with the project's Cachix as a substituter; previously this would have been a 50–90 min QEMU build. **This is the load-bearing finding that makes the pivot defensible at all.**
-2. **Distribution:** Keep `ci-deploy` + nginx :50011 + Monolith caching. Re-purpose, don't retire. The Monolith now caches one artifact: the NVMe-ready full-disk image (`raw-efi` from nixos-generators or equivalent). Image is published once and reused across all 10 nodes because **per-node config no longer lives in the image** — it lives on the identity USB. So the re-flash cadence drops from "every commit" to "every several months / when kernel updates land." Old `node-img.ver` versioning collapses into a single "image generation tag" stamped on the NVMe at install time, never re-flashed for config changes.
+2. **Distribution:** Keep `ci-deploy` + nginx :50011 + Akasha caching. Re-purpose, don't retire. The Akasha now caches one artifact: the NVMe-ready full-disk image (`raw-efi` from nixos-generators or equivalent). Image is published once and reused across all 10 nodes because **per-node config no longer lives in the image** — it lives on the identity USB. So the re-flash cadence drops from "every commit" to "every several months / when kernel updates land." Old `node-img.ver` versioning collapses into a single "image generation tag" stamped on the NVMe at install time, never re-flashed for config changes.
 3. **Identity USB schema (new):** Adds two files on top of the existing exFAT layout — `/hostname` (kept) and a new `/config.nix` (or directory tree under `/nixos-config/`) that the booting NixOS imports via a small module + `extraSpecialArgs`. A new file `/age-key.txt` holds the *per-node* age key (kept off-Pi for hardware-swap independence). A systemd oneshot before `multi-user.target` mounts the USB read-only at `/var/lib/hyperion-id`, and `nixos-rebuild switch --flake /var/lib/hyperion-id#<hostname>` is run by an `apply-identity-config.service` on first boot only (subsequent config changes come via Colmena from the operator workstation, not via USB re-edits — but the USB-side mechanism remains as the rebuild-the-cluster-from-cold-USB recovery path).
 4. **Secrets:** sops-nix with the **age key on the identity USB**. Mount happens early enough (before activation) via a mount unit. K3s token is a secret decrypted at activation. journal-upload `Trust=` is a `sops-nix` file. **One unsolved**: if the USB is missing on boot, sops-nix activation fails and the system enters the previous generation — that's actually the *correct* failure mode (NixOS rolls back), but the operational message ("the USB stick is missing") needs surfacing — a small ExecStartPre check that writes a status to journal-remote.
-5. **Healthcheck:** Add a tiny `nodeinfo.service` on each node exposing `:50013/version` with the system's current generation hash + uptime. Monolith healthcheck polls it. Replaces the current "image version" check, which becomes irrelevant.
-6. **AC-14 fate:** RETIRE `rpi-bootstrap.pkr.hcl`, `bootstrap.sh` (the 545-line script), `reimage.sh`, `build-bootstrap-img.yml`, `node-img.ver`. RETIRE/SIMPLIFY `ci-deploy` (smaller poller — one image, one tag). MODIFY `flash-identity-usb.sh` to write config.nix + age-key.txt. KEEP `configure-eeprom.sh` (orthogonal to NixOS), KEEP `journal-remote`, KEEP Monolith stack, KEEP SOPS+age, KEEP Ansible (now optional — Colmena replaces most of it).
+5. **Healthcheck:** Add a tiny `nodeinfo.service` on each node exposing `:50013/version` with the system's current generation hash + uptime. Akasha healthcheck polls it. Replaces the current "image version" check, which becomes irrelevant.
+6. **AC-14 fate:** RETIRE `rpi-bootstrap.pkr.hcl`, `bootstrap.sh` (the 545-line script), `reimage.sh`, `build-bootstrap-img.yml`, `node-img.ver`. RETIRE/SIMPLIFY `ci-deploy` (smaller poller — one image, one tag). MODIFY `flash-identity-usb.sh` to write config.nix + age-key.txt. KEEP `configure-eeprom.sh` (orthogonal to NixOS), KEEP `journal-remote`, KEEP Akasha stack, KEEP SOPS+age, KEEP Ansible (now optional — Colmena replaces most of it).
 
-Anti-complexity defense for the Old Man: **net file-count drops**. We retire ~900 lines (bootstrap.sh + rpi-bootstrap.pkr.hcl + reimage.sh + ci-deploy/poll.sh in its current form), add ~300 lines of Nix (flake.nix, identity module, hive.nix), and the *mental model* shrinks from a custom dual-image dance with version-compare-and-reflash to "one immutable image; declarative config on USB; Colmena pushes config changes." Container/process count on Monolith: ci-deploy stays (smaller), no new containers. New external dependency: `cache.nixos.org` + `nixos-raspberrypi.cachix.org` — both equivalent in trust posture to today's GitHub Releases dependency.
+Anti-complexity defense for the Old Man: **net file-count drops**. We retire ~900 lines (bootstrap.sh + rpi-bootstrap.pkr.hcl + reimage.sh + ci-deploy/poll.sh in its current form), add ~300 lines of Nix (flake.nix, identity module, hive.nix), and the *mental model* shrinks from a custom dual-image dance with version-compare-and-reflash to "one immutable image; declarative config on USB; Colmena pushes config changes." Container/process count on Akasha: ci-deploy stays (smaller), no new containers. New external dependency: `cache.nixos.org` + `nixos-raspberrypi.cachix.org` — both equivalent in trust posture to today's GitHub Releases dependency.
 
 Anti-complexity counter the Old Man may raise: "fix the existing dbg-nvme-not-flashing pipeline instead." Counter to that counter: the *concept-level* cost of the current design — having to re-flash NVMe to change a config line — is the recurring tax. The debug pipeline closes only this round of bugs; it doesn't reduce the rate of future bugs of the same shape. NixOS removes the class of bug, not the instance.
 
@@ -216,7 +216,7 @@ Full review: `docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/iter-1/
 
 - **NixOS schema-version-mismatch handling pattern:** activation script with `lib.stringAfter [ "specialfs" ]` ordering, `exit 1` on mismatch. Surfaces as `failed` systemd unit, journal-remote captures it, SSH stays up. This is the "typed failure" property H1a promises in §H but the revision did not explicitly write into `hyperion-identity.nix`.
 
-- **k3s version-skew concern:** nixpkgs 25.11 ships `k3s_1_31` / `k3s_1_32`; upstream k3s is on 1.35.x; Monolith control plane is on `rancher/k3s:v1.35.3-k3s1`. k3s officially supports ≤2 minor version server/agent skew. **This is a Phase 1 prerequisite that the revision did not name as a hard prerequisite.** Either override `services.k3s.package` or roll Monolith back; pick before Phase 1 build.
+- **k3s version-skew concern:** nixpkgs 25.11 ships `k3s_1_31` / `k3s_1_32`; upstream k3s is on 1.35.x; Akasha control plane is on `rancher/k3s:v1.35.3-k3s1`. k3s officially supports ≤2 minor version server/agent skew. **This is a Phase 1 prerequisite that the revision did not name as a hard prerequisite.** Either override `services.k3s.package` or roll Akasha back; pick before Phase 1 build.
 
 ### My Stage 5.1 vote disposition
 
@@ -238,5 +238,5 @@ Full review: `docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/iter-1/
 
 1. Will the orchestrator amend §G.3 in response to N-1? (If yes: easy YAE. If no: I'd need to weigh whether the wrapper is bad-enough to NAY despite agreeing with the rest of the revision.)
 2. Does the team accept keeping deploy-rs as an unused flake input from day 1? (Cheap, +20 lines `flake.nix`.)
-3. Pre-Phase-1 question: do we roll Monolith back from `v1.35.3-k3s1` to match whatever nixpkgs ships, or override `services.k3s.package`?
+3. Pre-Phase-1 question: do we roll Akasha back from `v1.35.3-k3s1` to match whatever nixpkgs ships, or override `services.k3s.package`?
 

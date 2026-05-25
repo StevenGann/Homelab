@@ -41,7 +41,7 @@ RECORDS=(
 
     # Phase 3 baseline (uncomment when ready to seed):
     # "heimdall.lab|A|192.168.10.4"
-    # "monolith.lab|A|192.168.10.247"
+    # "akasha.lab|A|192.168.10.247"
     # "hyperion-alpha.lab|A|192.168.10.101"
     # "hyperion-beta.lab|A|192.168.10.102"
     # "hyperion-gamma.lab|A|192.168.10.103"

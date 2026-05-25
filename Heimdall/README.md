@@ -5,7 +5,7 @@ Edge-services host for the Homelab. One x86 box that runs the LAN's:
 - **Internal DNS** — Technitium DNS Server (forwarder + ad/malware filter + authoritative `.lab` zone)
 - **HTTPS reverse proxy + L4 router** — Caddy v2.11.3 with the `caddy-l4` plugin (internal CA for `*.lab` hostnames)
 - **Container management UI** — Komodo Core v2.2.0 (per-container terminal, audit log, Git-driven deploys)
-- **Centralized log shipper** — `systemd-journal-upload` to Monolith
+- **Centralized log shipper** — `systemd-journal-upload` to Akasha
 
 > **Status:** deployed and operational (May 2026).
 > Phase 2 acceptance gate passed; LAN-side DNS pointer (UCG DHCP option 6) is the

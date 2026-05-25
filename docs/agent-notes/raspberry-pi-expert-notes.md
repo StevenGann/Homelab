@@ -68,8 +68,8 @@ during commissioning; disable once the cluster is stable.
 
 ### k3s configuration on Hyperion
 
-- Server runs in Docker on Monolith (`rancher/k3s:v1.35.3-k3s1`) per
-  `Monolith/k3s-control-plane/docker-compose.yml`.
+- Server runs in Docker on Akasha (`rancher/k3s:v1.35.3-k3s1`) per
+  `Akasha/k3s-control-plane/docker-compose.yml`.
 - Agents installed on Pi nodes via `Hyperion/ansible/k3s-agent.yml` with the
   **stock get.k3s.io install**, **no `INSTALL_K3S_EXEC` flags** — meaning
   the bundled Traefik and ServiceLB defaults *are not currently disabled*.
@@ -199,7 +199,7 @@ relevant to the proposal:
 Sidelined during Heimdall pipeline (x86, no Pi value-add). Back for Hyperion work.
 
 Re-verified against current bootstrap.sh (430+ lines):
-- `MONOLITH_BASE` is at **line 32**, not as documented in earlier notes — single
+- `AKASHA_BASE` is at **line 32**, not as documented in earlier notes — single
   point-of-edit for image-server cutover.
 - `:8080` status server is `Python3` baked into `/tmp/bootstrap-httpd.py` —
   starts at line 174, served via `STATUS_FILE` JSON + `LOG_FILE` tail. Lifecycle

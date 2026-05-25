@@ -10,7 +10,7 @@ The OS-side device names (`enp*` / `eno*`) are not yet captured; they will be fi
 |---|-------|-------------|------|---------|
 | 1 | 2.5 GbE | UniFi switch | Upstream / north (WAN-side of the lab) | TBD |
 | 2 | 2.5 GbE | 24-port gigabit switch | Hyperion cluster + small appliances | TBD |
-| 3 | 10 GbE | 10 GbE switch | Monolith + compute servers | TBD |
+| 3 | 10 GbE | 10 GbE switch | Akasha + compute servers | TBD |
 | 4 | 2.5 GbE | — | Reserve | TBD |
 | 5 | 2.5 GbE | — | Reserve | TBD |
 | 6 | 10 GbE | — | Reserve | TBD |
@@ -24,7 +24,7 @@ From [`Hyperion/docs/network-layout.md`](../../Hyperion/docs/network-layout.md):
 | `192.168.10.1` | UCG gateway |
 | `192.168.10.10–.99` | MetalLB LoadBalancer pool |
 | `192.168.10.101–.110` | Hyperion Pi nodes |
-| `192.168.10.247` | Monolith |
+| `192.168.10.247` | Akasha |
 | `192.168.10.129+` | DHCP dynamic range |
 
 Today all infrastructure is on a single VLAN `192.168.10.0/24`. Heimdall introduces the first multi-NIC host in the repo; whether each fabric stays on the same `/24` or gets a dedicated subnet is an **open question** for planning.

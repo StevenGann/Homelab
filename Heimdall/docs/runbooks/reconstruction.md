@@ -13,7 +13,7 @@
 2. Ubuntu Server 26.04 LTS install media.
 3. This repo (clonable from `https://github.com/StevenGann/Homelab.git`).
 4. SOPS age private key (`~/.config/sops/age/keys.txt`) — this is the only secret you need; everything else is in SOPS-encrypted form in the repo.
-5. The most recent backup snapshot from Monolith (optional — for cert-store and DNS-zone continuity; see "Restore optional state" below).
+5. The most recent backup snapshot from Akasha (optional — for cert-store and DNS-zone continuity; see "Restore optional state" below).
 
 ## Reconstruction steps
 
@@ -44,7 +44,7 @@ Before starting the containers in Phase 2, decide whether to restore from backup
 If restoring (recommended for `caddy/data/` at minimum):
 
 ```bash
-# From a backup on Monolith — pick the most recent snapshot.
+# From a backup on Akasha — pick the most recent snapshot.
 LATEST=$(ssh truenas_admin@192.168.10.247 \
     'ls -1 /mnt/Media-Storage/Infra-Storage/heimdall-backups/ | sort | tail -1')
 
@@ -86,11 +86,11 @@ In addition to Phase 2's acceptance checklist:
 ## What is NOT covered by reconstruction
 
 - **External-internet exposure for new services.** UCG port-forwards must be reviewed; they may need to be updated to point at the new Heimdall IP (if it changed from `.4`).
-- **Active Komodo Stacks that Heimdall manages on OTHER hosts.** This is a Phase 4 / Monolith-migration concern.
+- **Active Komodo Stacks that Heimdall manages on OTHER hosts.** This is a Phase 4 / Akasha-migration concern.
 
 ## Failure modes during reconstruction
 
-- **`setup.sh` step 8 fails to install Periphery.** Periphery's installer fetches from `raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py`. If GitHub is unreachable, this fails. Recovery: cache `setup-periphery.py` somewhere reachable (Monolith?) and override the URL.
+- **`setup.sh` step 8 fails to install Periphery.** Periphery's installer fetches from `raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py`. If GitHub is unreachable, this fails. Recovery: cache `setup-periphery.py` somewhere reachable (Akasha?) and override the URL.
 - **`onboard-periphery.sh` fails because Komodo Core can't authenticate.** If you restored Mongo from backup, the admin user's bcrypt hash is the backed-up one — your `.env`'s `KOMODO_INIT_ADMIN_PASSWORD` must match. If you started Mongo fresh, Komodo Core seeds the admin from `.env`. Pick one.
 - **Caddy reuses the OLD ACME-account key but the public LE thinks it's tied to a different IP.** Only relevant if you flipped any hostname to public LE. Internal-CA default (the v1 plan) avoids this entirely.
 

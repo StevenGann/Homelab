@@ -55,7 +55,7 @@ Component index:
 
 | Setting | Effect |
 |---|---|
-| `log-driver: journald` | Container stdout/stderr lands in the host journal with structured `CONTAINER_NAME` fields; flows out via `systemd-journal-upload` to Monolith. |
+| `log-driver: journald` | Container stdout/stderr lands in the host journal with structured `CONTAINER_NAME` fields; flows out via `systemd-journal-upload` to Akasha. |
 | `live-restore: true` | Containers keep running across `systemctl restart docker`. Has a known interaction with `nft flush ruleset` (see [troubleshooting](06-troubleshooting.md#docker-bridge-networking-broken-after-nftables-flush)). |
 | `userland-proxy: false` | Disables the docker-proxy userland binary; relies on iptables/nftables DNAT for port mapping. Pairs with `network_mode: host` for L4 source-IP preservation. |
 
@@ -131,18 +131,18 @@ cat /etc/resolv.conf           # confirm symlink target
 
 ## systemd-journal-upload
 
-**Role:** ships Heimdall's journal (host + every container's stdout/stderr via the journald driver) to Monolith's `journal-remote` service.
+**Role:** ships Heimdall's journal (host + every container's stdout/stderr via the journald driver) to Akasha's `journal-remote` service.
 
-**Drop-in:** `/etc/systemd/journal-upload.conf.d/monolith.conf`:
+**Drop-in:** `/etc/systemd/journal-upload.conf.d/akasha.conf`:
 
 ```ini
 [Upload]
 URL=http://192.168.10.247:19532
 ```
 
-**Local buffer:** persistent journal at `/var/log/journal/`, capped at 2 GB (`/etc/systemd/journald.conf.d/limit.conf`) so a long Monolith outage doesn't fill the disk.
+**Local buffer:** persistent journal at `/var/log/journal/`, capped at 2 GB (`/etc/systemd/journald.conf.d/limit.conf`) so a long Akasha outage doesn't fill the disk.
 
-**Inspect logs on Monolith:**
+**Inspect logs on Akasha:**
 ```bash
 ssh truenas_admin@192.168.10.247 \
   'sudo journalctl --directory=/mnt/Media-Storage/Infra-Storage/journal-remote/ \
@@ -176,7 +176,7 @@ chronyc tracking
 **Role:** the LAN's primary DNS resolver. Three jobs in one container:
 1. **Forwarder** for everything not in the local zone or blocklists, using DoT (DNS-over-TLS) to Quad9 + Cloudflare.
 2. **Filter** for ads and malware via community blocklists, auto-updated.
-3. **Authoritative** for the local `lab` zone (`heimdall.lab`, `komodo.lab`, eventually `hyperion-*.lab`, `monolith.lab`, etc.).
+3. **Authoritative** for the local `lab` zone (`heimdall.lab`, `komodo.lab`, eventually `hyperion-*.lab`, `akasha.lab`, etc.).
 
 **Image:** [`technitium/dns-server:15.2.0`](https://hub.docker.com/r/technitium/dns-server)
 

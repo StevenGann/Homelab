@@ -4,7 +4,7 @@
 
 ## Purpose
 
-A single source of truth for the redesigned Homelab: every host, network, and service is catalogued below, and the logical relationships between them are captured in the Mermaid diagrams further down. Implementation lives in the per-host top-level directories (`Hyperion/`, `Monolith/`, `Heimdall/`, …); this document is the map that connects them.
+A single source of truth for the redesigned Homelab: every host, network, and service is catalogued below, and the logical relationships between them are captured in the Mermaid diagrams further down. Implementation lives in the per-host top-level directories (`Hyperion/`, `Akasha/`, `Heimdall/`, …); this document is the map that connects them.
 
 ## Scope
 
@@ -13,18 +13,18 @@ A single source of truth for the redesigned Homelab: every host, network, and se
 
 ## Terminology — naming changes from current state
 
-The redesign reuses the name **Monolith** with a broader meaning. To avoid ambiguity while existing IaC still uses the old name:
+The redesign reuses the name **Akasha** with a broader meaning. To avoid ambiguity while existing IaC still uses the old name:
 
 | Term | New meaning (this document) | Previous meaning (current IaC, CLAUDE.md, runbooks) |
 |------|-----------------------------|------------------------------------------------------|
-| **Monolith** | The full Homelab system as a whole — everything housed in the single 42U 19" rack. | The TrueNAS Scale storage server at `192.168.10.247`. |
+| **Akasha** | The full Homelab system as a whole — everything housed in the single 42U 19" rack. | The TrueNAS Scale storage server at `192.168.10.247`. |
 | **Akasha** | The storage server itself (4U chassis, 24 hot-swap HDD bays). Storage role **only** — k3s server, image registry, CI deploy poller, and healthcheck move elsewhere as part of the redesign. | _New name._ |
 
-Code, paths, and runbooks under `Monolith/` will be renamed/relocated as the redesign lands; until then, treat "Monolith" in existing files as referring to Akasha.
+Code, paths, and runbooks under `Akasha/` will be renamed/relocated as the redesign lands; until then, treat "Akasha" in existing files as referring to Akasha.
 
 ## Network plane
 
-The entire Monolith rack — every host, every PCIe KVM, every appliance — sits on a single **lab VLAN**. There is no per-fabric L3 split. The four switches (ToR, Primary, HPC, Management) provide bandwidth tiering and physical isolation, but everything is one broadcast domain at the IP layer. The UCG holds the gateway and the DHCP service for this VLAN.
+The entire Akasha rack — every host, every PCIe KVM, every appliance — sits on a single **lab VLAN**. There is no per-fabric L3 split. The four switches (ToR, Primary, HPC, Management) provide bandwidth tiering and physical isolation, but everything is one broadcast domain at the IP layer. The UCG holds the gateway and the DHCP service for this VLAN.
 
 Implication for the diagrams below: the network diagram captures who's plugged into which switch (physical / L2 reality), while the logical diagram captures service-level relationships independent of where those packets travel. Both views are useful precisely because L2 separation does **not** imply L3 separation here.
 
@@ -54,7 +54,7 @@ Implication for the diagrams below: the network diagram captures who's plugged i
 - **Connects to:**
   - **HPC switch** — 10 GbE primary data path for storage I/O.
   - **Management switch** — dedicated PoE PCIe KVM card (separate Ethernet from the host's data NIC).
-- **Notes:** Was previously known as "Monolith" and carried multiple roles (k3s server, image registry, CI deploy poller, healthcheck). Those roles are being split off elsewhere in the redesign so Akasha is single-purpose.
+- **Notes:** Was previously known as "Akasha" and carried multiple roles (k3s server, image registry, CI deploy poller, healthcheck). Those roles are being split off elsewhere in the redesign so Akasha is single-purpose.
 
 ### Thoth — GPU compute server
 
@@ -211,7 +211,7 @@ Implication for the diagrams below: the network diagram captures who's plugged i
 - **NICs / addresses:** WAN to upstream / ISP; LAN-side uplink to the rack via the **ToR** switch on 2.5 GbE. In the current pre-redesign layout, the UCG holds `192.168.10.1/24` and is the DHCP server for the single LAN VLAN; whether subnets stay flat or split per fabric in the redesigned layout is an open question.
 - **Services provided:** routing, NAT, firewall, DHCP, DNS forwarding, IDS/IPS as configured in the UniFi controller.
 - **Connects to:** **ToR** (downstream toward the rack), upstream ISP equipment (WAN side).
-- **Notes:** Not housed in the Monolith rack but inseparable from its network topology — included here so the diagrams have a clear "edge" anchor. The UCG also owns the DHCP reservation table that maps Hyperion node MAC → IP, so changes here are coupled to identity-USB swaps.
+- **Notes:** Not housed in the Akasha rack but inseparable from its network topology — included here so the diagrams have a clear "edge" anchor. The UCG also owns the DHCP reservation table that maps Hyperion node MAC → IP, so changes here are coupled to identity-USB swaps.
 
 ## Network topology
 
@@ -224,7 +224,7 @@ flowchart TB
     Internet --- UCG
     UCG ---|2.5G| ToR
 
-    subgraph rack["Monolith rack — single lab VLAN"]
+    subgraph rack["Akasha rack — single lab VLAN"]
         direction TB
 
         ToR{{ToR switch: 5-port 2.5G PoE, 5/5 used}}

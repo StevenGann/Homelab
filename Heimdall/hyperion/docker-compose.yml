@@ -1,7 +1,7 @@
 # Heimdall — Hyperion flashing services
 #
 # Separate stack from Heimdall/docker-compose.yml. Hosts the three services
-# that were on Monolith and are being migrated to Heimdall while Monolith is
+# that were on Akasha and are being migrated to Heimdall while Akasha is
 # retired (per the dev-hyperion-flashing-to-heimdall pipeline FINAL.md):
 #
 #   nginx          (50011) — serves Node IMG and Bootstrap IMG to Pi nodes
@@ -13,7 +13,7 @@
 #                            (bundled in the same container as journal-remote;
 #                            see journal-remote/Dockerfile for rationale)
 #
-# Posture: TEMPORARY. When Monolith's replacement comes online OR 12 months
+# Posture: TEMPORARY. When Akasha's replacement comes online OR 12 months
 # elapse (whichever first), a follow-up pipeline run decides re-migrate vs.
 # adopt-Heimdall-as-permanent. The §3.11 future-migration playbook depends on
 # this stack staying portable: ALL state lives under a single bind-mount root
@@ -45,7 +45,7 @@ services:
     ports:
       - "50011:50011"
     healthcheck:
-      # See Monolith's nginx healthcheck for the IPv4-vs-IPv6 rationale; the
+      # See Akasha's nginx healthcheck for the IPv4-vs-IPv6 rationale; the
       # alpine image's busybox wget defaults to ::1 for `localhost`, and our
       # nginx is IPv4-only because the bind-mounted default.conf is read-only.
       test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:50011/ || exit 1"]

@@ -83,10 +83,10 @@ themselves drift into platform-layer complexity.
   invariant. The invariant is the durable thing; the reflash mechanism is not.
 - **One mechanism per outcome.** `mnt-node-storage.mount` is the *only* thing
   that mounts `/mnt/node-storage`. Two mechanisms = duplicate-unit conflicts.
-- **Monolith already runs Dockge** as its container manager (see preflight runbook
-  and `docs/todo.md`). The Heimdall intake's "same as Monolith" pattern is real
+- **Akasha already runs Dockge** as its container manager (see preflight runbook
+  and `docs/todo.md`). The Heimdall intake's "same as Akasha" pattern is real
   and already in use, not aspirational.
-- **`systemd-journal-remote` on Monolith:19532 is the canonical log sink.**
+- **`systemd-journal-remote` on Akasha:19532 is the canonical log sink.**
   Journal-upload from every host points at it. Phase-1 logging plan from the
   prior pipeline run shipped (`build-journal-remote-img.yml` exists, compose
   service exists). Adopt the same pattern for Heimdall — no second logging stack.
@@ -103,7 +103,7 @@ themselves drift into platform-layer complexity.
 ### 2026-05-21T15:00:00Z — Hyperion-flashing-to-Heimdall (run 20260521T144651Z): NO-MIGRATION counter-proposal
 
 Stage 1 of `dev-hyperion-flashing-to-heimdall`. The intake asks for two things
-stacked together: (a) migrate three Monolith services (nginx + ci-deploy +
+stacked together: (a) migrate three Akasha services (nginx + ci-deploy +
 journal-remote) to Heimdall "temporarily", (b) build a realtime monitoring
 tool to debug the SSD-not-flashing bug. My position: **(b) alone meets the
 actual goal; (a) is yak-shaving that aggravates 3 of 10 unresolved Heimdall
@@ -125,14 +125,14 @@ No cutover. Half a day of work vs ~1–2 weeks for the full migration.
 - 10 identity USBs need cache invalidation across the cluster.
 - Heimdall has "default disk layout, no swap on ZFS" per
   `Heimdall/docs/manual/03-deployment.md` — single-disk SPOF
-  for image storage vs Monolith's TrueNAS pool.
+  for image storage vs Akasha's TrueNAS pool.
 - "Temporarily" → double cutover cost with no decision criterion for
   when to revert. Argue: don't move what you'll move back.
 - Stacks a second cross-host PR on top of the still-outstanding
   MetalLB-removal cross-host PR from finalize run.
 
 **Middle-ground alternative considered (steelmanned, then rejected):** move
-ONLY nginx; keep ci-deploy on Monolith pushing via rsync/NFS to Heimdall.
+ONLY nginx; keep ci-deploy on Akasha pushing via rsync/NFS to Heimdall.
 20% ceiling violation instead of 60%. Still rejected because **even this
 delivers zero debug-latency improvement for the SSD-not-flashing bug** —
 the debug surface is :8080 on the Pi, not the server side.
@@ -303,7 +303,7 @@ Stage 1 of the amendment run. Three deltas the user is forcing:
    in seed config.** Seed scope = passthrough + blocklists + .lab zone +
    admin pw. Everything else off (DHCP, DNSSEC, recursive, catalog zones).
    Authoritative .lab zone is the upgrade we're cashing in; the rest is
-   future-toggleable. **Push hard for Phase-2.5 = Monolith secondary
+   future-toggleable. **Push hard for Phase-2.5 = Akasha secondary
    Technitium "very next PR"** — otherwise the swap's justification never
    arrives and the swap was wrong in retrospect.
 
@@ -313,7 +313,7 @@ Stage 1 of the amendment run. Three deltas the user is forcing:
    but has no first-party client that runs without Core. **Withdrew the
    Periphery-only counter-proposal.** Concede Core+Periphery for v1. Also
    rejected Dockge+Lazydocker (single-host TUI doesn't compose with the
-   future Monolith-migration multi-host use case the user named, and
+   future Akasha-migration multi-host use case the user named, and
    Lazydocker over remote Docker is documented as flaky). **Cost named
    explicitly: container count goes from 3 (iter-1) to 5 on Heimdall** —
    Core, Mongo, Periphery-as-systemd-binary, Technitium, Caddy. iter-1
@@ -365,7 +365,7 @@ theater when it documents what someone should do without automating any of it.
 
 **Adoption rate update on Heimdall three-container audit:** Three-container
 stack landed in iter-1. Continue monitoring iter-2+ for fourth-container
-creep (most likely candidates: a second AdGuard on Monolith for DNS HA, or
+creep (most likely candidates: a second AdGuard on Akasha for DNS HA, or
 HAProxy if caddy-l4 schema-diff gate fails). Pre-load skepticism on either.
 
 ### 2026-05-17T18:50:00Z — Heimdall pipeline: target the four-tools-into-one collapse
@@ -375,7 +375,7 @@ default mental model produces four tools. My Stage-1 position: the smallest
 honest stack is **three containers** —
 **AdGuard Home** (DNS+filter+local records), **custom Caddy with caddy-l4**
 (reverse proxy + L4 TCP/UDP + ACME + LB + health checks, one binary, one config
-file), **Dockge** (GUI, already the house standard on Monolith). Plus
+file), **Dockge** (GUI, already the house standard on Akasha). Plus
 journal-upload (already in-distro) and ufw on the host.
 
 **Why this matters for the adversarial role:** the team is likely to propose
@@ -501,10 +501,10 @@ Stage-5.1 STEELMANNED resolution after the user's 00b correction.
 - Requirement: capture bootstrap-time + runtime logs from Hyperion nodes.
 - My counter-proposal: `/log` HTTP endpoint on the bootstrap status server
   (zero new processes), and `systemd-journal-upload` → `systemd-journal-remote`
-  on Monolith (in-distro both ends, one compose service).
+  on Akasha (in-distro both ends, one compose service).
 - Resolution (2026-05-04 debug pipeline iter-1): **PARTIAL — ADOPTED as
   Phase 1.** Journal-upload/remote shipped (`build-journal-remote-img.yml`,
-  compose service in `Monolith/k3s-control-plane/docker-compose.yml:88`).
+  compose service in `Akasha/k3s-control-plane/docker-compose.yml:88`).
   Phase-2 vector/loki decision deferred to explicit team vote, backed by a
   capability matrix.
 
@@ -537,9 +537,9 @@ Areas where I am pre-loaded with skepticism. Re-examine on each compaction.
   long-running containers?
 - **GitHub Releases as the image distribution mechanism.** Works, but couples
   the homelab to GitHub's availability and rate limits. A nightly `rsync` from
-  workstation to Monolith has no third-party dep.
+  workstation to Akasha has no third-party dep.
 - **Eventually FluxCD.** Before bootstrap, ask: how many manifests are we
-  actually reconciling? A dozen? `kubectl apply -k` from a cron on Monolith is
+  actually reconciling? A dozen? `kubectl apply -k` from a cron on Akasha is
   a 10-line solution. Flux is right at scale; define scale first.
 - **Two Packer images instead of one.** Justified by bootstrap/production
   divergence, but every divergence is maintenance cost.

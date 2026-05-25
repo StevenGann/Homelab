@@ -8,7 +8,7 @@
 |---|---|---|
 | Heimdall | `192.168.10.4` | Static, MAC-pinned netplan |
 | UCG (gateway, DHCP, DNS bootstrap) | `192.168.10.1` | |
-| Monolith (TrueNAS, journal sink) | `192.168.10.247` | journal-remote on `:19532` |
+| Akasha (TrueNAS, journal sink) | `192.168.10.247` | journal-remote on `:19532` |
 | Hyperion Pi nodes | `192.168.10.101–110` | UCG DHCP reservations |
 | `komodo.lab` | `192.168.10.4` (CNAME-equivalent — A record direct) | Resolved by Technitium |
 | Caddy CA root URL | `http://192.168.10.4/ca.crt` | LAN-only |
@@ -62,7 +62,7 @@ Heimdall/
 ├── hostconf/
 │   ├── resolved-no-stub.conf       — systemd-resolved DNSStubListener=no
 │   ├── nftables.conf               — host firewall ruleset
-│   ├── journal-upload-monolith.conf — destination URL for systemd-journal-upload
+│   ├── journal-upload-akasha.conf — destination URL for systemd-journal-upload
 │   └── docker-daemon.json          — Docker daemon config (journald, live-restore, etc.)
 ├── scripts/
 │   ├── setup.sh                    — Phase 1 host setup, runs on Heimdall
@@ -70,7 +70,7 @@ Heimdall/
 │   ├── generate-secrets.sh         — One-time SOPS-encrypted secrets generator (workstation)
 │   ├── onboard-periphery.sh        — Komodo Periphery onboarding (called by deploy.sh)
 │   ├── seed-zones.sh               — Technitium .lab zone seeding (called by deploy.sh)
-│   └── backup.sh                   — Nightly backup to Monolith
+│   └── backup.sh                   — Nightly backup to Akasha
 └── docs/
     ├── network-layout.md           — NIC roster, subnet usage
     ├── runbooks/
@@ -104,7 +104,7 @@ Heimdall/
 
 /etc/nftables.conf                   — Loaded by nftables.service
 /etc/systemd/resolved.conf.d/no-stub.conf
-/etc/systemd/journal-upload.conf.d/monolith.conf
+/etc/systemd/journal-upload.conf.d/akasha.conf
 /etc/systemd/journald.conf.d/limit.conf
 /etc/docker/daemon.json
 /etc/netplan/01-uplink.yaml

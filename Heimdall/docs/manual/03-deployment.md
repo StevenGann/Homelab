@@ -63,7 +63,7 @@ flowchart TB
     install["1. Install Ubuntu Server 26.04 LTS<br/>hostname: heimdall<br/>user: owner + SSH pubkey"]
     setup["2. curl + bash setup.sh<br/>(installs Docker, nftables,<br/>journal-upload, Periphery, etc.)"]
     nopassword["3. Set up:<br/>• SSH key auth from workstation<br/>• NOPASSWD sudo for owner"]
-    restore["4. (Optional) Restore<br/>caddy/data, technitium/config,<br/>komodo-data/mongo-data, komodo-data/keys<br/>from Monolith backup"]
+    restore["4. (Optional) Restore<br/>caddy/data, technitium/config,<br/>komodo-data/mongo-data, komodo-data/keys<br/>from Akasha backup"]
     deploy["5. workstation:<br/>bash Heimdall/scripts/deploy.sh"]
     trust["6. Trust Caddy internal-CA root<br/>on each LAN client<br/>(once per device)"]
     ucg["7. UCG:<br/>DHCP option 6 → .4<br/>(WAN port-forwards if needed)"]
@@ -109,7 +109,7 @@ What it does (idempotent, marker-tracked under `/var/lib/heimdall-setup/`):
 | 02 | netplan static `192.168.10.4` (MAC-pinned to the uplink NIC) — verifies the address landed before marking done |
 | 03 | systemd-resolved `DNSStubListener=no` drop-in; `/etc/resolv.conf` symlink swap |
 | 04 | nftables ruleset load (`policy accept` on forward — Docker bridge compatibility) |
-| 05 | systemd-journal-upload → Monolith :19532 |
+| 05 | systemd-journal-upload → Akasha :19532 |
 | 06 | docker daemon.json (journald log driver, live-restore, userland-proxy:false) |
 | 07 | git clone Homelab repo to `/opt/Homelab/` |
 | 08 | Komodo Periphery via `setup-periphery.py`; `systemctl enable --now periphery.service` |
@@ -136,7 +136,7 @@ ssh -t owner@192.168.10.4 'echo "owner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/
 
 ### Step 4 — Restore (only when rebuilding, not for initial install)
 
-If you have a backup snapshot on Monolith (the [`backup.sh`](../../scripts/backup.sh) target), restore *before* `deploy.sh` so the containers start with the existing state.
+If you have a backup snapshot on Akasha (the [`backup.sh`](../../scripts/backup.sh) target), restore *before* `deploy.sh` so the containers start with the existing state.
 
 ```bash
 LATEST=$(ssh truenas_admin@192.168.10.247 \
@@ -257,7 +257,7 @@ The script is idempotent on every step. Re-running on a fully-up Heimdall is saf
 
 ## Scenario C — Full reconstruction (after catastrophic loss)
 
-Same as Scenario A. The point of the architecture: there is no special "restore" path. Re-do the install with `setup.sh` + `deploy.sh`. Optionally restore bind-mount state from the Monolith backup.
+Same as Scenario A. The point of the architecture: there is no special "restore" path. Re-do the install with `setup.sh` + `deploy.sh`. Optionally restore bind-mount state from the Akasha backup.
 
 **Target wall-clock:** under 1 hour from a blank Ubuntu install to passing the acceptance gate.
 
@@ -309,7 +309,7 @@ If any of these is missing, `deploy.sh` fails fast with a specific error.
 
 ## Backup story
 
-Heimdall's backup-critical paths are bind-mounted directories. [`Heimdall/scripts/backup.sh`](../../scripts/backup.sh) rsyncs them to Monolith with date-rotated snapshots, 30-day retention. Recommended cron:
+Heimdall's backup-critical paths are bind-mounted directories. [`Heimdall/scripts/backup.sh`](../../scripts/backup.sh) rsyncs them to Akasha with date-rotated snapshots, 30-day retention. Recommended cron:
 
 ```bash
 # On Heimdall, as owner:

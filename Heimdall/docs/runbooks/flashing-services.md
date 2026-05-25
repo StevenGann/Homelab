@@ -1,6 +1,6 @@
 # Heimdall — Hyperion flashing services runbook
 
-Operator-facing runbook for the three services that moved from Monolith to Heimdall during the `dev-hyperion-flashing-to-heimdall` pipeline (FINAL.md in `docs/pipeline-runs/20260521T144651Z-dev-hyperion-flashing-to-heimdall/`). The stack is **temporary** — when Monolith's replacement comes online or 12 months elapse (whichever first), a follow-up pipeline decides re-migrate vs. adopt-Heimdall-as-permanent.
+Operator-facing runbook for the three services that moved from Akasha to Heimdall during the `dev-hyperion-flashing-to-heimdall` pipeline (FINAL.md in `docs/pipeline-runs/20260521T144651Z-dev-hyperion-flashing-to-heimdall/`). The stack is **temporary** — when Akasha's replacement comes online or 12 months elapse (whichever first), a follow-up pipeline decides re-migrate vs. adopt-Heimdall-as-permanent.
 
 ## What's running
 
@@ -37,7 +37,7 @@ sudo journalctl -D /opt/Homelab/Heimdall/hyperion/journal --vacuum-time=30d
 sudo journalctl -D /opt/Homelab/Heimdall/hyperion/journal --vacuum-size=2G
 ```
 
-When Monolith was hosting this, journal data lived on `/mnt/Media-Storage/...` which had its own backup story via the TrueNAS snapshot cron. Heimdall does not have that. Re-evaluate this decision if a Pi failure cluster requires looking back > 30 days; in that case, add `/opt/Homelab/Heimdall/hyperion/journal/` to `Heimdall/scripts/backup.sh`'s rsync set.
+When Akasha was hosting this, journal data lived on `/mnt/Media-Storage/...` which had its own backup story via the TrueNAS snapshot cron. Heimdall does not have that. Re-evaluate this decision if a Pi failure cluster requires looking back > 30 days; in that case, add `/opt/Homelab/Heimdall/hyperion/journal/` to `Heimdall/scripts/backup.sh`'s rsync set.
 
 ## Pre-deploy smoke test
 
@@ -114,10 +114,10 @@ cd /opt/Homelab/Heimdall/hyperion
 docker compose logs -f journal-remote
 ```
 
-### Verify a Pi is uploading to Heimdall (not Monolith)
+### Verify a Pi is uploading to Heimdall (not Akasha)
 On the Pi (post-flash, NVMe-booted):
 ```bash
-cat /etc/systemd/journal-upload.conf.d/monolith.conf      # URL should be 192.168.10.4:19532
+cat /etc/systemd/journal-upload.conf.d/akasha.conf      # URL should be 192.168.10.4:19532
 systemctl status systemd-journal-upload.service           # active, no errors
 journalctl -u systemd-journal-upload.service -n 50        # successful Push entries
 ```

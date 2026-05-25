@@ -2,7 +2,7 @@
 #
 # Heimdall (192.168.10.4:19532) hosts journal-remote per the prior dev
 # pipeline (docs/pipeline-runs/20260521T144651Z-dev-hyperion-flashing-to-
-# heimdall/). When the temporary Heimdall hosting reverts to Monolith or
+# heimdall/). When the temporary Heimdall hosting reverts to Akasha or
 # its successor (max 12 months), bump the URL here and `colmena apply`.
 
 { config, lib, pkgs, ... }:

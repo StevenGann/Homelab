@@ -36,7 +36,7 @@ You're sitting at your workstation, Heimdall is already deployed, and you want t
 ## Conventions used in this manual
 
 - **`192.168.10.4`** is Heimdall's static IP on the LAN. Substitute your own if it differs.
-- **`192.168.10.247`** is Monolith (TrueNAS host, log sink).
+- **`192.168.10.247`** is Akasha (TrueNAS host, log sink).
 - **`192.168.10.1`** is the UCG (gateway, DHCP).
 - **`heimdall.lab` / `komodo.lab` / `technitium.lab`** etc. are internal hostnames served by Heimdall's own Technitium DNS. They resolve only when DHCP option 6 points at Heimdall or you've added an `/etc/hosts` override on your client.
 - **`owner`** is the operator user account on Heimdall (and on the workstation).

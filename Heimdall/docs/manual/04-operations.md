@@ -242,7 +242,7 @@ For Minecraft, SFTP, RCON, raw TCP/UDP traffic — `caddy-l4` handles these via 
    }
    ```
 
-2. **DNS:** add `minecraft.lab` → wherever the actual game server runs (Heimdall, Monolith, a Pi). See [Add a `.lab` DNS record](#add-a-lab-dns-record).
+2. **DNS:** add `minecraft.lab` → wherever the actual game server runs (Heimdall, Akasha, a Pi). See [Add a `.lab` DNS record](#add-a-lab-dns-record).
 
 3. **nftables:** the port must be in `Heimdall/hostconf/nftables.conf`'s allow-list. Edit, commit, then re-apply: `sudo bash setup.sh --force 04_nftables` on Heimdall.
 
@@ -328,7 +328,7 @@ ssh owner@192.168.10.4 \
 ssh owner@192.168.10.4 'sudo journalctl -u periphery -n 80 --no-pager'
 ```
 
-### Centralized on Monolith (Heimdall's full journal)
+### Centralized on Akasha (Heimdall's full journal)
 
 ```bash
 ssh truenas_admin@192.168.10.247 \
@@ -462,7 +462,7 @@ Dry-run first if you're not sure what it'll do:
 ssh owner@192.168.10.4 'bash /opt/Homelab/Heimdall/scripts/backup.sh --dry-run'
 ```
 
-Snapshots land at `monolith:/mnt/Media-Storage/Infra-Storage/heimdall-backups/<DATE>/`, retention 30 days. The script handles pruning automatically.
+Snapshots land at `akasha:/mnt/Media-Storage/Infra-Storage/heimdall-backups/<DATE>/`, retention 30 days. The script handles pruning automatically.
 
 ---
 

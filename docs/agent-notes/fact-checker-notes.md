@@ -92,7 +92,7 @@ inline by run summaries below.
   is fragile; `dd` of installer image to NVMe on workstation is the safer
   pattern. (Verified 2026-05-23.)
 - **Phase 0 "load-bearing fixes" from prior FINAL.md mostly non-applicable
-  in HEAD.** `Monolith/.../journal-remote/Dockerfile` already has
+  in HEAD.** `Akasha/.../journal-remote/Dockerfile` already has
   `--listen-http=19532`. `Hyperion/packer/rpi-node.pkr.hcl:229–230` UART
   inserts already use `grep -q ... ||` idempotent guard (introduced in
   commit `a46cc5f` on 2026-05-03, BEFORE the prior debug anchor `ee41010`).
@@ -157,7 +157,7 @@ Claims worth periodically re-verifying because the underlying source can change.
 - **`auto_initramfs=1` required on Trixie** — verify against the Pi OS
   release notes for the current Trixie image being used in `rpi-node.pkr.hcl`.
 - **`ci-deploy` poll interval = 300 s** — claimed in multiple docs. Verify
-  against `Monolith/k3s-control-plane/docker-compose.yml` env (`POLL_INTERVAL`)
+  against `Akasha/k3s-control-plane/docker-compose.yml` env (`POLL_INTERVAL`)
   and the ci-deploy image's actual behavior.
 - **Only `NODE_SSH_PUBLIC_KEY` is a required Actions secret** — verify
   against the actual workflow YAML files under `.github/workflows/` whenever
@@ -171,7 +171,7 @@ Claims worth periodically re-verifying because the underlying source can change.
 - **Current Caddy stable** — v2.11.3 as of 2026-05-17. Track on each
   Heimdall-related compaction.
 - **Hyperion k3s `--disable=servicelb` not yet set** — `k3s-agent.yml` and
-  `Monolith/k3s-control-plane/docker-compose.yml` both lack the flag. ServiceLB
+  `Akasha/k3s-control-plane/docker-compose.yml` both lack the flag. ServiceLB
   + MetalLB race is latent. Re-verify when either file is touched.
 
 ---
@@ -240,8 +240,8 @@ Ledger written to `docs/pipeline-runs/20260521T144651Z-dev-hyperion-flashing-to-
 - **CONFIRMED — `ghcr.io/stevengann/homelab-{ci-deploy,journal-remote,healthcheck}` are anonymously pullable and ONLY have `:latest`.** Registry tags/list returns `["latest"]` for all three. IaC's risk flag survives challenge.
 - **CONFIRMED — Caddy auto-disables buffering for `Content-Type: text/event-stream`.** No `flush_interval -1` needed for SSE specifically; the directive exists but is unnecessary when the upstream sets the correct content-type header. Means a future Caddy front for gatewayd is one-line clean.
 - **CONFIRMED — both Packer-image workflows path-filter the planned edits.** `build-bootstrap-img.yml` matches `Hyperion/packer/files/bootstrap.sh` and `rpi-bootstrap.pkr.hcl`. `build-node-img.yml` matches `rpi-node.pkr.hcl` and `Hyperion/packer/files/**`. All three planned edits trigger CI.
-- **CONFIRMED — `Monolith/k3s-control-plane/journal-remote/Dockerfile` shape matches the draft.** `FROM debian:trixie-slim` + apt install systemd-journal-remote + `USER systemd-journal-remote` + exec-form ENTRYPOINT. No CMD. Replacement entrypoint is mechanically clean.
-- **CONFIRMED — `bootstrap.sh:138-161` `set_status` heredoc is trivially extensible.** Adding `MONOLITH_BASE` and `nvme_version` is 2 lines; consumers parse JSON, so additive fields don't break.
+- **CONFIRMED — `Akasha/k3s-control-plane/journal-remote/Dockerfile` shape matches the draft.** `FROM debian:trixie-slim` + apt install systemd-journal-remote + `USER systemd-journal-remote` + exec-form ENTRYPOINT. No CMD. Replacement entrypoint is mechanically clean.
+- **CONFIRMED — `bootstrap.sh:138-161` `set_status` heredoc is trivially extensible.** Adding `AKASHA_BASE` and `nvme_version` is 2 lines; consumers parse JSON, so additive fields don't break.
 
 - **REFUTED — `watch-flash.sh`'s gatewayd URL `?output=json-sse` is not a documented query parameter.** gatewayd format selection is via `Accept:` header (text/plain, application/json, text/event-stream, application/vnd.fdo.journal). One-line fix in §3.7: use `curl -sN -H 'Accept: text/event-stream' …?follow&_HOSTNAME=…&_SYSTEMD_UNIT=…`. Otherwise the script gets default format, not SSE.
 
@@ -250,14 +250,14 @@ Ledger written to `docs/pipeline-runs/20260521T144651Z-dev-hyperion-flashing-to-
 - **UNVERIFIED — Caddy auto-flush for `application/vnd.fdo.journal`.** Not in v1 scope.
 
 - **New fact — Caddy's content-type-based SSE auto-disable is documented** (`reverse_proxy` directive page). Caddy isn't an obstacle to fronting gatewayd; the only risk is mixed-format responses through a single block.
-- **New fact — `MONOLITH_BASE` variable name is becoming misleading post-cutover.** Editorial: revision could rename to `IMG_BASE` (same CI rebuild trigger).
-- **New fact — Monolith's ci-deploy healthcheck uses jq+date arithmetic** (verifies last_poll < 15 min). Draft's `test -f` simplification loses that check; intentional separation-of-concerns is fine if explicitly noted.
+- **New fact — `AKASHA_BASE` variable name is becoming misleading post-cutover.** Editorial: revision could rename to `IMG_BASE` (same CI rebuild trigger).
+- **New fact — Akasha's ci-deploy healthcheck uses jq+date arithmetic** (verifies last_poll < 15 min). Draft's `test -f` simplification loses that check; intentional separation-of-concerns is fine if explicitly noted.
 
 ### 2026-05-17T22:30:00Z — Pipeline run `20260517T213331Z-dev-heimdall-finalize` iter-1, combined-draft adversarial review
 
 Ledger written to `docs/pipeline-runs/20260517T213331Z-dev-heimdall-finalize/iter-1/03-adversarial/fact-checker.md`. **19 CONFIRMED, 3 REFUTED, 4 UNVERIFIED.** Highlights:
 
-- **CONFIRMED** — `technitium/dns-server:15.2.0` is current stable, multi-arch (amd64/arm64/armv7), and the in-container config path IS `/etc/dns`. `ghcr.io/moghtech/komodo-{core,periphery}:2.2.0` exist with `:2` tracking `:2.2.0`. `setup-periphery.py` accepts `--version` and `v2.2.0` is a valid tag; installs to `/usr/local/bin/periphery`, `/etc/komodo/periphery.config.toml`, `/etc/systemd/system/periphery.service`. `mongo:7.0` multi-arch, `--wiredTigerCacheSizeGB 0.25` valid (minimum). Caddy `tls internal` exists, internal CA stored at storage-key `pki/authorities/local/root.crt` (Docker data dir `/data`). Technitium env vars apply only on first start (config file does not exist). `gh release view -R … --json tagName -q .tagName` returns latest's tag as raw string. Hyperion MetalLB file list / Monolith k3s server `command: server` / `k3s-agent.yml` line 38 `when:` guard all match repo.
+- **CONFIRMED** — `technitium/dns-server:15.2.0` is current stable, multi-arch (amd64/arm64/armv7), and the in-container config path IS `/etc/dns`. `ghcr.io/moghtech/komodo-{core,periphery}:2.2.0` exist with `:2` tracking `:2.2.0`. `setup-periphery.py` accepts `--version` and `v2.2.0` is a valid tag; installs to `/usr/local/bin/periphery`, `/etc/komodo/periphery.config.toml`, `/etc/systemd/system/periphery.service`. `mongo:7.0` multi-arch, `--wiredTigerCacheSizeGB 0.25` valid (minimum). Caddy `tls internal` exists, internal CA stored at storage-key `pki/authorities/local/root.crt` (Docker data dir `/data`). Technitium env vars apply only on first start (config file does not exist). `gh release view -R … --json tagName -q .tagName` returns latest's tag as raw string. Hyperion MetalLB file list / Akasha k3s server `command: server` / `k3s-agent.yml` line 38 `when:` guard all match repo.
 
 - **REFUTED #1** — Phase 2 step 4 Periphery onboarding flow is mechanically wrong. Draft has operator pasting a Core public key into `core_public_keys`. v2 actually uses an *onboarding key* (one-time TOFU credential minted by Core, consumed by Periphery via `--onboarding-key` flag or `onboarding_key = "..."` in TOML). Periphery generates its own keypair and sends just the public key to Core during first handshake. No `core_public_keys` line gets manually edited.
 
@@ -275,7 +275,7 @@ Ledger written to `docs/pipeline-runs/20260517T213331Z-dev-heimdall-finalize/ite
 
 - **New fact surfaced** — `setup-periphery.py` only `systemctl start`s, never `systemctl enable`s; the draft's `enable --now` is necessary for reboot survival. And the script skips writing config if `/etc/komodo/periphery.config.toml` exists, so the draft's `install -m 0640` over-write step interacts subtly with re-runs — revision should choose one ownership pattern.
 
-- **New fact surfaced** — k3s `--disable=servicelb` is server-only-required; the agent-side `INSTALL_K3S_EXEC` in the draft is belt-and-suspenders, not load-bearing. Disabling on the Monolith server uninstalls the cluster-wide DaemonSet.
+- **New fact surfaced** — k3s `--disable=servicelb` is server-only-required; the agent-side `INSTALL_K3S_EXEC` in the draft is belt-and-suspenders, not load-bearing. Disabling on the Akasha server uninstalls the cluster-wide DaemonSet.
 
 ### Verdict file location
 
@@ -299,7 +299,7 @@ Ledger written to `docs/pipeline-runs/20260517T183851Z-dev-heimdall-tech-stack/i
 
 - **UNVERIFIED #2** — Whether MetalLB L2 + Heimdall-fronted reverse proxy on the same /24 is a documented-clean pattern. MetalLB's documented ARP failure modes (multi-replica + `externalTrafficPolicy: Local` ARP storm, bridge non-response, IPVS strictARP) do not apply here. Architectural assumption is sound; a definitive vendor "yes" doesn't exist.
 
-- **New fact A surfaced** — **The Pi Expert's archived ServiceLB-vs-MetalLB latent-conflict claim is empirically grounded.** `Hyperion/ansible/k3s-agent.yml:32-38` installs k3s with no `INSTALL_K3S_EXEC` flag → ServiceLB enabled on every agent. `Monolith/k3s-control-plane/docker-compose.yml:4` runs `command: server` with no `--disable=servicelb,traefik`. Heimdall's contract "Caddy → stable MetalLB VIP" is undefined while ServiceLB also races to fulfill `Service type=LoadBalancer`. Criterion 6 ("reconstruct from scratch using only this repo") cannot be honestly claimed until Hyperion is fixed. This is the most important finding of the run beyond the four required edits.
+- **New fact A surfaced** — **The Pi Expert's archived ServiceLB-vs-MetalLB latent-conflict claim is empirically grounded.** `Hyperion/ansible/k3s-agent.yml:32-38` installs k3s with no `INSTALL_K3S_EXEC` flag → ServiceLB enabled on every agent. `Akasha/k3s-control-plane/docker-compose.yml:4` runs `command: server` with no `--disable=servicelb,traefik`. Heimdall's contract "Caddy → stable MetalLB VIP" is undefined while ServiceLB also races to fulfill `Service type=LoadBalancer`. Criterion 6 ("reconstruct from scratch using only this repo") cannot be honestly claimed until Hyperion is fixed. This is the most important finding of the run beyond the four required edits.
 
 ### Verdict file location
 
@@ -403,9 +403,9 @@ Ledger written to `docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/ite
 - **rpi-eeprom releases** — `https://github.com/raspberrypi/rpi-eeprom/releases`. Accessed 2026-05-21. Confidence: official. Latest v2026.05.11-2712; no PCIe re-enumeration fixes in last 12 months of notes.
 - **GHCR registry API for `stevengann/homelab-{ci-deploy,journal-remote,healthcheck}`** — `https://ghcr.io/v2/stevengann/homelab-{…}/tags/list` with anonymous bearer token. Accessed 2026-05-21. Confidence: official registry. All three return `["latest"]` only.
 - **Caddy `reverse_proxy` directive docs** — `https://caddyserver.com/docs/caddyfile/directives/reverse_proxy`. Accessed 2026-05-21. Confidence: official. Quote: `flush_interval` ignored for `Content-Type: text/event-stream`; explicit `-1` disables buffering.
-- **`Monolith/k3s-control-plane/journal-remote/Dockerfile`** — direct read in repo. Confirms `FROM debian:trixie-slim`, apt install systemd-journal-remote, `USER systemd-journal-remote`, exec-form ENTRYPOINT, no CMD.
+- **`Akasha/k3s-control-plane/journal-remote/Dockerfile`** — direct read in repo. Confirms `FROM debian:trixie-slim`, apt install systemd-journal-remote, `USER systemd-journal-remote`, exec-form ENTRYPOINT, no CMD.
 - **`.github/workflows/build-{bootstrap,node}-img.yml`** — direct read in repo. Path filters confirmed to catch all three planned edits in §3.6.
-- **`Hyperion/packer/files/bootstrap.sh` lines 32, 138-232** — direct read in repo. Confirms `set_status` heredoc structure, `MONOLITH_BASE` scope, Python HTTP server serves file verbatim.
+- **`Hyperion/packer/files/bootstrap.sh` lines 32, 138-232** — direct read in repo. Confirms `set_status` heredoc structure, `AKASHA_BASE` scope, Python HTTP server serves file verbatim.
 
 ### Heimdall-finalize verification (2026-05-17 second run)
 

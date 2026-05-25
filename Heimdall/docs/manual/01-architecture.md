@@ -9,7 +9,7 @@ flowchart LR
     Internet([Internet])
     UCG["UCG<br/>192.168.10.1<br/>Gateway + DHCP"]
     Hyperion["Hyperion<br/>10× Pi 5 k3s nodes<br/>192.168.10.101–.110"]
-    Monolith["Monolith<br/>TrueNAS host<br/>192.168.10.247<br/>journal-remote :19532"]
+    Akasha["Akasha<br/>TrueNAS host<br/>192.168.10.247<br/>journal-remote :19532"]
     Heimdall["Heimdall<br/>192.168.10.4<br/>DNS + Proxy + Container UI"]
     LAN["LAN clients<br/>laptops, phones,<br/>IoT, etc."]
 
@@ -17,18 +17,18 @@ flowchart LR
     UCG <-->|DHCP, routing| LAN
     UCG <-->|DHCP, routing| Heimdall
     UCG <-->|DHCP, routing| Hyperion
-    UCG <-->|DHCP, routing| Monolith
+    UCG <-->|DHCP, routing| Akasha
     LAN -->|"DNS :53,<br/>HTTPS *.lab :443"| Heimdall
     Heimdall -.->|"reverse_proxy to<br/>NodePorts"| Hyperion
-    Heimdall -.->|"reverse_proxy if<br/>fronting services"| Monolith
-    Heimdall -->|journal-upload :19532| Monolith
+    Heimdall -.->|"reverse_proxy if<br/>fronting services"| Akasha
+    Heimdall -->|journal-upload :19532| Akasha
 ```
 
-Heimdall is **a peer of Hyperion and Monolith** on the homelab VLAN (`192.168.10.0/24`). It does not displace the UCG (which keeps doing routing + DHCP + WAN port-forwards). It does displace:
+Heimdall is **a peer of Hyperion and Akasha** on the homelab VLAN (`192.168.10.0/24`). It does not displace the UCG (which keeps doing routing + DHCP + WAN port-forwards). It does displace:
 
 - **MetalLB** on Hyperion — removed; Caddy fans out to per-Pi NodePorts instead.
 - **k3s ServiceLB and in-cluster Traefik** — disabled; Caddy is the only router.
-- **AdGuard Home and Dockge** — never deployed; Technitium and Komodo replace them on Heimdall directly (Monolith still has Dockge for now; migration is a future PR).
+- **AdGuard Home and Dockge** — never deployed; Technitium and Komodo replace them on Heimdall directly (Akasha still has Dockge for now; migration is a future PR).
 
 ## Heimdall internals
 
@@ -39,7 +39,7 @@ flowchart TB
         nftables[("nftables<br/>policy drop input<br/>policy accept forward")]
         docker[("Docker Engine<br/>(network bridge mode<br/>+ host mode for some)")]
         periphery["Komodo Periphery<br/>(systemd binary,<br/>NOT a container)<br/>:8120 (TLS, localhost)"]
-        journal["systemd-journal-upload<br/>→ Monolith :19532"]
+        journal["systemd-journal-upload<br/>→ Akasha :19532"]
 
         subgraph stack["Compose stack (heimdall_default network)"]
             direction LR
@@ -59,13 +59,13 @@ flowchart TB
     end
 
     LAN[("LAN clients<br/>192.168.10.0/24")]
-    Monolith[("Monolith<br/>:19532")]
+    Akasha[("Akasha<br/>:19532")]
 
     LAN -->|"DNS :53"| technitium
     LAN -->|"HTTPS :443"| caddy
     LAN -->|"HTTP :80<br/>/ca.crt (LAN-only)"| caddy
     LAN -->|"UI :5380"| technitium
-    journal -->|"logs"| Monolith
+    journal -->|"logs"| Akasha
 ```
 
 ### Why these specific components
@@ -73,11 +73,11 @@ flowchart TB
 | Component | Role | Why this one |
 |---|---|---|
 | **Ubuntu Server 26.04 LTS** | Host OS | Long-term support, current Docker repo support (`resolute` suite), networkd + nftables modern defaults. |
-| **Docker CE (upstream apt repo)** | Container runtime | Lags upstream less than Ubuntu's `docker.io`; consistent with Monolith's runtime. |
-| **Technitium DNS Server** | DNS resolver + filter + authoritative `.lab` | Single container does pass-through + filtering + custom records + DNSSEC + CNAME-cloaking detection. AdGuard Home was the original pick; swapped to Technitium for the authoritative-zone + clustering capabilities (Monolith secondary planned). |
+| **Docker CE (upstream apt repo)** | Container runtime | Lags upstream less than Ubuntu's `docker.io`; consistent with Akasha's runtime. |
+| **Technitium DNS Server** | DNS resolver + filter + authoritative `.lab` | Single container does pass-through + filtering + custom records + DNSSEC + CNAME-cloaking detection. AdGuard Home was the original pick; swapped to Technitium for the authoritative-zone + clustering capabilities (Akasha secondary planned). |
 | **Caddy v2.11.3** | HTTPS reverse proxy + ACME (internal CA) | One config file, automatic HTTPS-by-default, single binary, file-based config (committable to git). |
 | **caddy-l4 plugin** | TCP/UDP routing for non-HTTP services | Lets Caddy be the only router — no separate HAProxy needed for game-server / SFTP traffic. Documented fallback to HAProxy 3.2 exists. |
-| **Komodo Core v2.2.0** | Container management UI | Per-container exec + terminal in the browser (Dockge's missing piece), Git-driven deploys, audit log, prepared for multi-host fleet management when Monolith migrates. |
+| **Komodo Core v2.2.0** | Container management UI | Per-container exec + terminal in the browser (Dockge's missing piece), Git-driven deploys, audit log, prepared for multi-host fleet management when Akasha migrates. |
 | **MongoDB 7.0** | Komodo's database | Komodo's recommended backend; capped at 250 MB WT cache to stay light. |
 | **Komodo Periphery (systemd binary)** | Agent that talks to Docker on Heimdall's behalf | Installed as a host binary (not a container) so it survives Docker daemon restarts and avoids the chicken-and-egg of containerizing the manager-of-containers. |
 
@@ -234,7 +234,7 @@ The homelab VLAN is `192.168.10.0/24`. UCG's DHCP pool is `.129–.254`.
 | `.100–.128` | Available for future static infra |
 | `.101–.110` | Hyperion Pi nodes (DHCP reservations in UCG by MAC) |
 | `.129–.254` | UCG DHCP dynamic pool |
-| `.247` | Monolith |
+| `.247` | Akasha |
 
 ### Port map (Heimdall side)
 
@@ -251,7 +251,7 @@ What's listening on Heimdall, and how clients reach it.
 | 8120 | TCP | host (Periphery) | Komodo Periphery | localhost only (`127.0.0.0/8`) | Talks to Komodo Core on the same host |
 | 9120 | TCP | `127.0.0.1` (compose-bridged) | Komodo Core | LAN (for break-glass) | Behind Caddy at `komodo.lab` |
 | 25565 | TCP+UDP | host (Caddy L4) | Caddy `layer4` Minecraft | LAN + WAN | Forwards to a non-k8s game server, when one exists |
-| 19532 | UDP | outbound | journal-upload | — | Outbound to Monolith |
+| 19532 | UDP | outbound | journal-upload | — | Outbound to Akasha |
 
 The full nftables ruleset lives at [`Heimdall/hostconf/nftables.conf`](../../hostconf/nftables.conf).
 
@@ -306,7 +306,7 @@ Everything else is regeneratable — from container images (pulled fresh from re
 - `komodo-data/mongo-data/` — losing this loses Komodo's audit history + Stack state.
 - `technitium/config/` — operator UI-added DNS records that aren't in `seed-zones.sh` would be lost.
 
-[`Heimdall/scripts/backup.sh`](../../scripts/backup.sh) rsyncs these to Monolith with 30-day retention.
+[`Heimdall/scripts/backup.sh`](../../scripts/backup.sh) rsyncs these to Akasha with 30-day retention.
 
 ## What the manual covers next
 

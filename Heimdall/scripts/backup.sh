@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Heimdall — nightly backup script
 #
-# Snapshots Heimdall's backup-critical bind-mount paths to Monolith via rsync.
+# Snapshots Heimdall's backup-critical bind-mount paths to Akasha via rsync.
 # Installed as a daily cron via setup.sh (TODO: cron wiring belongs in setup.sh
 # alongside the other host setup; this script is the standalone primitive).
 #

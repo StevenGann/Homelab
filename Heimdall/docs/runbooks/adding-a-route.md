@@ -101,7 +101,7 @@ If the Caddyfile L4 syntax doesn't stabilize for your pinned `caddy-l4` version,
 use the JSON form via a separate `Heimdall/caddy/layer4.json` and import via the
 Caddyfile's `import` directive. Check the `caddy-l4` README for current syntax.
 
-NodePort allocation does NOT apply to L4 game traffic — the `proxy` upstream is the game server's actual IP:port (typically a non-k8s container running on Monolith or Heimdall itself), not a NodePort fanout.
+NodePort allocation does NOT apply to L4 game traffic — the `proxy` upstream is the game server's actual IP:port (typically a non-k8s container running on Akasha or Heimdall itself), not a NodePort fanout.
 
 DNS still needs a `<game>.lab` record if the game-server admin tool addresses it by name. Add via `seed-zones.sh`.
 

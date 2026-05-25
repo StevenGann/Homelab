@@ -196,21 +196,21 @@ step_04_nftables() {
     mark_step 04_nftables
 }
 
-# ─── Step 05 — systemd-journal-upload to Monolith ────────────────────────────────────
+# ─── Step 05 — systemd-journal-upload to Akasha ────────────────────────────────────
 step_05_journal_upload() {
     log "Configuring systemd-journal-upload..."
 
     install -d -m 0755 /etc/systemd/journal-upload.conf.d
     install -m 0644 \
-        "${HEIMDALL_DIR}/hostconf/journal-upload-monolith.conf" \
-        /etc/systemd/journal-upload.conf.d/monolith.conf
+        "${HEIMDALL_DIR}/hostconf/journal-upload-akasha.conf" \
+        /etc/systemd/journal-upload.conf.d/akasha.conf
 
-    # Persistent local journal (so we have local buffering when Monolith is unreachable).
+    # Persistent local journal (so we have local buffering when Akasha is unreachable).
     install -d -m 0755 /var/log/journal
     systemd-tmpfiles --create --prefix /var/log/journal
     systemctl restart systemd-journald
 
-    # Cap journald local storage so a long Monolith outage doesn't fill the disk.
+    # Cap journald local storage so a long Akasha outage doesn't fill the disk.
     install -d -m 0755 /etc/systemd/journald.conf.d
     cat > /etc/systemd/journald.conf.d/limit.conf <<'EOF'
 [Journal]

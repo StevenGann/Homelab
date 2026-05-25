@@ -101,7 +101,7 @@ Per the finalize run's action-tagged deadline mechanism:
 - Add to `docs/todo.md` at Phase 2 completion: target date = Phase-2-completion + 6 months.
 - At month 6, two binary outcomes only:
   - (a) Revert Heimdall from Technitium to AdGuard Home.
-  - (b) Deploy the Monolith-side Technitium secondary in that month's scheduled pipeline run.
+  - (b) Deploy the Akasha-side Technitium secondary in that month's scheduled pipeline run.
 - "Defer further" is not an outcome.
 
 If month 6 arrives and Technitium is still standalone, the swap's named justification (DNS HA via clustering) has not materialized, and the team commits to either retracting the swap or making the secondary land.
@@ -110,4 +110,4 @@ If month 6 arrives and Technitium is still standalone, the swap's named justific
 
 - **Mongo working-set growth.** `--wiredTigerCacheSizeGB 0.25` caps the WT cache at 250 MB. Total Mongo RSS typically settles at 500-1000 MB in steady state with audit log + Stack history. Investigate via `docker exec komodo-mongo mongosh --eval 'db.serverStatus()'` only if RSS exceeds 2 GB. Heimdall has 32 GB RAM; this is monitoring, not a capacity concern.
 - **Caddy + 10 NodePort upstreams.** At 30s/60s health interval per upstream, the cluster receives ~20 active checks/minute per HTTP route. For ≤20 routes this is sub-1 RPS background traffic — fine.
-- **Backup job.** `Heimdall/scripts/backup.sh` runs nightly via the cron entry installed by `setup.sh` (TODO if not yet wired). Snapshots `caddy/data/`, `technitium/config/`, `komodo-data/mongo-data/`, `komodo-data/keys/` to `monolith:/mnt/Media-Storage/Infra-Storage/heimdall-backups/<DATE>/` with 30-day retention.
+- **Backup job.** `Heimdall/scripts/backup.sh` runs nightly via the cron entry installed by `setup.sh` (TODO if not yet wired). Snapshots `caddy/data/`, `technitium/config/`, `komodo-data/mongo-data/`, `komodo-data/keys/` to `akasha:/mnt/Media-Storage/Infra-Storage/heimdall-backups/<DATE>/` with 30-day retention.

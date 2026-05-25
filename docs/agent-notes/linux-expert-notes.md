@@ -49,12 +49,12 @@ parameters, package management, shell idioms, and standard sysadmin reasoning.
   `/etc/resolv.conf` from DHCP options 6/15 (UCG-supplied). With Trixie's stock
   dhcpcd (the Pi-customized dhcpcd5 from Bookworm was dropped), the only DNS
   available pre-mount-of-USB is whatever the UCG hands out — so bootstrap.sh's
-  `MONOLITH_BASE` cannot use a hostname unless that hostname is also resolvable
+  `AKASHA_BASE` cannot use a hostname unless that hostname is also resolvable
   via the UCG's upstream DNS path. **At the moment, only literal IPs work
   during bootstrap.**
 - `systemd-journal-upload` is the canonical Homelab log-shipping mechanism.
   Both Hyperion image variants enable it and push to `http://192.168.10.247:19532`
-  via a drop-in at `/etc/systemd/journal-upload.conf.d/monolith.conf`. Package on
+  via a drop-in at `/etc/systemd/journal-upload.conf.d/akasha.conf`. Package on
   Trixie is `systemd-journal-remote` (sender + receiver come in the same pkg).
   Default TCP port 19532.
 - Bootstrap.sh `:8080` status server: serves `/` (JSON status from
@@ -63,14 +63,14 @@ parameters, package management, shell idioms, and standard sysadmin reasoning.
   by being started **before** the gate; `exec /bin/bash` reparents to PID 1
   and keeps serving the `exhausted_attempts` state.
 - Two IP references to update for Heimdall migration:
-  - `Hyperion/packer/files/bootstrap.sh:32`: `MONOLITH_BASE=...:50011`
+  - `Hyperion/packer/files/bootstrap.sh:32`: `AKASHA_BASE=...:50011`
   - `Hyperion/packer/rpi-bootstrap.pkr.hcl:131`: `URL=...:19532`
   - `Hyperion/packer/rpi-node.pkr.hcl:245`: `URL=...:19532`
 
-### Monolith-specific repo facts
+### Akasha-specific repo facts
 
 - Static host (TrueNAS Scale), Docker Compose stack at
-  `Monolith/k3s-control-plane/docker-compose.yml`. Pattern: static OS, bind-mounted
+  `Akasha/k3s-control-plane/docker-compose.yml`. Pattern: static OS, bind-mounted
   config from `/mnt/.../Container-Data/...`, services pulled from
   `ghcr.io/stevengann/homelab-*`.
 - `journal-remote` container baked from `debian:trixie-slim` (Dockerfile in repo).
@@ -92,7 +92,7 @@ parameters, package management, shell idioms, and standard sysadmin reasoning.
   per-port LAN-allow rules. `forward` chain policy `accept` so Docker bridge
   networking works.
 - `systemd-journal-upload` configured on Heimdall via
-  `Heimdall/hostconf/journal-upload-monolith.conf` → ships TO Monolith:19532.
+  `Heimdall/hostconf/journal-upload-akasha.conf` → ships TO Akasha:19532.
 - `systemd-resolved` runs with `DNSStubListener=no` so containers can bind :53
   (Technitium under `network_mode: host`).
 - Compose stack lives at `/opt/Homelab/Heimdall/docker-compose.yml`.
@@ -177,13 +177,13 @@ Linux/host-OS lens findings on the migration to Heimdall:
   in-kernel NAT.** No host networking needed.
 - **Storage**: Heimdall is single-disk. Per the existing compose pattern,
   bind-mount `/opt/Homelab/Heimdall/images/` (about 5 GB capacity ceiling for
-  ~3 node images + 1 bootstrap image at zstd-compressed sizes). NFS-from-Monolith
-  is rejected — circular dependency (Heimdall serves Pis from Monolith
-  storage; if Monolith is down, Heimdall flash service is down too, which
+  ~3 node images + 1 bootstrap image at zstd-compressed sizes). NFS-from-Akasha
+  is rejected — circular dependency (Heimdall serves Pis from Akasha
+  storage; if Akasha is down, Heimdall flash service is down too, which
   defeats half the migration's value).
-- **journal-remote container vs host-installed**: container, same as Monolith.
+- **journal-remote container vs host-installed**: container, same as Akasha.
   Heimdall **also** has host-installed `systemd-journal-upload` (sender, ships
-  Heimdall's own journal TO Monolith). The two have similar package origins
+  Heimdall's own journal TO Akasha). The two have similar package origins
   (`systemd-journal-remote` apt package on Debian/Ubuntu contains BOTH the
   receiver binary and the uploader binary) but distinct roles: upload =
   client/sender; remote = server/receiver. Naming collision is unavoidable;
@@ -207,7 +207,7 @@ Linux/host-OS lens findings on the migration to Heimdall:
   set `flush_interval -1` in the reverse_proxy block.
 - **Cutover sequencing**:
   - Phase A: Stand up the three services on Heimdall **in parallel** with
-    Monolith's existing services. Both endpoints alive simultaneously. nginx
+    Akasha's existing services. Both endpoints alive simultaneously. nginx
     serves the same files (ci-deploy independently polls GitHub, both write
     to their local images dir).
   - Phase B: Reflash ONE Pi (hyperion-alpha) with a new Bootstrap IMG pointed
@@ -215,11 +215,11 @@ Linux/host-OS lens findings on the migration to Heimdall:
   - Phase C: Bake the Heimdall IPs into the Node IMG via CI. Roll out to
     remaining nodes one at a time using `./reimage.sh`.
   - Phase D: After all 10 nodes are confirmed running against Heimdall for
-    ≥7 days, decommission Monolith's nginx/ci-deploy/journal-remote
+    ≥7 days, decommission Akasha's nginx/ci-deploy/journal-remote
     containers (`docker compose stop` first, then `docker compose rm` in
-    Monolith).
-  Monolith stays alive throughout. The two systems are independent;
-  there's no rsync-from-Monolith requirement because ci-deploy on Heimdall
+    Akasha).
+  Akasha stays alive throughout. The two systems are independent;
+  there's no rsync-from-Akasha requirement because ci-deploy on Heimdall
   pulls directly from GitHub.
 - **Hostname vs IP in bootstrap.sh**: KEEP THE LITERAL IPs in v1. Pi
   bootstrap's DNS chain is dhcpcd → DHCP options 6/15 → UCG → upstream
@@ -240,9 +240,9 @@ Linux/host-OS lens findings on the migration to Heimdall:
   resolvers on Heimdall outage.
 - **Migration posture**: Heimdall is the **permanent** host for these three
   services. Rationale (Linux-lens): Heimdall is the modern Komodo-managed
-  Ubuntu Server stack; Monolith is the legacy TrueNAS-on-bare-metal Compose
+  Ubuntu Server stack; Akasha is the legacy TrueNAS-on-bare-metal Compose
   stack; this migration is also a piece of the gradual decommissioning of
-  Monolith as a control-plane host. The user said "temporarily" but the team's
+  Akasha as a control-plane host. The user said "temporarily" but the team's
   job is to surface that there's no Linux-side reason to plan a return trip.
 
 Surprise: I expected to need to add a forward-chain rule for Docker, but
@@ -292,7 +292,7 @@ Key Linux/sysadmin findings to promote to settled knowledge after compaction:
   `INSTALL_K3S_EXEC` curl-pipe-bash.
 - **`services.journald.upload`** supports plain HTTP `URL =
   "http://192.168.10.247:19532"` — drops in cleanly against current
-  journal-remote on Monolith. mTLS path: `ServerKeyFile`,
+  journal-remote on Akasha. mTLS path: `ServerKeyFile`,
   `ServerCertificateFile`, `TrustedCertificateFile` paths set per drop-in.
   Real-world deployer reported `Buffer space is too small to write entry`
   crash when fronting receiver with TLS-terminating proxy; resolution was raw
@@ -386,7 +386,7 @@ settled knowledge after compaction):**
   information.
 - **SSH-session-based intervention-time instrumentation pattern**: journal-remote
   already collects `sshd[*]: Accepted publickey for owner from ...`
-  lines from every node. A periodic timer on Monolith can grep these,
+  lines from every node. A periodic timer on Akasha can grep these,
   sum durations, and auto-write to `intervention-log-auto.md` to
   backstop the operator's manual log. Useful for the muddy-failure
   gate in the NixOS pipeline.
