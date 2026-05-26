@@ -1,8 +1,11 @@
 name: Build Hyperion NixOS image
 
-# Builds the installer image for Hyperion Pi 5 workers and publishes it
-# as a GitHub Release asset. The image is flashed to a blank NVMe via
-# `dd` on the operator workstation; no nixos-anywhere, no SD-card boot.
+# Builds the live SD-card installer for Hyperion Pi 5 workers and publishes
+# it as a GitHub Release asset (on main only). The image is flashed to a
+# microSD and inserted at assembly; the node then becomes SSH-reachable so
+# the operator workstation installs NixOS onto its NVMe via nixos-anywhere
+# (./flash-node.sh). The per-host worker closures are NOT built here — they
+# are built on the target node at flash time (--build-on-remote).
 #
 # Wall-clock (estimated, validated in Phase 1):
 #   5-10 min cached (Cachix hits cover the rpi5 kernel + ~99% of closure)
@@ -17,6 +20,8 @@ on:
     paths:
       - 'Hyperion/nixos/**'
       - '.github/workflows/build-nixos-image.yml'
+  # Manual runs (incl. from feature branches) build the image but do NOT
+  # publish a Release — see the `if:` guard on the publish step.
   workflow_dispatch:
 
 concurrency:
@@ -51,11 +56,11 @@ jobs:
       - name: Generate version tag
         run: echo "VERSION=$(date -u +%Y%m%d-${GITHUB_SHA::8})" >> "$GITHUB_ENV"
 
-      - name: Build installer image
+      - name: Build live SD installer image
         working-directory: Hyperion/nixos
         run: |
           set -euo pipefail
-          nix build .#installerImage --print-build-logs
+          nix build .#installerSdImage --print-build-logs
 
       - name: Compress
         working-directory: Hyperion/nixos
@@ -63,30 +68,42 @@ jobs:
           set -euo pipefail
           IMG=$(readlink -f result/sd-image/*.img)
           test -f "$IMG" || { echo "Image not found at result/sd-image/*.img"; exit 1; }
-          OUT="hyperion-nvme-${{ env.VERSION }}.img.zst"
+          OUT="hyperion-sd-installer-${{ env.VERSION }}.img.zst"
           zstd -19 -T0 "$IMG" -o "../../$OUT"
           cd ../..
           echo "IMG_FILE=$OUT" >> "$GITHUB_ENV"
           echo "IMG_SHA256=$(sha256sum "$OUT" | awk '{print $1}')" >> "$GITHUB_ENV"
 
+      # Publish only on push to main. Manual/feature-branch runs stop after
+      # the build above, proving the image compiles without minting releases.
       - name: Publish to GitHub Releases
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cat > /tmp/release-notes.md <<NOTES
           SHA256: ${IMG_SHA256}
 
-          Flash to a blank NVMe on the operator workstation:
+          Live SD-card installer for Hyperion Pi 5 workers.
+
+          One-time per node, at hardware assembly:
 
           \`\`\`
-          curl -OL https://192.168.10.4:50011/nvme/${IMG_FILE}
-          zstd -d ${IMG_FILE} | sudo dd of=/dev/nvmeXn1 bs=4M conv=fsync status=progress
+          curl -OL https://192.168.10.4:50011/sd-installer/${IMG_FILE}
+          zstd -d ${IMG_FILE} | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
           sync
           \`\`\`
 
-          Then move the NVMe into the target Pi, insert HYPERION-ID identity USB, power on.
+          Insert the SD into the Pi, set EEPROM BOOT_ORDER=0xf16 (NVMe -> SD),
+          power on, note the DHCP IP, then from the workstation:
+
+          \`\`\`
+          cd Hyperion && ./flash-node.sh <ip> hyperion-<name>
+          \`\`\`
+
+          See Hyperion/docs/runbooks/remote-flash-a-node.md.
           NOTES
-          gh release create "nvme-${VERSION}" \
-            --title "Hyperion NixOS NVMe image (${VERSION})" \
+          gh release create "sd-installer-${VERSION}" \
+            --title "Hyperion NixOS SD installer (${VERSION})" \
             --notes-file /tmp/release-notes.md \
             "${IMG_FILE}"

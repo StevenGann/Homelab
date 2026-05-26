@@ -20,8 +20,12 @@
 
     # Secrets at activation time. Required: fileSystems."/var/lib/hyperion-id"
     # has neededForBoot = true (sops-nix reads the age key in stage-1 initrd).
+    # Pin by commit — sops-nix ships no stable release tags, so we pin a
+    # rev like colmena below. c591bf6 is the rev flake.lock already locks;
+    # this just stops `nix flake update` from floating it freely, matching
+    # the pinning discipline of every other input.
     sops-nix = {
-      url = "github:Mic92/sops-nix";
+      url = "github:Mic92/sops-nix/c591bf665727040c6cc5cb409079acb22dcce33c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -36,7 +40,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Declarative NVMe partitioning for first-install via installer image.
+    # Declarative NVMe partitioning. Imported by the worker closures (so
+    # nixos-anywhere's disko phase partitions /dev/nvme0n1) — NOT by the
+    # live SD installer.
+    #
+    # nixos-anywhere itself is intentionally NOT a flake input: flash-node.sh
+    # invokes it with `nix run github:nix-community/nixos-anywhere/<rev>` at
+    # flash time, so it never enters flake.lock or any built closure. The rev
+    # is pinned in flash-node.sh.
     disko = {
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -88,17 +99,19 @@
         ];
       };
 
-      # The installer image flashed to a blank NVMe once per kernel/firmware
-      # bump (~quarterly). Identical across all 10 nodes — per-host divergence
-      # is post-install via Colmena.
+      # The live SD-card installer. Identical across all 10 nodes; flashed to
+      # a microSD once and inserted at assembly. It boots from SD, runs sshd,
+      # and waits for ./flash-node.sh to drive nixos-anywhere against it.
+      #
+      # Deliberately does NOT import disko/nvme-layout.nix: that defines / as
+      # the NVMe, but this image is SD-resident and must leave the NVMe blank
+      # for nixos-anywhere's disko phase to partition.
       installer = nixos-raspberrypi.lib.nixosSystem {
         inherit system;
         specialArgs = { inherit inputs; };
         modules = [
           nixos-raspberrypi.nixosModules.raspberry-pi-5.base
           nixos-raspberrypi.nixosModules.raspberry-pi-5.page-size-16k
-          disko.nixosModules.disko
-          ./disko/nvme-layout.nix
           ./installer/installer.nix
         ];
       };
@@ -109,11 +122,12 @@
         value = mkWorker h;
       }) hostnames);
 
-      # Installer image artifact: build with
-      #   nix build .#installerImage
-      # produces an SD-card image that, when dd'd to a blank NVMe and the
-      # NVMe is moved into a Pi 5, boots into NixOS as a fresh worker.
-      packages.${system}.installerImage = installer.config.system.build.sdImage;
+      # Live SD-installer artifact: build with
+      #   nix build .#installerSdImage
+      # produces a microSD image. Flash it to an SD, insert at assembly, and
+      # the node becomes SSH-reachable so ./flash-node.sh can install NixOS
+      # onto its NVMe via nixos-anywhere.
+      packages.${system}.installerSdImage = installer.config.system.build.sdImage;
 
       # Colmena hive — operator workstation pushes to nodes from here.
       colmena = {
