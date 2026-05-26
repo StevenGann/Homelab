@@ -30,7 +30,7 @@ Verify the lock file shows the expected channel bump (look for `nixos-26.05` in 
 
 ```bash
 nix build .#nixosConfigurations.hyperion-alpha.config.system.build.toplevel
-nix build .#installerImage
+nix build .#installerSdImage
 ```
 
 Both should succeed. Note the wall-clock — if it's >30 min, the kernel

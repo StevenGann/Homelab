@@ -1,14 +1,22 @@
 # Replace a dead Pi (or bring up node N+1)
 
-The hardware-replacement story under the NixOS architecture. Three operator steps preserved from the Debian path, with one additional step for a brand-new (never-imaged) Pi.
+> ⚠️ **Superseded (2026-05-25).** The identity-USB / `dd`-to-NVMe steps below
+> are retired. Replacement and growth now go through the nixos-anywhere flow —
+> see [`remote-flash-a-node.md`](./remote-flash-a-node.md). Full rewrite is a
+> tracked follow-up.
 
-## Quick reference
+The hardware-replacement story under the NixOS architecture.
+
+## Quick reference (current flow)
 
 | Scenario | Steps |
 |---|---|
-| **Pi died, replacement available** | Move identity USB → update UCG DHCP → power on |
-| **Brand-new Pi (or NVMe wiped/replaced)** | Above three + flash NVMe via `dd` first |
-| **Add an 11th node (cluster growth)** | Generate identity USB → flash NVMe → register age key |
+| **Pi died, replacement available** | Assemble with SD installer → set EEPROM `0xf16` → UCG DHCP reservation → `./flash-node.sh <ip> <host>` (key bundle already in `nixos/node-keys/`) |
+| **Brand-new Pi (or NVMe wiped/replaced)** | Same as above — `flash-node.sh` wipes and reinstalls the NVMe |
+| **Add an 11th node (cluster growth)** | Add `hosts/hyperion-<name>.nix` → `./register-node-key.sh hyperion-<name>` → commit → `./flash-node.sh <ip> hyperion-<name>` |
+
+> ⚠️ The procedure detail below this line still describes the retired USB
+> model and should not be followed.
 
 ## Scenario 1 — Pi died, identical replacement
 

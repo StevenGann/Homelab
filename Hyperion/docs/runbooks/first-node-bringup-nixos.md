@@ -1,5 +1,15 @@
 # First-node bring-up (NixOS) — Phase 1 walkthrough
 
+> ⚠️ **Partially superseded (2026-05-25).** The install mechanism changed to
+> nixos-anywhere from a live SD installer — see
+> [`remote-flash-a-node.md`](./remote-flash-a-node.md) and
+> [ADR-0001](../../../docs/design/adr-0001-nixos-anywhere-remote-flash.md).
+> The HYPERION-ID USB, `dd`-to-NVMe, `apply-identity`, and identity-overrides
+> steps below are **retired**. The Phase 1 gate *criteria* (k3s joins,
+> journald ships, reboot survives) still apply; the *procedure* is now
+> register-node-key.sh → boot SD installer → flash-node.sh. Full rewrite is a
+> tracked follow-up.
+
 The Phase 1 hard gate of the NixOS pivot. Target: bring `hyperion-alpha`
 up end-to-end on NixOS, confirm the gate criteria, decide go/no-go for
 Phase 2.
@@ -157,7 +167,7 @@ gh release download nvme-$(date -u +%Y%m%d)-... --pattern '*.img.zst'
 
 ```bash
 cd Hyperion/nixos
-nix build .#installerImage --print-build-logs
+nix build .#installerSdImage --print-build-logs
 ls -lh result/sd-image/*.img
 ```
 

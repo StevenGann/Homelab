@@ -27,23 +27,29 @@ Files: `Hyperion/nixos/` — full scaffold landed but **not yet hardware-validat
 
 ```
 GitHub push (Hyperion/nixos/**, main)
-  → CI builds installer image via nix on ubuntu-24.04-arm (5-25 min)
-  → Publishes to GitHub Releases (tag: nvme-<datestamp>-<sha>)
+  → CI builds the live SD installer image via nix on ubuntu-24.04-arm (5-25 min)
+  → Publishes to GitHub Releases (tag: sd-installer-<datestamp>-<sha>)
 
 Heimdall ci-deploy (polls GitHub every 5 min — moved from Akasha 2026-05-21)
-  → Downloads release asset to /opt/Homelab/Heimdall/hyperion/images/nvme/
+  → Downloads release asset to /opt/Homelab/Heimdall/hyperion/images/sd-installer/
   → nginx (192.168.10.4:50011) serves to the LAN
 
-First install per Pi (operator-driven, once per kernel/firmware bump):
-  Workstation: zstd -d <img.zst> | sudo dd of=/dev/sdX (USB-to-NVMe adapter)
-  Move NVMe into Pi
-  Insert HYPERION-ID identity USB
-  Power on
-  → Pi 5 EEPROM boots kernel.img from FAT firmware partition on NVMe
-  → /var/lib/hyperion-id mounts in stage-1 initrd (neededForBoot = true)
-  → activationScripts.hyperionIdentitySchemaCheck verifies meta/schema-version="2"
-  → sops-nix decrypts /run/secrets/* using per-node age key from USB
-  → apply-identity.service stages /run/hyperion/identity.env (hostname, IP)
+One-time per node, at hardware assembly (the ONLY hands-on):
+  Flash the SD installer (identical for all 10) to a microSD, insert it
+  Set EEPROM BOOT_ORDER=0xf16 (NVMe → SD → loop): blank NVMe falls through
+    to the SD installer; an installed NVMe wins and the SD is ignored
+  Assign the node a UCG DHCP reservation (.101..110)
+
+Remote install (operator-driven, from the workstation — see
+docs/runbooks/remote-flash-a-node.md):
+  ./register-node-key.sh hyperion-<greek>     # once: gen + register keys, commit
+  Power on with a blank NVMe → boots the SD installer, SSH-reachable
+  ./flash-node.sh <ip> hyperion-<greek>
+    → nixos-anywhere (kexec SKIPPED — broken on Pi; phases disko,install,reboot)
+    → disko partitions /dev/nvme0n1 from the host closure
+    → per-host closure built ON the node (--build-on-remote, Cachix-substituted)
+    → age key + SSH host keys injected via --extra-files (no USB, no Nix store)
+    → node reboots; EEPROM now finds the NVMe and boots NixOS
   → services.k3s.agent registers with Heimdall control plane at 192.168.10.4:6443
   → services.journald.upload ships to Heimdall :19532
 
@@ -54,9 +60,9 @@ Day-2 changes (no NVMe re-flash):
 
 **Key NixOS invariants:**
 
-- **One closure per host, not one across the cluster.** Per-host divergence (k3s nodeLabel/nodeTaint, optional Pi 5 overrides) lives in `Hyperion/nixos/hosts/<hostname>.nix` evaluated at build time. Identity USB carries only runtime metadata (hostname, IP, age key, SSH host keys).
+- **One closure per host, not one across the cluster.** Per-host divergence (hostname via `networking.hostName`, k3s nodeLabel/nodeTaint, optional Pi 5 overrides) lives in `Hyperion/nixos/hosts/<hostname>.nix` evaluated at build time. Node IP is the UCG DHCP reservation.
 - **`services.k3s.{nodeLabel,nodeTaint}` are first-class options** (per nixpkgs release-25.11). Do NOT wrap `systemd.services.k3s.serviceConfig.ExecStart` with `lib.mkForce` — that pattern was rejected during pipeline iter-2 (IAC-1 NAY).
-- **`fileSystems."/var/lib/hyperion-id".neededForBoot = true` is non-negotiable.** Without it sops-nix activation can fire before the USB mount and fail to decrypt.
+- **Secrets are injected at install, not carried on a USB.** `nixos-anywhere --extra-files` places the per-node sops age key at `/var/lib/sops-nix/key.txt` and SSH host keys at `/etc/ssh/` — never in git or the Nix store. The retired HYPERION-ID USB model (stage-1 `neededForBoot` mount, `apply-identity.service`, schema-version check) is gone; see ADR-0001 (`docs/design/adr-0001-nixos-anywhere-remote-flash.md`). kexec is broken on the Pi, so installs run from a live SD installer with `--phases disko,install,reboot`.
 - **Pi 5 config.txt directives must be added explicitly** via `hardware.raspberry-pi.config.all = { options = ...; base-dt-params = ...; }`. The `nvmd/nixos-raspberrypi` flake auto-emits only `enable_uart=1` and selects the rpi5 kernel + nvme initrd module. Everything else (auto_initramfs, usb_max_current_enable, dtparam=nvme, dtparam=pciex1_gen=3) is operator-supplied.
 - **No `kernel=kernel_2712.img` directive.** The `kernelboot` builder stages the kernel as literal `kernel.img`; the Pi 5 EEPROM (BCM2712) boots it by default. The `kernel_2712.img` filename is a Debian/Pi-OS convention.
 - **Rollback under `bootloader = "kernelboot"` has NO boot-time menu.** Recovery from a broken generation requires installer-SD boot to manually re-stage a previous kernel.img. See `Hyperion/docs/runbooks/rollback-a-node.md`. Switching to `bootloader = "uboot"` provides an extlinux menu but is less-traveled on Pi 5.
@@ -97,9 +103,9 @@ Pi node boot (BOOT_ORDER=0xf641 → SD → USB → NVMe → loop)
 
 ### Bridging the two architectures
 
-- **Identity USB shape is different.** The Debian path's HYPERION-ID is exFAT with a `/hostname` file and `/node-image/` cache directory. The NixOS path's HYPERION-ID is ext4 (schema version 2) with `/identity.env`, `/age-key.txt`, `/secrets/`, `/meta/`. `flash-identity-usb.sh` was rewritten for the NixOS schema — operators flashing a USB now produce the NixOS shape. The old Debian USBs continue to work on Debian-imaged nodes until they're re-flashed.
-- **`configure-eeprom.sh` is KEEP under both paths.** EEPROM is below the OS layer.
-- **The image-server at `192.168.10.4:50011` is shared.** It hosts both Debian images (`/node/`, `/bootstrap/`) and NixOS installer images (`/nvme/`).
+- **The NixOS path no longer uses an identity USB at all.** The Debian path still uses its exFAT HYPERION-ID (`/hostname` + `/node-image/` cache). The NixOS path injects secrets at install via `nixos-anywhere --extra-files` (`register-node-key.sh` + `flash-node.sh`); `flash-identity-usb.sh` is deprecated. The two paths share no removable-media identity.
+- **`configure-eeprom.sh` is KEEP under both paths.** EEPROM is below the OS layer. Debian uses `BOOT_ORDER=0xf641`; NixOS uses `0xf16` (NVMe → SD installer fallback).
+- **The image-server at `192.168.10.4:50011` is shared.** It hosts Debian images (`/node/`, `/bootstrap/`) and the NixOS live SD installer (`/sd-installer/`).
 
 ## Common commands
 
@@ -107,11 +113,17 @@ Pi node boot (BOOT_ORDER=0xf641 → SD → USB → NVMe → loop)
 # ─── NixOS (forward path) ────────────────────────────────────────────────────
 cd Hyperion/nixos
 
-# Build the installer image (or use CI)
-nix build .#installerImage
+# Build the live SD installer image (or use CI)
+nix build .#installerSdImage
 
 # Build a specific node's complete closure (for inspection)
 nix build .#nixosConfigurations.hyperion-alpha.config.system.build.toplevel
+
+# Remotely flash a node (see docs/runbooks/remote-flash-a-node.md)
+cd Hyperion
+./register-node-key.sh hyperion-alpha            # once per node, then commit
+./flash-node.sh 192.168.10.101 hyperion-alpha    # node booted into the SD installer
+cd nixos
 
 # Push day-2 changes from workstation
 colmena apply --on hyperion-alpha
@@ -123,12 +135,11 @@ nix flake update --input nixpkgs --input nixos-raspberrypi
 # ─── Cross-architecture (kept under both paths) ──────────────────────────────
 cd Hyperion
 
-# Per-node identity USB (NixOS schema v2)
-./flash-identity-usb.sh /dev/sdX hyperion-alpha
-
 # EEPROM boot order (one-time per Pi, OS-agnostic)
+# NixOS nodes: 0xf16 (NVMe → SD installer fallback)
+./configure-eeprom.sh hyperion-alpha --user owner --boot-order 0xf16 --reboot
+# Debian nodes (sunsetting): default 0xf641
 ./configure-eeprom.sh --user owner --reboot               # all 10 nodes
-./configure-eeprom.sh hyperion-alpha --user owner --reboot
 
 # ─── Debian (sunsetting 2026-08-15) ──────────────────────────────────────────
 # Build + publish images locally
@@ -149,7 +160,7 @@ cd ansible && ansible-playbook -i inventory.yaml bootstrap.yml
 
 CI is triggered on push to `main`:
 - `Hyperion/packer/**` → Debian Bootstrap IMG + Node IMG (Phase 0: now native ubuntu-24.04-arm)
-- `Hyperion/nixos/**` → NixOS installer image (native ubuntu-24.04-arm)
+- `Hyperion/nixos/**` → live SD installer image (native ubuntu-24.04-arm); also eval-checks a worker closure. Release published on `main` only; manual/feature-branch `workflow_dispatch` runs build without publishing.
 - All three use `concurrency: build-images` to serialize.
 
 ## Secrets
@@ -158,15 +169,15 @@ SOPS + age — but the model differs between Debian and NixOS:
 
 **Debian path:** one workstation age key (`~/.config/sops/age/keys.txt`). `Hyperion/.sops.yaml` lists the public half. Secrets at `Hyperion/k8s/.../secret*.yaml`.
 
-**NixOS path:** **per-node age keys.** Each Pi has its own age private key on its HYPERION-ID USB. `Hyperion/.sops.yaml` lists all 10 per-node public keys + the operator's public key. Secrets at `Hyperion/nixos/secrets/common.yaml` are encrypted to all 10 + operator. sops-nix decrypts at activation time using the USB-resident key.
+**NixOS path:** **per-node age keys.** Each Pi has its own age private key, generated workstation-side by `register-node-key.sh`, stored age-encrypted to the operator in `Hyperion/nixos/node-keys/<host>.tar.age` (committed), and injected onto the node's NVMe at `/var/lib/sops-nix/key.txt` by `nixos-anywhere --extra-files` at install. `Hyperion/.sops.yaml` lists the registered per-node public keys + the operator's. Secrets at `Hyperion/nixos/secrets/common.yaml` are encrypted to all registered nodes + operator. sops-nix decrypts at activation time using the on-NVMe key.
 
 ```bash
 SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops --decrypt <file>
 SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops --edit <file>
 
-# When adding a node, the printed age public key from flash-identity-usb.sh
-# must be added to Hyperion/.sops.yaml and re-encrypted:
-cd Hyperion && sops updatekeys nixos/secrets/common.yaml
+# Adding a node: register-node-key.sh generates the key, adds the pubkey to
+# Hyperion/.sops.yaml, and re-encrypts common.yaml in one step:
+cd Hyperion && ./register-node-key.sh hyperion-<greek>
 ```
 
 The only required GitHub Actions secret is `NODE_SSH_PUBLIC_KEY` (used by the Debian Packer build); CI uses the auto-provided `GITHUB_TOKEN` for releases.

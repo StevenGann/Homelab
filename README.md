@@ -85,15 +85,19 @@ Akasha (192.168.10.247 — TrueNAS Scale)
 ### Node imaging flow (NixOS — Phase 1 forward)
 
 ```
-First install (per node, once per kernel/firmware bump):
-  Workstation: nix build .#installerImage
-  Workstation: zstd -d <img>.zst | sudo dd of=/dev/sdX (USB-to-NVMe adapter)
-  Move NVMe into Pi
-  Insert HYPERION-ID identity USB
-  Power on
-  → Pi 5 EEPROM boots kernel.img from NVMe firmware partition
-  → apply-identity.service stages /run/hyperion/identity.env from USB
-  → sops-nix decrypts secrets using per-node age key from USB
+One-time at assembly (the only hands-on):
+  Flash the live SD installer to a microSD, insert it
+    (CI build .#installerSdImage, or Heimdall /sd-installer/)
+  EEPROM BOOT_ORDER=0xf16 (NVMe → SD installer fallback)
+  Assign a UCG DHCP reservation (.101..110)
+
+Remote install (from the workstation — docs/runbooks/remote-flash-a-node.md):
+  ./register-node-key.sh hyperion-alpha          # once: gen + register keys, commit
+  Power on (blank NVMe) → boots SD installer, SSH-reachable
+  ./flash-node.sh <ip> hyperion-alpha
+  → nixos-anywhere: disko partitions NVMe, builds the closure on the node
+    (--build-on-remote), injects age key + SSH host keys (--extra-files),
+    reboots; kexec SKIPPED (broken on Pi). No NVMe handling, no identity USB.
   → k3s agent registers with Heimdall control plane (https://192.168.10.4:6443)
 
 Day-2 config changes (no NVMe re-flash):

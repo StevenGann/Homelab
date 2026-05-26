@@ -56,7 +56,7 @@ new generation. You can't get back to the old one without re-staging.
 
 **Recovery path A — Installer SD card (works always):**
 
-1. Boot the installer SD card (built by `nix build .#installerImage`,
+1. Boot the installer SD card (built by `nix build .#installerSdImage`,
    flashed to a spare USB stick or SD).
 2. SSH into the installer (DHCP, password `imaging`).
 3. Mount the NVMe partitions:

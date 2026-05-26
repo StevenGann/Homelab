@@ -20,7 +20,7 @@ Install: <https://nixos.org/download> or <https://determinate.systems/posts/dete
 Most-used commands for this repo:
 
 ```bash
-nix build .#installerImage              # produces result/sd-image/*.img
+nix build .#installerSdImage              # produces result/sd-image/*.img
 nix build .#nixosConfigurations.hyperion-alpha.config.system.build.toplevel
 nix flake update                        # bumps all inputs
 nix flake update --input nixpkgs        # bumps one input

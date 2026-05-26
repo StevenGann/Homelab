@@ -11,30 +11,30 @@ phased rollout plan.
 
 ```
 Hyperion/nixos/
-├── flake.nix                  ← inputs, nixosConfigurations, colmena hive, installerImage
+├── flake.nix                  ← inputs, nixosConfigurations, colmena hive, installerSdImage
 ├── modules/
 │   ├── hyperion-base.nix      ← common (users, ssh, packages, networking)
-│   ├── hyperion-identity.nix  ← /var/lib/hyperion-id mount, schema check, apply-identity, sops-nix
+│   ├── hyperion-identity.nix  ← sops-nix config (age key at /var/lib/sops-nix/key.txt)
 │   ├── hyperion-pi5.nix       ← hardware.raspberry-pi.config (config.txt directives)
 │   ├── hyperion-journal.nix   ← journal-upload → Heimdall :19532
-│   └── hyperion-k3s.nix       ← services.k3s agent → Akasha :6443
+│   └── hyperion-k3s.nix       ← services.k3s agent → Heimdall :6443
 ├── hosts/
-│   └── hyperion-{alpha..kappa}.nix  ← per-host nodeLabel / nodeTaint
+│   └── hyperion-{alpha..kappa}.nix  ← per-host hostname, nodeLabel / nodeTaint
 ├── disko/
-│   └── nvme-layout.nix        ← declarative NVMe partitioning
+│   └── nvme-layout.nix        ← declarative NVMe partitioning (used by the install)
 ├── installer/
-│   └── installer.nix          ← the SD/NVMe installer image config
-├── identity-overrides/
-│   └── hyperion-{alpha..kappa}.env  ← per-node runtime identity (hostname, IP)
+│   └── installer.nix          ← the live SD installer (boots, sshd, waits for nixos-anywhere)
+├── node-keys/
+│   └── hyperion-<host>.tar.age ← per-node age + SSH host keys, encrypted to the operator
 └── secrets/
-    └── common.yaml            ← sops-encrypted; absent in scaffold until Phase 1 generates the 10 age keys
+    └── common.yaml            ← sops-encrypted (k3s token); re-encrypted as nodes register
 ```
 
 ## What you build
 
 ```bash
 # The installer image (flashed to a blank NVMe once per kernel bump)
-nix build .#installerImage
+nix build .#installerSdImage
 
 # A specific node's complete system closure (built locally for inspection)
 nix build .#nixosConfigurations.hyperion-alpha.config.system.build.toplevel
