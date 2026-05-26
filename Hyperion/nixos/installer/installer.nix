@@ -38,7 +38,9 @@ let
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPRlnV15+a4pjzB8BqGq33LaOk9sBtLyaaE+WqWLxUIy owner@owner-thinkpad";
 in
 {
-  system.stateVersion = "25.11";
+  # mkDefault: the nixos-installer profile (installation-device.nix, pulled in
+  # by lib.nixosInstaller) may set its own stateVersion. Don't hard-conflict.
+  system.stateVersion = lib.mkDefault "25.11";
 
   # ── Access ───────────────────────────────────────────────────────────────
   # root key-only login: nixos-anywhere defaults to root@target and needs to

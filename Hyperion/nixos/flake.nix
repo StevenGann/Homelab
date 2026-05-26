@@ -106,7 +106,13 @@
       # Deliberately does NOT import disko/nvme-layout.nix: that defines / as
       # the NVMe, but this image is SD-resident and must leave the NVMe blank
       # for nixos-anywhere's disko phase to partition.
-      installer = nixos-raspberrypi.lib.nixosSystem {
+      #
+      # Uses `nixosInstaller` (not `nixosSystem`): it pulls in the upstream
+      # sd-image module — which is what exposes config.system.build.sdImage —
+      # plus the raspberrypi-installer module for live-boot behavior. The
+      # plain `nixosSystem` helper used by the workers builds `toplevel` and
+      # has no sdImage attribute.
+      installer = nixos-raspberrypi.lib.nixosInstaller {
         inherit system;
         specialArgs = { inherit inputs; };
         modules = [

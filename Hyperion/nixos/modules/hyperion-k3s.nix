@@ -25,20 +25,19 @@
     # decrypted-path as a string at evaluation; k3s reads it at start.
     tokenFile = config.sops.secrets.k3s-token.path;
 
-    # Runtime per-host metadata (hostname, IP) flows through this env file.
-    # Populated by apply-identity.service from the HYPERION-ID USB.
-    environmentFile = "/run/hyperion/identity.env";
-
+    # Hostname comes from the per-host closure (networking.hostName in
+    # hosts/<hostname>.nix); the node IP is the UCG DHCP reservation, which
+    # k3s auto-detects on the primary interface. No runtime env file.
+    #
     # nodeLabel and nodeTaint are intentionally NOT set in this base
     # module — they're per-host. See hosts/hyperion-<greek>.nix for
     # the actual values.
   };
 
-  # k3s should NOT start before apply-identity has staged identity.env and
-  # sops-nix has decrypted secrets.
+  # k3s must not start before sops-nix has decrypted the token. (The old
+  # apply-identity.service ordering went away with the HYPERION-ID USB.)
   systemd.services.k3s = {
-    after = [ "apply-identity.service" "sops-install-secrets.service" ];
-    requires = [ "apply-identity.service" ];
+    after = [ "sops-install-secrets.service" ];
   };
 
   # Required sysctls for k3s pod networking on Pi 5.
