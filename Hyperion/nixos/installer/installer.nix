@@ -38,9 +38,9 @@ let
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPRlnV15+a4pjzB8BqGq33LaOk9sBtLyaaE+WqWLxUIy owner@owner-thinkpad";
 in
 {
-  # mkDefault: the nixos-installer profile (installation-device.nix, pulled in
-  # by lib.nixosInstaller) may set its own stateVersion. Don't hard-conflict.
-  system.stateVersion = lib.mkDefault "25.11";
+  # NOTE: no system.stateVersion here. The installer profile / rpi full-config
+  # own it; an installer is ephemeral, and a second definition risks a
+  # mkDefault-vs-mkDefault conflict.
 
   # ── Access ───────────────────────────────────────────────────────────────
   # root key-only login: nixos-anywhere defaults to root@target and needs to
@@ -55,13 +55,14 @@ in
   };
   users.users.root.openssh.authorizedKeys.keys = [ operatorKey ];
 
-  # Convenience `owner` for manual SSH-in during bring-up/debug.
+  # Convenience `owner` for manual SSH-in during bring-up/debug. (The
+  # installer profile already sets passwordless wheel sudo via
+  # mkImageMediaOverride, so we don't set security.sudo here.)
   users.users.owner = {
     isNormalUser = true;
     extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [ operatorKey ];
   };
-  security.sudo.wheelNeedsPassword = false;
 
   # ── Nix: flakes + the rpi5 binary cache ────────────────────────────────────
   # --build-on-remote builds the per-host closure here on the Pi. Enabling
@@ -82,9 +83,10 @@ in
   };
 
   # ── Networking ─────────────────────────────────────────────────────────────
-  networking.useDHCP = true;
-  networking.firewall.enable = false;
-  networking.enableIPv6 = false;
+  # The nixos-installer profile manages networking via NetworkManager (DHCP
+  # by default) and opens sshd's port — so no networking.* overrides here.
+  # Setting networking.useDHCP would conflict with NetworkManager's own
+  # definition (CI: "networking.useDHCP has conflicting definition values").
 
   # ── Tools the install needs / operator wants ───────────────────────────────
   # disko + nixos-install come from nixos-anywhere's own closure; these are
