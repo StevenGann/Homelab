@@ -1,4 +1,19 @@
 #!/usr/bin/env bash
+#
+# ⚠️  DEPRECATED (2026-05-25) — the HYPERION-ID identity-USB model is retired.
+#
+# The NixOS install flow no longer reads identity/secrets from a USB stick.
+# Per-node identity now lives in the host closure (hosts/<hostname>.nix), and
+# the age key + SSH host keys are injected onto the NVMe at install time by
+# nixos-anywhere --extra-files. Use instead:
+#
+#     ./register-node-key.sh <hostname>     # once: generate + register keys
+#     ./flash-node.sh <ip> <hostname>       # remote install via nixos-anywhere
+#
+# See docs/runbooks/remote-flash-a-node.md. This script is kept only for
+# reference / legacy Debian-imaged nodes and will be removed after the
+# 2026-08-15 sunset gate.
+#
 # flash-identity-usb.sh
 # Formats a USB stick as ext4 (label HYPERION-ID) and writes per-node identity
 # for the NixOS-based Hyperion cluster (schema version 2).

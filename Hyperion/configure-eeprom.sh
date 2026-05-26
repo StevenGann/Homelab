@@ -14,7 +14,12 @@
 #   --boot-order <hex>  → target BOOT_ORDER value (default: 0xf641)
 #
 # Boot order nibbles are read right-to-left:
-#   0xf641  SD(1) → USB(4) → NVMe(6) → loop(f)  ← normal operating mode
+#   0xf16   NVMe(6) → SD(1) → loop(f)  ← NixOS remote-flash model: an installed
+#                                        NVMe wins; a blank NVMe falls through to
+#                                        the live SD installer for nixos-anywhere.
+#                                        Use this for NixOS nodes:
+#                                          ./configure-eeprom.sh <node> --boot-order 0xf16 --reboot
+#   0xf641  SD(1) → USB(4) → NVMe(6) → loop(f)  ← Debian path (sunsetting 2026-08-15)
 #   0xf6412 network(2) → SD(1) → USB(4) → NVMe(6) → loop(f)  ← use to configure via netboot
 set -euo pipefail
 
@@ -79,7 +84,7 @@ command -v sshpass >/dev/null \
 echo ""
 log "=== Hyperion EEPROM Boot Order Configuration ==="
 log "Nodes:      ${TARGET_NODES[*]}"
-log "Boot order: $TARGET_BOOT_ORDER  (SD card → USB → NVMe → loop)"
+log "Boot order: $TARGET_BOOT_ORDER  (nibbles tried right-to-left; see script header)"
 echo ""
 
 read -r -s -p "SSH password for $SSH_USER@hyperion-*: " PI_PASSWORD
