@@ -20,6 +20,13 @@
   # ── Networking ─────────────────────────────────────────────────────────────
   networking.useDHCP = true;          # UCG holds reservations .101..110 → MAC
 
+  # Advertise the hostname (DHCP option 12) so the UCG/Technitium show
+  # hyperion-<greek> instead of the stale "Homelab-Bootstrap". NixOS's dhcpcd
+  # sends no hostname by default, so the UCG kept the name it learned during
+  # the RasPi-OS bootstrap phase (observed 2026-06-01). `hostname` on its own
+  # line tells dhcpcd to send the current system hostname.
+  networking.dhcpcd.extraConfig = "hostname";
+
   # IPv6 disabled at runtime — the lab VLAN is v4-only by convention. No
   # firewall on workers; pod traffic is k3s-managed.
   networking.firewall.enable = false;
