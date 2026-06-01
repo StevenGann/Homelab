@@ -12,14 +12,20 @@ v0.14.9 serves the `.10–.99` pool. Apps running: **Headlamp** (192.168.10.50),
 (192.168.10.52, basic-auth dashboard, SOPS-encrypted key — first SOPS-decrypted
 app; see `Hyperion/k8s/README.md` for the required Flux SOPS encryption form).
 
-**Planned next — \*arr media stack on Hyperion.** Deep multi-agent research +
-deployment plan landed 2026-06-01: `docs/design/arr-stack-plan.md` (13 services
-— Prowlarr/Sonarr/Radarr/Jellyseerr/Cleanuparr/SuggestArr/Notifiarr/Kapowarr/
-Youtarr/Homarr/Trailarr + Tdarr-server on Hyperion; Tunarr + Tdarr-workers on
-Akasha/x86 for transcode). Central design: one Akasha NFS dataset mounted at a
-single `/data` per pod (hardlink-safe); config on local-path; API keys seeded
-via SOPS. **Akasha will provide the NFS shares (operator-confirmed 2026-06-01).**
-Awaiting operator sign-off on the §8 open decisions before building.
+**Planned next — \*arr media stack on Hyperion.** Plan is **team-reviewed final**
+(`docs/design/arr-stack-plan.md`) — 2 DEVELOPMENT-pipeline iterations + an
+orchestrator-applied closing punch-list (run: `docs/pipeline-runs/20260601T093734Z-dev-arr-stack/`,
+gitignored). Companion: `Akasha/docs/runbooks/nfs-media-export.md`. Services on
+Hyperion: Prowlarr/Sonarr/Radarr/seerr/Cleanuparr/SuggestArr/Notifiarr/Kapowarr/
+Youtarr/Homarr/Trailarr + Tdarr **server**; Tdarr **worker on Thoth** (dual RTX
+6000 Ada); **Tunarr shelved**; **seerr-team/seerr v3.0.1**. Design: one Akasha
+NFS export → single `/data` per pod (hardlink/EXDEV-safe, canary-Job gated);
+`/config` on local-path; API keys seeded via SOPS; 3-tier Flux (00-storage →
+10-core → 20-extras withheld for PR-2 = lean-core gate).
+**Two BLOCKING preflights before first apply:** (1) add `boot.supportedFilesystems
+= [ "nfs" ]` to `Hyperion/nixos/modules/hyperion-base.nix` + Colmena apply;
+(2) set the real TrueNAS pool name in the PV `nfs.path` (assumed `/mnt/pool/data`).
+Then PR-1 = 00-storage (canary must go green) + 10-core; PR-2 = 20-extras after soak.
 
 **Open follow-ups:**
 - **Relocate the k3s control plane off Heimdall** (the bridge-networked
