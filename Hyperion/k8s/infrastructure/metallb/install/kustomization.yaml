@@ -5,3 +5,28 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - metallb-native.yaml
+# Pin the controller (which serves the validating webhook) ONTO the control-plane
+# node, tolerating its NoExecute taint. The apiserver runs there, so it reaches
+# the webhook locally — avoiding the containerized-control-plane flannel return-
+# path problem that makes apiserver→webhook-pod-on-a-Pi time out. The controller
+# still reaches the Pi kubelets/API fine (control-plane→Pi direction works).
+patches:
+  - target:
+      kind: Deployment
+      name: controller
+      namespace: metallb-system
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: controller
+        namespace: metallb-system
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              node-role.kubernetes.io/control-plane: "true"
+            tolerations:
+              - key: node.homelab/control-plane-only
+                operator: Exists
+                effect: NoExecute
