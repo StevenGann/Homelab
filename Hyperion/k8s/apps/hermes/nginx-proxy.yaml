@@ -23,7 +23,10 @@ data:
       location / {
         proxy_pass         http://127.0.0.1:9119;
         proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
+        # The dashboard enforces a localhost Host header (returns 400 otherwise),
+        # so present the upstream's own host; preserve the real one separately.
+        proxy_set_header   Host              localhost:9119;
+        proxy_set_header   X-Forwarded-Host  $host;
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
