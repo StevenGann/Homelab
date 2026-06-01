@@ -1,0 +1,18 @@
+# Seed config for the Hermes gateway. The initContainer copies this to
+# {HERMES_HOME}/config.yaml (=/opt/data/config.yaml) ONLY if absent, so any
+# changes the operator makes via the dashboard (`hermes model`, etc.) survive
+# reconciliation. To force a re-seed, delete /opt/data/config.yaml on the PVC.
+#
+# DeepSeek is a first-class provider: the DEEPSEEK_API_KEY env (from the
+# hermes-deepseek SOPS Secret) registers the credential; this pins the provider
+# + default model so the gateway is non-interactive on first boot.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-config-seed
+  namespace: hermes
+data:
+  config.yaml: |
+    model:
+      provider: deepseek
+      default: deepseek-chat

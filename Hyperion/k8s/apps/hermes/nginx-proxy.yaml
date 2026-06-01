@@ -1,0 +1,35 @@
+# Basic-auth reverse proxy in front of the Hermes dashboard. The dashboard binds
+# pod-loopback (HERMES_DASHBOARD_HOST=127.0.0.1) so its OAuth gate never engages
+# and it is only reachable by this sidecar; nginx adds HTTP basic-auth and is the
+# only thing exposed on the LoadBalancer. This is the "trusted-LAN behind your own
+# reverse proxy" path from the Hermes docker guide — keys are never served
+# unauthenticated. Upgrade headers are present for the in-browser TUI chat
+# (WebSocket) when HERMES_DASHBOARD_TUI=1.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-dashboard-proxy
+  namespace: hermes
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      server_name _;
+      client_max_body_size 25m;
+
+      auth_basic           "Hermes Dashboard";
+      auth_basic_user_file /etc/nginx/.htpasswd;
+
+      location / {
+        proxy_pass         http://127.0.0.1:9119;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+      }
+    }

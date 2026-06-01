@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: hermes
+resources:
+  - namespace.yaml
+  - deepseek.sops.yaml        # SOPS-encrypted — decrypted by kustomize-controller
+  - dashboard-auth.sops.yaml  # SOPS-encrypted — decrypted by kustomize-controller
+  - config.yaml               # ConfigMap: config.yaml seed
+  - nginx-proxy.yaml          # ConfigMap: basic-auth proxy
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
