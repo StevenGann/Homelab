@@ -8,7 +8,9 @@ control plane are `Ready` (v1.34.5+k3s1).** Flashed via
 SD (see `Hyperion/docs/runbooks/turnkey-node-setup.md`). **GitOps is live:**
 FluxCD v2.8.8 (read-only, no token) reconciles `Hyperion/k8s/`; **MetalLB**
 v0.14.9 serves the `.10–.99` pool. Apps running: **Headlamp** (192.168.10.50),
-**Uptime-Kuma** (192.168.10.51, persistent PVC).
+**Uptime-Kuma** (192.168.10.51, persistent PVC), **Hermes** DeepSeek agent
+(192.168.10.52, basic-auth dashboard, SOPS-encrypted key — first SOPS-decrypted
+app; see `Hyperion/k8s/README.md` for the required Flux SOPS encryption form).
 
 **Open follow-ups:**
 - **Relocate the k3s control plane off Heimdall** (the bridge-networked
