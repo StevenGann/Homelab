@@ -145,6 +145,62 @@ parameters, package management, shell idioms, and standard sysadmin reasoning.
 
 <!-- Append new items at the bottom: `### YYYY-MM-DDTHH:MM:SSZ — title` -->
 
+### 2026-06-01T00:00:00Z — Stage 1 research for dev-arr-stack (NFS lens)
+
+Run: arr-stack DEVELOPMENT pipeline. Proposal returned to orchestrator (not written to file per subagent rules).
+
+NFS / TrueNAS facts verified this session (promote to settled after compaction):
+
+- **TrueNAS NFS export = exactly ONE dataset/path; a ZFS *child dataset* is NOT
+  traversed by default.** TrueNAS docs: "NFS treats each dataset as its own
+  file system… the client cannot access any nested or child datasets beneath
+  the parent." This is the load-bearing correction to the baseline plan: the
+  "one dataset, exported once, hardlinks work" design ONLY holds if
+  `torrents/` and `media/` are plain **directories inside a single dataset**,
+  NOT separate child datasets. If they are child datasets, the client sees the
+  child mountpoints as empty dirs and writes land on the PARENT dataset
+  (different fsid) → hardlink/atomic-move silently breaks → *arr copy+delete.
+  `crossmnt`/`nohide` would expose children but each child is still a SEPARATE
+  fsid → hardlinks across them STILL fail. So the rule is: ONE dataset, the
+  TRaSH tree is DIRECTORIES (mkdir), never `zfs create` per subtree.
+- **mapall vs maproot (TrueNAS):** Mapall User/Group squashes EVERY connecting
+  client identity to that user/group regardless of the incoming UID — this is
+  Linux kernel-nfsd `all_squash` + `anonuid=/anongid=`. Maproot only squashes
+  root. They are mutually exclusive; Mapall supersedes Maproot. Mapall=1000/1000
+  makes the Pi-side PUID irrelevant for ownership ON DISK (everything written is
+  owned 1000:1000 on Akasha) — sidesteps the NFSv4 idmap asymmetry below.
+- **NFSv4 AUTH_SYS idmap is asymmetric** (Launchpad #966734, nfs-ganesha ID
+  Mapping wiki): server→client name mapping works, client→server often does not;
+  with AUTH_SYS the on-create owner derives from the numeric RPC creds. Net:
+  don't rely on NFSv4 idmapd domain matching across hosts — use `mapall`
+  (all_squash) and you don't care about idmap at all. Avoids the classic
+  "files show as `nobody`/`4294967294`" trap.
+- **nconnect:** multiple TCP connections per mount over ONE server IP,
+  round-robin. NetApp testing: nconnect=8 most performant; nconnect=4 the common
+  k8s default. Available for NFSv4.1 by default on modern clients. Safe in PV
+  `mountOptions`. Pi 5 single-NIC 1GbE will saturate well before TCP-connection
+  count matters, so nconnect=4 is fine/marginal here.
+- **SQLite over NFS = corruption.** POSIX fcntl advisory locks unreliable over
+  NFS; WAL `-shm` is an mmap'd shared-memory file that does NOT work over NFS at
+  all. Confirmed by Sonarr #2797/#1886, SQLite lockingv3 doc. → every *arr
+  `/config` MUST be local-path (node-local), NEVER the NFS PVC. Baseline already
+  says this; it is non-negotiable.
+- **NFS `hard` mount + k8s `Recreate`:** hard mount means I/O retries forever if
+  Akasha is down — the pod hangs in D-state rather than corrupting. Combined
+  with RWO local-path config + `Recreate`, the pod is pinned to one node and a
+  reschedule won't double-mount. Good. Add `noatime` to cut metadata writes.
+- **seerr-team/seerr** (operator-locked successor): `ghcr.io/seerr-team/seerr`,
+  manifest includes linux/arm64; runs as UID 1000 (node user, NO PUID env —
+  same model as jellyseerr); config dir `/app/config` (databases+logs live
+  there → MUST be local-path, it's SQLite too). Currently only `develop` +
+  `sha-*` tags published (no semver release tag yet) — pin a `sha-<digest>` tag.
+- **Tdarr server arm64:** `ghcr.io/haveagitgat/tdarr` IS multi-arch (amd64 +
+  armv8). The `tdarr` image is Server+internal Node; set `internalNode=false`
+  to keep transcode off the Pi. External worker connects to `serverURL`
+  `http://<server-ip>:8266`; UI 8265, server/node port 8266. Both must be
+  LAN-reachable for the Thoth worker → server needs the MetalLB LB IP, not
+  ClusterIP. serverIP=0.0.0.0 inside the container.
+
 ### 2026-05-21T15:00:00Z — Stage 1 research for dev-hyperion-flashing-to-heimdall
 
 Run `20260521T144651Z-dev-hyperion-flashing-to-heimdall`. Wrote

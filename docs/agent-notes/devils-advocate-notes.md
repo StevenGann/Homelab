@@ -2,8 +2,8 @@
 agent: Devil's Advocate
 specialization: Strategic and logical adversary — attacks design, assumptions, scope, reasoning
 role: Adversarial — every other agent's positions are targets
-last_compacted_utc: 2026-05-21T16:35:00Z
-last_updated_utc:   2026-05-23T05:30:00Z
+last_compacted_utc: 2026-06-01T00:00:00Z
+last_updated_utc:   2026-06-01T00:00:00Z
 ---
 
 # Devil's Advocate — Notes
@@ -231,6 +231,45 @@ Scenarios I ran while reviewing `02-combined-draft.md` on 2026-05-21:
 - **Three-pane TUI worse than one for live view.** Bottom pane (gatewayd SSE) shows same data as middle pane (`:8080/log`) at different latency. Operator reconciles two views of same thing. Gatewayd UI is the right post-mortem tool, not live.
 - **Convergence-audit on 8 unanimous decisions.** Three of eight (rows 4 backup, 6 scope-creep, 7 success-signature) had shared-blind-spot patterns where the framing collapsed underlying disagreement or skipped failure modes. Rows 2, 3, 5, 8 clean. Pattern #14 applies to row 6 and 7.
 - **Cross-host PR silence.** Both this run and the pending Heimdall-finalize cross-host PR modify `Akasha/k3s-control-plane/docker-compose.yml`. Draft says nothing about ordering. Merge-conflict surface unaddressed.
+
+---
+
+## Active observations — dev-arr-stack-on-hyperion (2026-06-01)
+
+Stage-3 adversarial review of `arr-stack-plan-combined-draft.md`. New patterns:
+
+23. **The parallel-taxonomy defect.** A draft that proposes a NEW label/scheme
+    (`homelab/mem=8gb`) without reading the in-tree one (`hyperion.lab/memory-tier=`)
+    creates two competing conventions. Worse here: in-tree only the 4 GB nodes are
+    labeled+tainted PreferNoSchedule; 8 GB is the unlabeled default. A
+    `nodeSelector: homelab/mem=8gb` matches ZERO nodes → every pod Pending. The
+    "declare it in Nix not kubectl" advice was right; the label name was invented
+    against an existing scheme nobody checked. Generalizes #1 (we-already-do-X) to
+    its inverse: failing to find the existing X and reinventing it.
+24. **The mis-scoped risk citation.** Citing a bug report (#2970: UID 5000 +
+    SELinux-permissive on AlmaLinux) as a live risk for a config the bug does NOT
+    implicate (UID 1000 = image's native `node` user) inflates a risk register
+    with a non-applicable hazard. Verify the bug's *trigger conditions* match the
+    plan's config before promoting to R-list.
+25. **The "verified" that's half-true.** C5 said the "no-semver" concern was purely
+    a GHCR package-page artifact. Reality: GitHub Releases IS semver (v3.2.0,
+    2026-04-15, arm64 manifest confirmed by me) — BUT `ghcr tags/list` surfaces
+    only up to v3.0.1; v3.2.0 pulls by reference yet is absent from the tag index.
+    Both prior positions were partly right. "VERIFIED" should report the split,
+    not pick a winner.
+
+**Top consequential challenges this run (detail in final response):**
+- C-A: §5 nodeSelector `homelab/mem=8gb` matches zero nodes (deploy-blocker;
+  use existing `hyperion.lab/memory-tier`, rely on the existing 4gb taint).
+- C-B: R1 nfs-utils is not "unverified," it is verifiably ABSENT from the entire
+  nixos tree — a hard preflight that gates the WHOLE design, hidden in §9.
+- C-C: single NFS export is a stack-wide SPOF; `hard` mount means Akasha reboot
+  → every media pod blocks indefinitely (by design) — recovery story missing.
+- C-D: "mirror hermes" is selective — hermes is `:latest`, per-app-namespace.
+- C-E: Tdarr server-on-Pi while sole worker is Thoth — server adds a Pi NIC hop
+  + an NFS-SPOF dependency for the DB; why not server on Thoth too.
+- C-F: ~12-service scope vs lean core; the EXDEV canary + seed-script + grep-gate
+  verification tax is the real cost, and it scales with service count.
 
 ---
 

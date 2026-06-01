@@ -1,8 +1,8 @@
 ---
 agent: Raspberry Pi Expert
 specialization: Pi 5 hardware, EEPROM, config.txt/cmdline.txt, PoE+/M.2 HATs, NVMe boot, Pi OS
-last_compacted_utc: 2026-05-21T15:10:00Z
-last_updated_utc:   2026-05-23T05:30:00Z
+last_compacted_utc: 2026-06-01T00:00:00Z
+last_updated_utc:   2026-06-01T00:00:00Z
 ---
 
 # Raspberry Pi Expert — Notes
@@ -338,6 +338,48 @@ flow (NixOS or Debian) should operationally avoid `reboot` as the last
 step before relying on NVMe enumeration; prefer `poweroff` followed by
 external power cycle.
 
+### 2026-06-01T00:00:00Z — Stage 1 dev-arr-stack — arm64 + budget verification (DEVELOPMENT)
+
+Verified live registry manifests today (registry HTTP API, not hearsay). All confirmed
+`linux/arm64` present in the multi-arch manifest list:
+- LSIO `ghcr.io/linuxserver/{sonarr,radarr,prowlarr}` — arm64 ✅
+- `ghcr.io/seerr-team/seerr` (develop, the merged successor) — arm64 ✅ (amd64+arm64 only)
+- `ghcr.io/cleanuparr/cleanuparr` — arm64 ✅
+- `ghcr.io/homarr-labs/homarr` — arm64 ✅
+- `ghcr.io/haveagitgat/tdarr` (server) AND `tdarr_node` (worker) — BOTH arm64 ✅
+- `docker.io/{nandyalu/trailarr, dialmaster/youtarr, ciuse99/suggestarr, mrcas/kapowarr, golift/notifiarr}` — all arm64 ✅
+- `docker.io/chrisbenincasa/tunarr:latest` — **amd64-ONLY** (no arm64 in manifest list; `-arm64` tag is separate). Tunarr is SHELVED this rollout, so moot.
+
+**Tdarr arm64 ffmpeg reality (issue #1101, still OPEN):** arm64 image ships Debian-jammy
+ffmpeg 4.4.2 (amd64 ships jellyfin-ffmpeg7). libaom-av1 "effectively broken" (hangs, pegs
+all CPUs); libsvtav1 absent. No container HW transcode on Pi (VideoCore/rkmpp not exposed).
+→ Server-on-Pi only (no transcode when internalNode=false); workers MUST be off-Pi. Confirms baseline.
+
+**Tdarr server/worker protocol (docs.tdarr.io):** server UI :8265, server node-port :8266
+(workers connect here), worker :8268. Worker env: `serverIP`/`serverPort` to locate server,
+`nodeName`. **LOAD-BEARING: server AND every worker must mount the SAME media path AND the
+SAME transcode cache (`/temp`)** — else transcodes fail (issue #933, pype.dev). For the
+Thoth worker this means Thoth must NFS-mount Akasha `/data` AND a shared `/temp`. The shared
+`/temp` MUST live on Akasha NFS, NOT a Pi local-path — otherwise every transcode byte
+round-trips Thoth→Pi→Akasha over GbE and bottlenecks the Pi server pod's NIC. This is a
+correction to the baseline, which put Tdarr `/temp` cache on the Pi.
+
+**Pi 5 NFS-over-GbE budget:** Pi 5 built-in NIC is true GbE — iperf3 ~941 Mb/s single stream
+(~117 MB/s theoretical). Real NFS read ~near-line-rate; **NFS WRITE only ~1/4–1/3 of read**
+(forum reports). Implication: all heavy file I/O (hardlink, atomic move) executes SERVER-SIDE
+on Akasha ZFS and does NOT cross the Pi NIC (TRaSH single-export design) — so the Pi GbE is
+only carrying metadata + the occasional genuine copy (cross-FS fallback, Trailarr/Youtarr
+writes). Keep the import path hardlink-only so the Pi NIC is never the mover. nconnect=4 in
+mountOptions helps parallel small-file metadata.
+
+**Pi 5 8GB/4GB budget across ~12 tenants:** TWO of ten nodes are 4GB (settled knowledge).
+local-path RWO + Recreate pins each config-PVC pod to whichever node first scheduled it →
+the media stack concentrates onto a few Pis. Summed memory REQUESTS from the baseline table
+≈ 2.3 GiB; summed LIMITS ≈ 8.4 GiB. If k8s packs many onto one 8GB node, limits overcommit
+that node 1:1 (kernel will OOM-kill under burst). Fix in proposal: pin media pods to the
+8GB nodes via a label, and/or soft anti-affinity to spread, and trim limits (Homarr idles
+~600MB; Youtarr/Trailarr ffmpeg bursts are the real pressure).
+
 ---
 
 ## Sources
@@ -432,6 +474,15 @@ external power cycle.
   (wiki, but cross-referenced with NixOS Discourse).
 
 ---
+
+## arr-stack arm64/budget sources (2026-06-01)
+
+- seerr container pkg page (ghcr) — arm64 digest present: https://github.com/seerr-team/seerr/pkgs/container/seerr — official.
+- Tdarr #1101 ffmpeg-on-arm — https://github.com/HaveAGitGat/Tdarr/issues/1101 — open, community.
+- Tdarr Run/Compose docs (ports 8265/8266/8268, serverIP/serverPort) — https://docs.tdarr.io/docs/installation/docker/run-compose/ — official.
+- Tdarr shared-cache requirement — https://github.com/HaveAGitGat/Tdarr/issues/933 + https://pype.dev/tdarr-worker-nodes-share-the-cache/ — community.
+- Pi 5 GbE iperf3 ~941 Mb/s — https://forums.raspberrypi.com/viewtopic.php?t=378743 ; NFS write ~1/3 read — https://forums.raspberrypi.com/viewtopic.php?t=365193 — community.
+- Live manifest-list inspection via registry HTTP API (auth.docker.io + ghcr.io token) 2026-06-01 — primary.
 
 ## Stage 5.1 Re-review findings (2026-05-23, dev-nixos-identity-usb iter-1)
 
