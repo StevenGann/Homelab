@@ -30,7 +30,14 @@ services:
 
   k3s-server:
     image: rancher/k3s:v1.34.5-k3s1
-    command: server
+    # The control plane runs in a container, so by default the apiserver
+    # advertises its docker-internal IP (172.19.0.2) as the `kubernetes`
+    # service endpoint — which the Pi workers can't route to, breaking
+    # in-cluster API access (10.43.0.1:443) for every pod on a worker
+    # (observed 2026-06-01 via MetalLB's speaker crash-looping). Advertise the
+    # host LAN IP instead, and add it as a cert SAN so workstation kubectl to
+    # 192.168.10.4:6443 also validates.
+    command: server --advertise-address=192.168.10.4 --tls-san=192.168.10.4
     privileged: true
     restart: unless-stopped
     environment:
