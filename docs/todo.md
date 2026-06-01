@@ -1,21 +1,28 @@
 # Homelab IaC — To Do
 
-## Status (2026-06-01) — PHASE 1 PASSED ✅
+## Status (2026-06-01) — CLUSTER OPERATIONAL ✅
 
-**`hyperion-alpha` is a NixOS worker on its NVMe and joined the Heimdall k3s
-control plane (`Ready`, v1.34.5+k3s1).** The NixOS pivot is hardware-validated.
-The turnkey path is `Hyperion/setup-hyperion-node.sh --name <h> [--ip <ip>]`
-(see `Hyperion/docs/runbooks/turnkey-node-setup.md`), driven from the stock
-RasPi-OS bootstrap SD the operator moves node-to-node. Heimdall control plane
-runs via `Heimdall/k3s-control-plane/docker-compose.yml`.
+**All 10 NixOS Pi-5 workers (`alpha`..`kappa`, .101–.110) + the Heimdall k3s
+control plane are `Ready` (v1.34.5+k3s1).** Flashed via
+`Hyperion/setup-hyperion-node.sh --name <h>` from the stock RasPi-OS bootstrap
+SD (see `Hyperion/docs/runbooks/turnkey-node-setup.md`). **GitOps is live:**
+FluxCD v2.8.8 (read-only, no token) reconciles `Hyperion/k8s/`; **MetalLB**
+v0.14.9 serves the `.10–.99` pool. Apps running: **Headlamp** (192.168.10.50),
+**Uptime-Kuma** (192.168.10.51, persistent PVC).
 
-**Next:** flash the remaining 9 nodes (`hyperion-beta`..`kappa`) — one
-`setup-hyperion-node.sh` command each, as the operator powers them on and moves
-the SD. FluxCD is bootstrapped (read-only GitOps, flux v2.8.8) and reconciling
-`Hyperion/k8s/`; MetalLB (v0.14.9, pool .10–.99) deployed + verified. Loose ends: reconcile
-Heimdall's `/opt/Homelab` git tree (see `project_heimdall_repo_divergence`
-memory); migrate `kernelboot`→`kernel` bootloader before nixos-raspberrypi
-drops it.
+**Open follow-ups:**
+- **Relocate the k3s control plane off Heimdall** (the bridge-networked
+  container limitation — breaks metrics-server, needs placement workarounds).
+  See `docs/design/adr-0002-containerized-control-plane-networking.md`. Operator
+  confirmed this is the next architectural step.
+- **MonolithBot migration:** multi-arch CI added to the MonolithBot repo
+  (2026-06-01); after GHA publishes the arm64 `:latest`, deploy to Hyperion via
+  GitOps with its `config.json` secrets in a k8s Secret.
+- Minor: `--disable=servicelb` (kill the klipper-vs-MetalLB `svclb-*` cruft);
+  migrate `kernelboot`→`kernel` bootloader before nixos-raspberrypi drops it.
+
+(Heimdall `/opt/Homelab` git divergence — RESOLVED 2026-06-01 via
+`git reset --hard origin/main`.)
 
 ### History (superseded — pivot now validated)
 

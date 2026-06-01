@@ -10,6 +10,13 @@ defined in this repository and recoverable from scratch.
 > runbook:** `Hyperion/docs/runbooks/turnkey-node-setup.md`. The Debian/Packer
 > path is superseded (in-tree until the 2026-08-15 sunset gate), as is the older
 > NixOS SD-installer + `flash-node.sh` flow.
+>
+> **GitOps is live:** FluxCD (read-only, no token) reconciles `Hyperion/k8s/`;
+> MetalLB serves the `192.168.10.10–99` LoadBalancer pool. Running apps:
+> **Headlamp** dashboard (http://192.168.10.50) and **Uptime-Kuma**
+> (http://192.168.10.51). See `Hyperion/k8s/README.md`. Known architectural
+> debt: the k3s control plane runs in a bridge-networked container on Heimdall
+> and is slated to move off it (ADR-0002).
 
 ---
 

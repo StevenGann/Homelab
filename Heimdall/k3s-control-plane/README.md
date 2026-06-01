@@ -18,6 +18,43 @@ under workloads, a follow-up pipeline decides whether to move the control
 plane onto the cluster itself or formally adopt Heimdall. State lives under
 one root so re-migration is `rsync + swap IP + redeploy`.
 
+## Networking model & control-plane-only config (IMPORTANT — read before editing the command)
+
+The server `command:` carries flags that are **load-bearing**, learned the
+hard way on 2026-06-01 (see `docs/design/adr-0002-containerized-control-plane-networking.md`):
+
+```
+server --advertise-address=192.168.10.4 --tls-san=192.168.10.4 \
+       --node-taint=node.homelab/control-plane-only=true:NoExecute
+```
+
+- **`--advertise-address=192.168.10.4`** — without it the apiserver advertises
+  its *docker-internal* IP (`172.19.0.2`) as the `kubernetes` service endpoint,
+  which the Pi workers can't route to → every worker pod's in-cluster API
+  access (`10.43.0.1:443`) times out. **`--tls-san`** adds the LAN IP to the
+  serving cert so workstation `kubectl` to `:6443` validates.
+- **`--node-taint=…:NoExecute`** — the control plane runs in a **bridge-networked
+  container**, so its flannel VXLAN endpoint is `172.19.0.2`, which the Pis
+  can't send return traffic to. Any *workload pod* scheduled on the control
+  plane is therefore unreachable from the Pis (cluster DNS, MetalLB-backed
+  apps). The taint keeps all workloads on the Pi workers; the embedded agent
+  stays so the apiserver can still reach Pi pods outbound. Apps in
+  `Hyperion/k8s` use `nodeSelector topology.kubernetes.io/zone=hyperion`.
+
+**Known casualties of this containerized-control-plane setup (until relocation):**
+- **`kubectl top` / metrics-server** is broken (the apiserver↔Pi-pod return path).
+- The **metallb controller** is pinned *onto* the control-plane node (in
+  `Hyperion/k8s/infrastructure/metallb/install/kustomization.yaml`) so the
+  apiserver reaches its validating webhook locally.
+- k3s **servicelb (klipper)** is still enabled → harmless `svclb-*` Pending
+  pods (dueling MetalLB). Add `--disable=servicelb` when convenient.
+
+**The real fix is to relocate the control plane off the bridge-networked
+container** — host-network it, or (preferred) run it on its own host / the
+Heimdall host OS. NOT done because k3s's iptables management would risk the
+other Heimdall Docker services (Caddy/Technitium/Komodo). This is the planned
+next step (operator confirmed). See ADR-0002.
+
 ## Initial mint (one-time)
 
 The join token must exist in two places — Heimdall's `.env` (this stack)

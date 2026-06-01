@@ -13,11 +13,29 @@ clusters/hyperion/  cluster entrypoint — Flux Kustomization CRs (infrastructur
 infrastructure/
   metallb/install/  vendored MetalLB native manifest (v0.14.9): controller, speaker, CRDs
   metallb/config/   IPAddressPool 192.168.10.10–99 + L2Advertisement
-apps/               (empty — application workloads land here)
+apps/
+  headlamp/         k8s dashboard — LoadBalancer 192.168.10.50
+  uptime-kuma/      status monitor — LoadBalancer 192.168.10.51, persistent local-path PVC
 ```
 
 Reconcile chain: `flux-system` (root) → `clusters/hyperion` → `metallb`
-(install, `wait`) → `metallb-config` (pool, `dependsOn: metallb`).
+(install, `wait`) → `metallb-config` (pool, `dependsOn: metallb`); and
+`clusters/hyperion` → each app Kustomization in `apps.yaml`
+(`dependsOn: metallb-config`).
+
+## Running apps
+
+| App | URL | Notes |
+|---|---|---|
+| Headlamp (dashboard) | http://192.168.10.50 | token login — `kubectl -n headlamp get secret headlamp-admin -o jsonpath='{.data.token}' \| base64 -d` |
+| Uptime-Kuma | http://192.168.10.51 | persistent SQLite on a local-path PVC (node-local) |
+
+**All apps must set `nodeSelector: { topology.kubernetes.io/zone: hyperion }`**
+so they schedule on the Pi workers, not the containerized control-plane node
+(whose pods are unreachable — see
+`../../Heimdall/k3s-control-plane/README.md` and ADR-0002). Use a
+LoadBalancer Service with `annotations: metallb.io/loadBalancerIPs: <ip>` to
+pin a stable address from the `.10–.99` pool.
 
 ## Bootstrap on a fresh cluster (read-only, no token)
 

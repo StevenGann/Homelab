@@ -221,6 +221,10 @@ Single VLAN `192.168.10.0/24`. UCG (`.1`) is the DHCP server.
 
 Heimdall ports: k3s API `:6443`, Flannel VXLAN `:8472/udp`, nginx `:50011` (images), journal-remote `:19532` (upload sink), journal-gatewayd `:19531` (HTML browse). Bootstrap status endpoint `:8080` per-Pi (Debian path only).
 
+**k3s control-plane caveat (important):** the control plane runs in a *bridge-networked* Docker container on Heimdall, so its flannel VTEP (`172.19.0.2`) is unreachable from the Pi workers. Consequences (until it's relocated off Heimdall — the planned next step): the control-plane node is tainted `node.homelab/control-plane-only:NoExecute` (**all k8s app workloads must `nodeSelector topology.kubernetes.io/zone=hyperion`**); `kubectl top`/metrics-server is broken; the metallb controller is pinned onto the control-plane node for webhook reachability. Full rationale + the load-bearing `--advertise-address`/`--node-taint` server flags: `docs/design/adr-0002-containerized-control-plane-networking.md` and `Heimdall/k3s-control-plane/README.md`.
+
+GitOps: FluxCD (read-only, no token) reconciles `Hyperion/k8s/`; MetalLB serves the `.10–.99` LoadBalancer pool. See `Hyperion/k8s/README.md`.
+
 ## When you change something
 
 - **`Hyperion/nixos/**`** → CI rebuilds the installer image. Push via Colmena for day-2 changes. See `Hyperion/docs/runbooks/deploy-via-colmena.md`.
