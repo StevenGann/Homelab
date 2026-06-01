@@ -226,7 +226,7 @@ fi
 
 # Node-side flash: disko-install (tolerate sops-mount abort), then finish the
 # bootloader via nixos-enter with util-linux on PATH. See header + memory.
-$SSH_K "bash -s" <<NODESH || die "node-side flash failed (see output above)"
+$SSH_K "bash -s" <<NODESH || die "node-side flash failed. If you see FLASH_ABORTED above, it is a build/cache failure (e.g. cachix outage) and the NVMe is untouched — re-run this exact command when the cache is healthy."
 set -uo pipefail
 NIX=${NIX}
 echo '== disko-install (partition + closure + secret injection) =='
@@ -239,8 +239,27 @@ sudo \$NIX run --accept-flake-config 'github:nix-community/disko/latest#disko-in
   --extra-files /tmp/hyp-extra/etc/ssh/ssh_host_ed25519_key.pub /etc/ssh/ssh_host_ed25519_key.pub \
   || echo '== disko-install returned nonzero (expected: sops mount aborts pre-bootloader) =='
 
+# disko-install exits nonzero for TWO different reasons: the benign sops-mount
+# abort (disk WAS partitioned + closure installed), or a real build/fetch
+# failure (e.g. a cachix HTTP 500 outage) where it bailed BEFORE touching the
+# disk. Distinguish them so the latter aborts clearly instead of cascading into
+# a confusing 'BOOTLOADER_MISSING'. Signal: a completed install leaves the disko
+# layout + a system profile on /dev/nvme0n1p2.
+echo '== verify disko-install actually installed NixOS (vs a build/fetch failure) =='
+if ! sudo mount /dev/nvme0n1p2 /mnt 2>/dev/null; then
+  echo 'FLASH_ABORTED: /dev/nvme0n1 was not partitioned by disko-install.'
+  echo '  This is almost always a substituter/build failure (e.g. a cachix HTTP 500'
+  echo '  outage), NOT a disk or node problem. The NVMe is UNTOUCHED. Re-run when the'
+  echo '  cache is healthy.'
+  exit 3
+fi
+if [ ! -e /mnt/nix/var/nix/profiles/system ]; then
+  echo 'FLASH_ABORTED: NVMe has no NixOS system profile — disko-install did not complete'
+  echo '  the install (likely a substituter/build failure). NVMe not converted; re-run later.'
+  sudo umount -R /mnt 2>/dev/null || true
+  exit 3
+fi
 echo '== finish activation + bootloader via nixos-enter (mount on PATH) =='
-sudo mountpoint -q /mnt || sudo mount /dev/nvme0n1p2 /mnt
 sudo mkdir -p /mnt/boot/firmware
 sudo mountpoint -q /mnt/boot/firmware || sudo mount /dev/nvme0n1p1 /mnt/boot/firmware
 ULBIN=\$(dirname "\$(sudo find /mnt/nix/store -maxdepth 3 -path '*-util-linux-*/bin/mount' 2>/dev/null | grep -v minimal | head -1 | sed 's#^/mnt##')")
