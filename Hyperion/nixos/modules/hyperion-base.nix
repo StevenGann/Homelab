@@ -20,11 +20,13 @@
   # ── Networking ─────────────────────────────────────────────────────────────
   networking.useDHCP = true;          # UCG holds reservations .101..110 → MAC
 
-  # Advertise the hostname (DHCP option 12) so the UCG/Technitium show
-  # hyperion-<greek> instead of the stale "Homelab-Bootstrap". NixOS's dhcpcd
-  # sends no hostname by default, so the UCG kept the name it learned during
-  # the RasPi-OS bootstrap phase (observed 2026-06-01). `hostname` on its own
-  # line tells dhcpcd to send the current system hostname.
+  # Explicitly advertise the hostname (DHCP option 12). NOTE: NixOS's default
+  # dhcpcd.conf ALREADY emits `hostname`, so this is belt-and-suspenders, not a
+  # fix — every node has advertised hyperion-<greek> since first boot. The UCG
+  # showing "Homelab-Bootstrap" is a UniFi client-name STICKINESS quirk: it
+  # caches the name first seen for each MAC (the RasPi-OS bootstrap phase) and
+  # does not overwrite it when the DHCP hostname later changes. The cure is
+  # controller-side (clear the client's cached name in UniFi), not here.
   networking.dhcpcd.extraConfig = "hostname";
 
   # IPv6 disabled at runtime — the lab VLAN is v4-only by convention. No
