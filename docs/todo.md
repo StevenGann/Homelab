@@ -12,6 +12,15 @@ v0.14.9 serves the `.10–.99` pool. Apps running: **Headlamp** (192.168.10.50),
 (192.168.10.52, basic-auth dashboard, SOPS-encrypted key — first SOPS-decrypted
 app; see `Hyperion/k8s/README.md` for the required Flux SOPS encryption form).
 
+**Planned next — \*arr media stack on Hyperion.** Deep multi-agent research +
+deployment plan landed 2026-06-01: `docs/design/arr-stack-plan.md` (13 services
+— Prowlarr/Sonarr/Radarr/Jellyseerr/Cleanuparr/SuggestArr/Notifiarr/Kapowarr/
+Youtarr/Homarr/Trailarr + Tdarr-server on Hyperion; Tunarr + Tdarr-workers on
+Akasha/x86 for transcode). Central design: one Akasha NFS dataset mounted at a
+single `/data` per pod (hardlink-safe); config on local-path; API keys seeded
+via SOPS. **Akasha will provide the NFS shares (operator-confirmed 2026-06-01).**
+Awaiting operator sign-off on the §8 open decisions before building.
+
 **Open follow-ups:**
 - **Relocate the k3s control plane off Heimdall** (the bridge-networked
   container limitation — breaks metrics-server, needs placement workarounds).
