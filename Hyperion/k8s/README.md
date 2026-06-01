@@ -111,10 +111,31 @@ the interval. For Secrets, follow the SOPS encryption form above.
 `apps/hermes/` — gateway + dashboard in one s6-supervised pod
 (`ghcr.io/stevengann/hermes-agent:latest`, arm64). The dashboard binds
 pod-loopback (`HERMES_DASHBOARD_HOST=127.0.0.1` → no OAuth gate) behind an
-nginx **basic-auth** sidecar; only the proxy is on the LB
-(`192.168.10.52`). nginx rewrites the upstream `Host` to `localhost:9119`
-(the dashboard 400s on any other Host). DeepSeek key + dashboard htpasswd are
-SOPS Secrets; `config.yaml` (`provider: deepseek`) is seeded onto the PVC by an
+nginx **basic-auth** sidecar; only the proxy is on the LB (`192.168.10.52`).
+DeepSeek key + dashboard htpasswd are SOPS Secrets; `config.yaml`
+(`provider: deepseek`, `deepseek-chat`) is seeded onto the PVC by an
 initContainer if absent (so dashboard edits survive). Retrieve the dashboard
 password: `sops -d --extract '["stringData"]["DASHBOARD_PASSWORD"]'
 apps/hermes/dashboard-auth.sops.yaml`.
+
+### Reverse-proxying the localhost-only dashboard (the load-bearing nginx bit)
+
+The dashboard has an anti-DNS-rebinding guard (GHSA-ppp5-vxwm-4cf7) that, on a
+loopback bind, validates **both `Host` and `Origin`** against localhost — and
+**re-validates them on the `/api/pty` chat WebSocket** (FastAPI HTTP middleware
+doesn't run for WS routes). To expose it on the LAN behind the auth proxy,
+`nginx-proxy.yaml` rewrites **both** headers to `localhost:9119`:
+
+```nginx
+proxy_set_header Host    localhost:9119;   # else HTTP pages 400
+proxy_set_header Origin  http://localhost:9119;  # else Chat WS closes 4403
+```
+
+With that, all four WS gates pass: Host ✓, Origin ✓, loopback-client ✓ (nginx
+connects from `127.0.0.1` in-pod), and the SPA's `?token=<_SESSION_TOKEN>`
+flows through unchanged. Symptoms if you get this wrong: Host-only → pages load
+but **chat is silently dead** (WS closed 4403, logged in the dashboard's WS
+audit log). Keeping the loopback bind (vs `0.0.0.0`+`--insecure`) means the
+dashboard is never reachable except through the basic-auth proxy. **subPath
+caveat:** the nginx config is `subPath`-mounted → `kubectl rollout restart
+deploy/hermes -n hermes` after any `nginx-proxy.yaml` change.
