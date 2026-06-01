@@ -11,7 +11,7 @@ heimdall:
 
 nodes:
   - { name: hyperion-alpha,   ip: 192.168.10.101, status: nixos }   # validated 2026-06-01 (8GB host file; this unit reports 4GB)
-  - { name: hyperion-beta,    ip: 192.168.10.102, status: pending }
+  - { name: hyperion-beta,    ip: 192.168.10.102, status: nixos }    # validated 2026-06-01 via setup-hyperion-node.sh (first script run)
   - { name: hyperion-gamma,   ip: 192.168.10.103, status: pending }
   - { name: hyperion-delta,   ip: 192.168.10.104, status: pending }
   - { name: hyperion-epsilon, ip: 192.168.10.105, status: pending }

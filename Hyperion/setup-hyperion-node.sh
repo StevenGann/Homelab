@@ -236,11 +236,17 @@ echo 'EEPROM staged ${BOOT_ORDER}'
 sudo systemd-run --on-active=2 systemctl reboot >/dev/null 2>&1 || (sudo reboot &)
 NODESH
 log "Rebooting ${NAME} into NVMe NixOS..."
-ssh-keygen -R "$IP" >/dev/null 2>&1 || true   # host key changes to the injected one
+ssh-keygen -R "$IP" >/dev/null 2>&1 || true   # drop the bootstrap host key from the operator's known_hosts
 
 # ── Phase 6: verify boot + k3s ──────────────────────────────────────────────
 step "Phase 6 — verify NixOS boot + k3s"
-SSH_O="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 ${TARGET_USER}@${IP}"
+# The node's SSH host key changes from the bootstrap key to the injected NixOS
+# one across the reboot. accept-new CANNOT reconcile a *changed* key (it errors
+# "REMOTE HOST IDENTIFICATION HAS CHANGED"), and the poll below would re-add the
+# bootstrap key during the reboot delay and then spin forever. We injected and
+# trust this host key, so the verify path ignores host-key state entirely
+# (no=auto-accept, /dev/null=don't read or pollute the operator's known_hosts).
+SSH_O="ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8 ${TARGET_USER}@${IP}"
 log "Waiting for ${NAME} to return as NixOS (up to 5 min)..."
 deadline=$(( $(date +%s) + 300 ))
 until $SSH_O 'grep -q NixOS /etc/os-release' 2>/dev/null; do
