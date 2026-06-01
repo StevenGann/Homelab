@@ -101,4 +101,12 @@
 
   # cgroups v2 required by k3s on recent kernels.
   boot.kernelModules = [ "br_netfilter" "overlay" ];
+
+  # NFS client support for the *arr media stack: mounts Akasha (192.168.10.247)
+  # NFS exports into k3s pods. This single option pulls in nfs-utils (the
+  # mount.nfs/mount.nfs4 helper the kubelet invokes), rpcbind, rpc-statd and
+  # nfs-idmapd — the bare `environment.systemPackages = [ pkgs.nfs-utils ]` form
+  # is NOT equivalent (it omits the rpcbind/statd services). Live day-2 change,
+  # applied via `colmena apply` with no reboot. See docs/design/arr-stack-plan.md §0.5.
+  boot.supportedFilesystems = [ "nfs" ];
 }

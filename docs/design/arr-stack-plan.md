@@ -63,6 +63,73 @@ thinking-out-loud). Full iteration-1/2 ledgers live in the superseded revision f
 
 ---
 
+## 0.5 Akasha as-built (verified live 2026-06-01) — REVISED storage model
+
+> **This section supersedes the idealized single-`pool/data` + hardlink/EXDEV design
+> in §2.** It reflects Akasha's *actual* layout (read live via `truenas_admin`/`midclt`)
+> and the operator's two model decisions: **(a) copy-then-delete is acceptable** (no
+> hardlink requirement) and **(b) the Hyperion *arr is a fresh, parallel deploy** —
+> Sonarr/Radarr/Prowlarr already run on Akasha as Docker apps and stay live during overlap.
+
+### As-built facts
+- **TrueNAS SCALE 25.04.2.6**, **kernel `nfsd`** (not Ganesha). `/etc/exports` uses
+  `sec=sys,rw,no_subtree_check` with **no `crossmnt`** → a parent export does **not**
+  expose child datasets; each dataset must be exported on its own line/share.
+- **Pool `Media-Storage`** (58 T, RAIDZ2 ×8 `ST8000DM004` **SMR**), `acltype=nfsv4`, dirs `0777`.
+  - `Media-Storage/Media` = `/mnt/Media-Storage/Media` (26 T), **child datasets**:
+    `Movies` (11 T), `TV-Shows` (13 T), `Music` (32 G), `Downloads` (2 T), `ROMs` (105 G).
+  - **Download client** = qBittorrent (the `qbit-gluetun` compose stack under `dockge`,
+    VPN-fronted) writing to **`/mnt/Media-Storage/Media/Downloads/qbit`** (also `metube`,
+    `tubearchivist`).
+  - Library shape: `TV-Shows/` = per-show folders (standard); `Movies/` is **flat/loose
+    files** — set the Hyperion Radarr root folder to match or expect a re-org prompt.
+- **Existing *arr on Akasha (stay during overlap):** `sonarr`, `radarr`, `prowlarr`,
+  `jellyfin` (RUNNING TrueNAS apps). Hyperion gets *fresh* instances pointed at the same
+  library; indexers/profiles re-entered by hand; **two Sonarrs must not both manage-and-delete
+  the same library during overlap** (read-mostly the new one until cutover).
+- **Pool health:** power-loss-during-RAIDZ-expansion corruption — **55 corrupted media files
+  deleted 2026-06-01** (`~/akasha-corrupted-files.md`), no failing disks, redundancy intact.
+  A clean `zpool scrub Media-Storage` should precede heavy new load (recommended, not a hard gate).
+
+### Revised storage model (copy-then-delete, non-disruptive, no reshape)
+Because copy-then-delete is accepted, the child-dataset split is **fine** — copies cross the
+`fsid` boundary happily. **No dataset surgery; purely additive NFS exports.** No hardlink
+gate, no EXDEV canary.
+
+- **Per-dataset NFS exports** (kernel nfsd has no `crossmnt`), each scoped to
+  **`192.168.10.0/24`**, `mapall` to the chosen uid:gid (dirs are already `0777`, so writes
+  succeed regardless — `mapall` just normalizes on-disk ownership):
+  | Export (Akasha path) | Pod mount | Mode | Used by |
+  |---|---|---|---|
+  | `/mnt/Media-Storage/Media/Downloads` | `/data/downloads` | RW | Sonarr, Radarr (read completed), Cleanuparr |
+  | `/mnt/Media-Storage/Media/TV-Shows` | `/data/media/tv` | RW | Sonarr (+ Trailarr/Tdarr) |
+  | `/mnt/Media-Storage/Media/Movies` | `/data/media/movies` | RW | Radarr (+ Trailarr/Tdarr) |
+  | `/mnt/Media-Storage/Media/Music` | `/data/media/music` | RW | (optional; only if a music *arr is added) |
+- **One static NFS PV+PVC per export** (RWX, `nfsvers=4.1,hard,noatime,nconnect=4`,
+  `prune: disabled` on both, `claimRef` without `uid`) — same shape as §2.3 but **one per
+  dataset**, not one shared `/data`. Pods mount only the datasets they need.
+- ***arr config:** **"Use Hardlinks instead of Copy" = OFF** (copy-import). Expect ~2× transient
+  space + slower large-file copies over NFS — the accepted trade-off. `/config` still local-path (§2.4).
+- **Remote Path Mapping** in Sonarr/Radarr: qBittorrent reports its own container path for
+  completed items; map that → `/data/downloads` (confirm qbit's reported prefix at setup).
+- **Storage validation Job** replaces the §2.5 EXDEV canary: a `batch/v1` Job
+  (`ttlSecondsAfterFinished: 300`) that mounts each export and does a write→read→delete probe,
+  confirming the **kubelet** can RW-mount every NFS export before `media-core` reconciles. **No
+  hardlink/`mv`-EXDEV assertion** (copy-import doesn't need it).
+
+### Deployment preflights (Akasha + cluster mutations — operator go-steps)
+1. **Create the per-dataset NFS exports** (additive; doesn't touch running services). Via
+   `midclt call sharing.nfs.create {path, networks:["192.168.10.0/24"], mapall_user, mapall_group, security:["SYS"]}` per dataset (I can run these on your OK), or TrueNAS UI → Shares → NFS.
+2. **`boot.supportedFilesystems = [ "nfs" ]`** in `Hyperion/nixos/modules/hyperion-base.nix`
+   + `colmena apply` (NFS client absent from the Pis today — BLOCKING).
+3. **(recommended)** `sudo zpool clear Media-Storage && sudo zpool scrub Media-Storage` to a
+   clean bill before piling on load.
+4. **Tighten** the two wide-open existing exports (`Application-Storage`, `Infra-Storage` →
+   `networks=[]` = any host) to the LAN while in there.
+5. Choose the **uid:gid** (deferred) for `mapall` + the *arr `PUID/PGID`.
+
+---
+
 ## 1. Placement & arm64 reality (settled)
 
 The verdict is overwhelmingly **Hyperion**. Every controller in this rollout is a
