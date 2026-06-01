@@ -16,3 +16,20 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: uptime-kuma
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/uptime-kuma
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: metallb-config
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
