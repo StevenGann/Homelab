@@ -21,48 +21,71 @@ For working on this repo with the standing agent team, see [`TEAM.md`](TEAM.md) 
 
 The single most important thing to know about Hyperion right now: **it is mid-pivot from Debian/Packer to NixOS**. Both stacks coexist in-tree until the 2026-08-15 sunset gate. The decision was approved by a 6-YAE / 0-NAY vote across 2 iterations of the standing-team DEVELOPMENT pipeline (run `20260523T050133Z-dev-nixos-identity-usb/`, FINAL.md lives in the run folder locally per `.gitignore`).
 
-### NixOS architecture (the forward path)
+### NixOS architecture (the forward path) — HARDWARE-VALIDATED 2026-06-01
 
-Files: `Hyperion/nixos/` — full scaffold landed but **not yet hardware-validated** (Phase 1 hard gate).
+Files: `Hyperion/nixos/` + `Hyperion/setup-hyperion-node.sh` + `Hyperion/inventory.yaml`.
+Nodes have been flashed to NixOS-on-NVMe and joined the Heimdall k3s control
+plane (`Ready`, v1.34.5+k3s1). **The authoritative runbook is
+`Hyperion/docs/runbooks/turnkey-node-setup.md`; the per-node command is
+`setup-hyperion-node.sh`.**
+
+**The as-built flow uses a stock Raspberry-Pi-OS bootstrap SD (NOT a NixOS SD
+installer), driven entirely over SSH by `setup-hyperion-node.sh`:**
 
 ```
-GitHub push (Hyperion/nixos/**, main)
-  → CI builds the live SD installer image via nix on ubuntu-24.04-arm (5-25 min)
-  → Publishes to GitHub Releases (tag: sd-installer-<datestamp>-<sha>)
+Per node (the ONLY hands-on): move the single stock RasPi-OS SD (user pi /
+  password raspberry, SSH on) into the Pi, power on. The NVMe is a SEPARATE disk.
 
-Heimdall ci-deploy (polls GitHub every 5 min — moved from Akasha 2026-05-21)
-  → Downloads release asset to /opt/Homelab/Heimdall/hyperion/images/sd-installer/
-  → nginx (192.168.10.4:50011) serves to the LAN
+Workstation (.10 VLAN):  ./setup-hyperion-node.sh --name hyperion-<greek>
+  Phase 0  preflight (name<->host, IP from inventory.yaml, tools, operator age key)
+  Phase 1  install workstation key + NOPASSWD sudo on the bootstrap (pi)
+  Phase 2  register-node-key.sh: per-node age + SSH host keys, add to .sops.yaml,
+           re-encrypt common.yaml   (flock-guarded; --no-register for parallel runs)
+  Phase 3  install Determinate Nix on the bootstrap; set substituters
+           (cache.nixos.org + nixos-raspberrypi.cachix.org); rsync the flake;
+           stage the decrypted secret tree
+  Phase 4  disko-install: partition /dev/nvme0n1 + build/substitute the
+           hyperion-<greek> closure + inject age key + SSH host keys.
+           THEN finish the bootloader via nixos-enter (sops mount gotcha, below)
+  Phase 5  EEPROM BOOT_ORDER=0xf416 (NVMe -> SD -> USB -> loop); reboot
+  Phase 6  verify NixOS boot + sops-decrypted k3s token + k3s active, then
+           confirm the node reaches Ready from the Heimdall control plane
 
-One-time per node, at hardware assembly (the ONLY hands-on):
-  Flash the SD installer (identical for all 10) to a microSD, insert it
-  Set EEPROM BOOT_ORDER=0xf16 (NVMe → SD → loop): blank NVMe falls through
-    to the SD installer; an installed NVMe wins and the SD is ignored
-  Assign the node a UCG DHCP reservation (.101..110)
+  → services.k3s.agent registers with Heimdall at 192.168.10.4:6443
+  → node IP is the UCG DHCP reservation BY MAC. Name<->IP per inventory.yaml;
+    flash each node by the IP it actually comes up on (the script auto-resolves
+    --ip from inventory by name). Power-on order != IP order.
 
-Remote install (operator-driven, from the workstation — see
-docs/runbooks/remote-flash-a-node.md):
-  ./register-node-key.sh hyperion-<greek>     # once: gen + register keys, commit
-  Power on with a blank NVMe → boots the SD installer, SSH-reachable
-  ./flash-node.sh <ip> hyperion-<greek>
-    → nixos-anywhere (kexec SKIPPED — broken on Pi; phases disko,install,reboot)
-    → disko partitions /dev/nvme0n1 from the host closure
-    → per-host closure built ON the node (--build-on-remote, Cachix-substituted)
-    → age key + SSH host keys injected via --extra-files (no USB, no Nix store)
-    → node reboots; EEPROM now finds the NVMe and boots NixOS
-  → services.k3s.agent registers with Heimdall control plane at 192.168.10.4:6443
-  → services.journald.upload ships to Heimdall :19532
+Why no kexec / no SD installer: kexec is dead on these Pis (/proc/kcore absent),
+but the NVMe is a SEPARATE disk from the boot SD — so there is no same-disk
+chicken-and-egg. We install onto the NVMe from the running RasPi-OS bootstrap.
 
 Day-2 changes (no NVMe re-flash):
-  Workstation: cd Hyperion/nixos && colmena apply --on hyperion-<greek>
-  → nix-copy-closure to target → nixos-rebuild switch → done
+  cd Hyperion/nixos && colmena apply --on hyperion-<greek>   (needs Nix on the
+  workstation; the flash path does not).
 ```
+
+**SUPERSEDED (kept in-tree, do NOT use for new nodes):** the CI-built live SD
+installer (`packages.installerSdImage`) + `flash-node.sh` (nixos-anywhere
+`--phases disko,install,reboot`) + `docs/runbooks/remote-flash-a-node.md`. That
+path assumed booting a NixOS SD installer per node; the validated path uses the
+stock RasPi-OS SD + `disko-install` instead. ADR-0001 still records the
+kexec/remote-flash rationale.
+
+**Two install gotchas (both handled by the script — see the runbook):**
+- **sops-nix `mount` not on PATH** during the offline `disko-install` activation
+  aborts *before* the kernelboot install (empty `/boot/firmware` → won't boot).
+  The script finishes with `nixos-enter … switch-to-configuration boot` with
+  util-linux on PATH.
+- **The Pi kernel disables the memory cgroup by default** → k3s dies with
+  "failed to find memory cgroup (v2)". Fixed in `hyperion-base.nix`
+  `boot.kernelParams` (`cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1`).
 
 **Key NixOS invariants:**
 
 - **One closure per host, not one across the cluster.** Per-host divergence (hostname via `networking.hostName`, k3s nodeLabel/nodeTaint, optional Pi 5 overrides) lives in `Hyperion/nixos/hosts/<hostname>.nix` evaluated at build time. Node IP is the UCG DHCP reservation.
 - **`services.k3s.{nodeLabel,nodeTaint}` are first-class options** (per nixpkgs release-25.11). Do NOT wrap `systemd.services.k3s.serviceConfig.ExecStart` with `lib.mkForce` — that pattern was rejected during pipeline iter-2 (IAC-1 NAY).
-- **Secrets are injected at install, not carried on a USB.** `nixos-anywhere --extra-files` places the per-node sops age key at `/var/lib/sops-nix/key.txt` and SSH host keys at `/etc/ssh/` — never in git or the Nix store. The retired HYPERION-ID USB model (stage-1 `neededForBoot` mount, `apply-identity.service`, schema-version check) is gone; see ADR-0001 (`docs/design/adr-0001-nixos-anywhere-remote-flash.md`). kexec is broken on the Pi, so installs run from a live SD installer with `--phases disko,install,reboot`.
+- **Secrets are injected at install, not carried on a USB.** `setup-hyperion-node.sh` passes the per-node sops age key (`/var/lib/sops-nix/key.txt`) and SSH host keys (`/etc/ssh/`) to `disko-install --extra-files` — never in git or the Nix store. The retired HYPERION-ID USB model (stage-1 `neededForBoot` mount, `apply-identity.service`, schema-version check) is gone; see ADR-0001. **The HYPERION-ID USB drives are now inert and physically removable** — no NixOS node mounts or depends on them (verified 2026-06-01).
 - **Pi 5 config.txt directives must be added explicitly** via `hardware.raspberry-pi.config.all = { options = ...; base-dt-params = ...; }`. The `nvmd/nixos-raspberrypi` flake auto-emits only `enable_uart=1` and selects the rpi5 kernel + nvme initrd module. Everything else (auto_initramfs, usb_max_current_enable, dtparam=nvme, dtparam=pciex1_gen=3) is operator-supplied.
 - **No `kernel=kernel_2712.img` directive.** The `kernelboot` builder stages the kernel as literal `kernel.img`; the Pi 5 EEPROM (BCM2712) boots it by default. The `kernel_2712.img` filename is a Debian/Pi-OS convention.
 - **Rollback under `bootloader = "kernelboot"` has NO boot-time menu.** Recovery from a broken generation requires installer-SD boot to manually re-stage a previous kernel.img. See `Hyperion/docs/runbooks/rollback-a-node.md`. Switching to `bootloader = "uboot"` provides an extlinux menu but is less-traveled on Pi 5.
@@ -103,43 +126,46 @@ Pi node boot (BOOT_ORDER=0xf641 → SD → USB → NVMe → loop)
 
 ### Bridging the two architectures
 
-- **The NixOS path no longer uses an identity USB at all.** The Debian path still uses its exFAT HYPERION-ID (`/hostname` + `/node-image/` cache). The NixOS path injects secrets at install via `nixos-anywhere --extra-files` (`register-node-key.sh` + `flash-node.sh`); `flash-identity-usb.sh` is deprecated. The two paths share no removable-media identity.
-- **`configure-eeprom.sh` is KEEP under both paths.** EEPROM is below the OS layer. Debian uses `BOOT_ORDER=0xf641`; NixOS uses `0xf16` (NVMe → SD installer fallback).
-- **The image-server at `192.168.10.4:50011` is shared.** It hosts Debian images (`/node/`, `/bootstrap/`) and the NixOS live SD installer (`/sd-installer/`).
+- **The NixOS path no longer uses an identity USB at all.** The Debian path still uses its exFAT HYPERION-ID; the NixOS path injects secrets at install via `setup-hyperion-node.sh` → `disko-install --extra-files`. The HYPERION-ID USBs are inert/removable for NixOS nodes (verified 2026-06-01). The two paths share no removable-media identity.
+- **`configure-eeprom.sh` logic is KEEP under both paths** (EEPROM is below the OS layer), but `setup-hyperion-node.sh` sets the EEPROM itself over SSH rather than calling that script. Debian uses `BOOT_ORDER=0xf641`; **NixOS uses `0xf416` (NVMe → SD → USB → loop)** — a blank/old NVMe falls through to the inserted bootstrap SD; an installed NVMe wins and the SD is ignored.
+- **The image-server at `192.168.10.4:50011` is shared** (Debian images). The validated NixOS flash builds the closure on the node from cache; it does not pull an SD-installer image from the LAN.
 
 ## Common commands
 
 ```bash
-# ─── NixOS (forward path) ────────────────────────────────────────────────────
-cd Hyperion/nixos
-
-# Build the live SD installer image (or use CI)
-nix build .#installerSdImage
-
-# Build a specific node's complete closure (for inspection)
-nix build .#nixosConfigurations.hyperion-alpha.config.system.build.toplevel
-
-# Remotely flash a node (see docs/runbooks/remote-flash-a-node.md)
+# ─── NixOS (forward path) — VALIDATED ────────────────────────────────────────
 cd Hyperion
-./register-node-key.sh hyperion-alpha            # once per node, then commit
-./flash-node.sh 192.168.10.101 hyperion-alpha    # node booted into the SD installer
-cd nixos
 
-# Push day-2 changes from workstation
+# Flash one node end-to-end (RasPi-OS bootstrap inserted + powered first).
+# Runs register-keys -> Nix-on-bootstrap -> disko-install -> EEPROM 0xf416 ->
+# reboot -> verify Ready. IP auto-resolves from inventory.yaml by name.
+# See docs/runbooks/turnkey-node-setup.md.
+./setup-hyperion-node.sh --name hyperion-alpha                 # --ip optional
+./setup-hyperion-node.sh --name hyperion-beta --yes            # skip wipe prompt
+
+# Parallel (needs one bootstrap SD per node): pre-register serially, then fan out
+for g in eta iota kappa; do ./register-node-key.sh hyperion-$g; done && git commit -am 'register ...'
+./setup-hyperion-node.sh --name hyperion-eta  --yes --no-register &
+./setup-hyperion-node.sh --name hyperion-iota --yes --no-register &
+
+# Build a specific node's complete closure (for inspection; needs Nix)
+cd nixos && nix build .#nixosConfigurations.hyperion-alpha.config.system.build.toplevel
+
+# Push day-2 changes from workstation (needs Nix on the workstation)
 colmena apply --on hyperion-alpha
 colmena apply --on '@hyperion-*' --parallel 4
+# No-Nix alternative for an existing node: rsync nixos/ to it + run on the node:
+#   sudo nixos-rebuild switch --flake /home/owner/hyperion-nixos#hyperion-alpha
 
 # Update nixpkgs / nixos-raspberrypi pins
 nix flake update --input nixpkgs --input nixos-raspberrypi
 
 # ─── Cross-architecture (kept under both paths) ──────────────────────────────
 cd Hyperion
-
-# EEPROM boot order (one-time per Pi, OS-agnostic)
-# NixOS nodes: 0xf16 (NVMe → SD installer fallback)
-./configure-eeprom.sh hyperion-alpha --user owner --boot-order 0xf16 --reboot
-# Debian nodes (sunsetting): default 0xf641
-./configure-eeprom.sh --user owner --reboot               # all 10 nodes
+# NixOS nodes use 0xf416 (NVMe → SD → USB → loop) — set automatically by
+# setup-hyperion-node.sh. configure-eeprom.sh is the standalone/Debian tool:
+./configure-eeprom.sh hyperion-alpha --user pi --boot-order 0xf416 --reboot
+./configure-eeprom.sh --user owner --reboot               # Debian default 0xf641
 
 # ─── Debian (sunsetting 2026-08-15) ──────────────────────────────────────────
 # Build + publish images locally

@@ -72,9 +72,56 @@ node.
 ssh owner@192.168.10.4 'docker exec k3s-control-plane-k3s-server-1 kubectl get nodes -o wide'
 ```
 
+## Naming & IPs (important)
+
+The UCG assigns each node's IP by **MAC reservation** (`.101`=alpha … `.110`=kappa),
+**not by power-on order**. The Hyperion Pis are a mix of hardware batches
+(`88:a2:9e:50:xx` and `2c:cf:67:xx`), so the 5th Pi you power on may come up on
+`.106`, not `.105`. **Flash each node by the IP it actually comes up on** — the
+greek name follows the IP (per `inventory.yaml`), which keeps hostname↔IP aligned
+and avoids a name clash when the skipped node powers on later. To discover a
+freshly-booted node's IP, sweep the un-done addresses for the one answering SSH
+as the bootstrap (`pi@Homelab-Bootstrap`).
+
+## Flashing in parallel
+
+The single-SD model is one node at a time. To flash several at once you need
+**one bootstrap SD per node** (clone the card — ideally one already through a
+flash so its Nix store is warm → each run is the ~2.5 min "0 paths downloaded"
+path). Then, because Phase 2 mutates shared files (`.sops.yaml` + `common.yaml`),
+**pre-register serially and fan out with `--no-register`**:
+
+```bash
+for g in eta iota kappa; do ./register-node-key.sh hyperion-$g; done
+git add .sops.yaml nixos/secrets nixos/node-keys && git commit -m 'register eta..kappa'
+./setup-hyperion-node.sh --name hyperion-eta  --yes --no-register &
+./setup-hyperion-node.sh --name hyperion-iota --yes --no-register &
+wait
+```
+
+The register step is also `flock`-guarded and all node SSH uses
+`UserKnownHostsFile=/dev/null`, so concurrent runs don't corrupt shared state or
+race on `known_hosts` — but `--no-register` after a serial pre-register is the
+clean, fully race-free path.
+
+## Cosmetic / non-blocking notes
+
+- **UniFi shows `Homelab-Bootstrap` for nodes.** NixOS's dhcpcd sent no hostname
+  by default, so the UCG kept the name learned during the bootstrap phase. Fixed
+  in `hyperion-base.nix` (`networking.dhcpcd.extraConfig = "hostname"`); nodes
+  flashed after 2026-06-01 advertise `hyperion-<greek>`. Apply to already-flashed
+  nodes with a day-2 rebuild (Colmena, or `nixos-rebuild switch` on the node).
+- **`warning: unknown setting 'eval-cores' / 'lazy-trees' / 'no-write-lock-file'`**
+  during the flash — Determinate-Nix-specific config keys that the `disko-install`
+  nix doesn't recognize. Printed and ignored; harmless.
+- **The HYPERION-ID USB drives are inert/removable** — no NixOS node mounts or
+  depends on them (secrets live on the NVMe at `/var/lib/sops-nix/key.txt`).
+
 ## Day-2 changes
 
 Once a node runs NixOS, push config changes with Colmena (no re-flash):
 `cd nixos && colmena apply --on hyperion-<name>` — see
 [`deploy-via-colmena.md`](deploy-via-colmena.md). (Colmena needs Nix on the
-workstation; the flash path does not.)
+workstation.) **No-Nix alternative** (what we used to apply the cgroup fix):
+rsync `nixos/` to the node and run `sudo nixos-rebuild switch --flake
+/home/owner/hyperion-nixos#hyperion-<name>` on the node itself.

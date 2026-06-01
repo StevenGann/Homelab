@@ -3,10 +3,13 @@
 Infrastructure as Code for a home Kubernetes cluster. Every host's state is
 defined in this repository and recoverable from scratch.
 
-> **Hyperion is currently mid-pivot** from Debian/Packer to NixOS. The
-> Debian path remains active alongside the new NixOS scaffold; both are
-> in-tree until the 2026-08-15 sunset gate. See `Hyperion/nixos/README.md`
-> and `Hyperion/docs/runbooks/first-node-bringup-nixos.md`.
+> **Hyperion runs NixOS (validated 2026-06-01).** Pi 5 workers are flashed to
+> NixOS-on-NVMe and join the Heimdall k3s control plane (`Ready`, v1.34.5+k3s1).
+> Each node is one command — `Hyperion/setup-hyperion-node.sh --name hyperion-<greek>`
+> — from a stock Raspberry-Pi-OS bootstrap SD moved node-to-node. **Authoritative
+> runbook:** `Hyperion/docs/runbooks/turnkey-node-setup.md`. The Debian/Packer
+> path is superseded (in-tree until the 2026-08-15 sunset gate), as is the older
+> NixOS SD-installer + `flash-node.sh` flow.
 
 ---
 
