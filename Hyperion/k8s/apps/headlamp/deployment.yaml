@@ -15,6 +15,13 @@ spec:
       labels:
         app: headlamp
     spec:
+      # Run on the Pi workers, NOT the containerized control-plane node — that
+      # node's flannel VTEP is its docker-internal IP (172.19.0.2), unreachable
+      # from the workers, so a pod there is unreachable via the MetalLB VIP.
+      # The control plane should be API+datastore only (see the --disable-agent
+      # follow-up); pinning apps to the hyperion zone is the safe interim.
+      nodeSelector:
+        topology.kubernetes.io/zone: hyperion
       serviceAccountName: headlamp          # minimal SA — login is via the admin token
       automountServiceAccountToken: true
       containers:
