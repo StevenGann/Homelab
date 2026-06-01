@@ -256,11 +256,30 @@ done
 log "  ${GREEN}NixOS is up.${NC}"
 $SSH_O 'echo "  root: $(findmnt -nro SOURCE /)"; echo "  sops: $(sudo test -s /run/secrets/k3s-token && echo decrypted || echo MISSING)"; echo "  k3s:  $(systemctl is-active k3s)"' 2>&1
 
+# Stronger success criterion: confirm the node actually reached Ready in the
+# cluster from the control plane — not just that k3s is locally active.
+HEIMDALL_IP="$(awk '/^heimdall:/{f=1} f&&/ip:/{print $2; exit}' "$INVENTORY" 2>/dev/null)"
+HEIMDALL_IP="${HEIMDALL_IP:-192.168.10.4}"
+K3S_CTR="k3s-control-plane-k3s-server-1"
+log "Confirming ${NAME} reaches Ready in the cluster (control plane @ ${HEIMDALL_IP})..."
+JOINED=0
+for _ in $(seq 1 24); do   # ~2 min
+    if ssh -o BatchMode=yes -o ConnectTimeout=8 "${TARGET_USER}@${HEIMDALL_IP}" \
+         "docker exec $K3S_CTR kubectl get nodes --no-headers $NAME 2>/dev/null" 2>/dev/null | grep -qw Ready; then
+        JOINED=1; break
+    fi
+    sleep 5
+done
+
 echo ""
-log "${GREEN}✓ ${NAME} is installed on NVMe and booting NixOS.${NC}"
-echo "  Confirm cluster join from the control plane:"
-echo "    ssh ${TARGET_USER}@192.168.10.4 'docker exec k3s-control-plane-k3s-server-1 kubectl get nodes'"
-echo "  ${NAME} should reach Ready within ~1 min (control plane must be up)."
+if [ "$JOINED" -eq 1 ]; then
+    log "${GREEN}✓ ${NAME} is installed on NVMe and Ready in the cluster.${NC}"
+else
+    log "${GREEN}✓ ${NAME} is installed on NVMe and booting NixOS.${NC}"
+    warn "${NAME} did not show Ready in the cluster within ~2 min."
+    warn "Is the control plane up + the worker/server token in sync? Check:"
+    echo "    ssh ${TARGET_USER}@${HEIMDALL_IP} 'docker exec $K3S_CTR kubectl get nodes'"
+fi
 echo ""
-echo "  You can now move the bootstrap SD to the next node and run:"
-echo "    ./setup-hyperion-node.sh --name hyperion-<next> --ip <its-ip>"
+echo "  Next: move the bootstrap SD to the next node, power it on, then run:"
+echo "    ./setup-hyperion-node.sh --name hyperion-<next>"
