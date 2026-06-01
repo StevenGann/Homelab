@@ -1,4 +1,15 @@
 creation_rules:
+  # FluxCD-decrypted k8s Secrets (filename `*.sops.yaml` under k8s/). Encrypted
+  # to the operator (for editing) + the dedicated in-cluster flux age key, whose
+  # PRIVATE half lives only in the flux-system `sops-age` Secret (created
+  # out-of-band, never in git). kustomize-controller decrypts these at apply
+  # time (the Kustomization needs `decryption: { provider: sops, secretRef:
+  # { name: sops-age } }`). Listed first so it wins over the generic rule below.
+  - path_regex: k8s/.*\.sops\.ya?ml$
+    age: >-
+      age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm,
+      age1wjvfq7kt5z04q3r04k9l2exjxuql0y8n0tq7qxylrjs5vn8ss5pqkv9x59
+
   - path_regex: k8s/.*secret.*\.yaml
     age: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
 
