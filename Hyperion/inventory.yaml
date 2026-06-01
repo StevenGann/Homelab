@@ -16,7 +16,7 @@ nodes:
   - { name: hyperion-delta,   ip: 192.168.10.104, status: nixos }    # validated 2026-06-01 via setup-hyperion-node.sh
   - { name: hyperion-epsilon, ip: 192.168.10.105, status: nixos }    # validated 2026-06-01 via setup-hyperion-node.sh
   - { name: hyperion-zeta,    ip: 192.168.10.106, status: nixos }    # validated 2026-06-01 (powered as the 5th node; MAC 2c:cf:67 batch -> .106)
-  - { name: hyperion-eta,     ip: 192.168.10.107, status: pending }
+  - { name: hyperion-eta,     ip: 192.168.10.107, status: nixos }    # validated 2026-06-01 (operator-run)
   - { name: hyperion-theta,   ip: 192.168.10.108, status: nixos }    # validated 2026-06-01 via setup-hyperion-node.sh (operator-run)
   - { name: hyperion-iota,    ip: 192.168.10.109, status: pending }
   - { name: hyperion-kappa,   ip: 192.168.10.110, status: pending }
