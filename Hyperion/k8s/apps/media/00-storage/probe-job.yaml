@@ -1,0 +1,48 @@
+# Storage gate (replaces the idealized EXDEV/hardlink canary — plan §0.5).
+# Mounts all three NFS PVCs and does a write -> read -> delete on each, proving the
+# k3s KUBELET (its own mount namespace — k3s #10206) can RW-mount every Akasha export
+# before media-core reconciles. Flux `wait: true` health-checks this Job, so a missing
+# NFS export, the un-applied boot.supportedFilesystems change, or a perms problem fails
+# `media-storage` and stops `media-core` from deploying onto broken storage.
+#
+# copy-then-delete is accepted, so this does NOT assert hardlinks or cross-dataset mv.
+# ttlSecondsAfterFinished: self-deletes so a re-edit re-renders clean (immutable-field guard).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nfs-mount-probe
+  namespace: media
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext:
+        runAsUser: 568
+        runAsGroup: 568
+        fsGroup: 568
+      containers:
+        - name: probe
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              for m in /data/downloads /data/media/tv /data/media/movies; do
+                f="$m/.hyperion-nfs-probe"
+                echo "hyperion nfs probe" > "$f"
+                grep -q "hyperion nfs probe" "$f"
+                rm -f "$f"
+                echo "RW OK: $m"
+              done
+              echo "ALL NFS MOUNTS RW-OK"
+          volumeMounts:
+            - { name: downloads, mountPath: /data/downloads }
+            - { name: tv,        mountPath: /data/media/tv }
+            - { name: movies,    mountPath: /data/media/movies }
+      volumes:
+        - { name: downloads, persistentVolumeClaim: { claimName: media-downloads } }
+        - { name: tv,        persistentVolumeClaim: { claimName: media-tv } }
+        - { name: movies,    persistentVolumeClaim: { claimName: media-movies } }

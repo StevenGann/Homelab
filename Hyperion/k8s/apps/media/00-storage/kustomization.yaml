@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# NB: NO top-level `namespace:` here (deliberate divergence from the hermes pattern
+# this repo otherwise mirrors). The cluster-scoped PVs must NOT be stamped with a
+# namespace; the Namespace, PVCs, and probe Job carry `namespace: media` inline.
+resources:
+  - namespace.yaml
+  - pv-pvc.yaml
+  - probe-job.yaml

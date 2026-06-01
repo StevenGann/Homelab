@@ -126,7 +126,11 @@ gate, no EXDEV canary.
    clean bill before piling on load.
 4. **Tighten** the two wide-open existing exports (`Application-Storage`, `Infra-Storage` →
    `networks=[]` = any host) to the LAN while in there.
-5. Choose the **uid:gid** (deferred) for `mapall` + the *arr `PUID/PGID`.
+5. **uid:gid = `568:568`** (LOCKED 2026-06-01) — the TrueNAS `apps` account that
+   Jellyfin **and** the existing Akasha Sonarr/Radarr/Prowlarr already run as (verified
+   via `docker inspect`). NFS `mapall_user/group = 568`; pod `PUID=PGID=568`, `fsGroup: 568`.
+   New *arr-written files land `568:568` → Jellyfin (also `568`) owns them; the existing
+   `0777`/`0664` library stays world-readable.
 
 ---
 

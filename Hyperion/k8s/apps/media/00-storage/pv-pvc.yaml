@@ -1,0 +1,99 @@
+# Per-dataset static NFS PV+PVC for the Akasha media library (192.168.10.247).
+# Akasha runs kernel nfsd with NO crossmnt, and Media-Storage/Media's children
+# (Downloads, TV-Shows, Movies) are SEPARATE ZFS datasets — so each is exported
+# and mounted on its own (plan §0.5). copy-then-delete is accepted, so crossing
+# these fsid boundaries on import is fine.
+#
+# Each export must exist on Akasha first (mapall 568:568, networks 192.168.10.0/24):
+#   midclt call sharing.nfs.create '{"path":"/mnt/Media-Storage/Media/Downloads","networks":["192.168.10.0/24"],"mapall_user":"apps","mapall_group":"apps","security":["SYS"]}'
+#   (repeat for TV-Shows and Movies)
+#
+# prune:disabled on BOTH PV and PVC, and claimRef WITHOUT uid, so a pruned/recreated
+# PVC rebinds cleanly to the Retain PV (plan §2.3).
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-downloads-nfs
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  capacity: { storage: 1Ti }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: media-downloads }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Downloads }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-downloads
+  namespace: media
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-downloads-nfs
+  resources: { requests: { storage: 1Ti } }
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-tv-nfs
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  capacity: { storage: 1Ti }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: media-tv }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/TV-Shows }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-tv
+  namespace: media
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-tv-nfs
+  resources: { requests: { storage: 1Ti } }
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-movies-nfs
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  capacity: { storage: 1Ti }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: media-movies }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Movies }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-movies
+  namespace: media
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-movies-nfs
+  resources: { requests: { storage: 1Ti } }
