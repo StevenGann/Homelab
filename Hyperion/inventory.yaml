@@ -1,0 +1,22 @@
+# Hyperion node inventory — consumed by setup-hyperion-node.sh (--name looks up
+# --ip here when omitted). IPs are the UCG DHCP reservations (.101..110), one
+# per node in Greek-letter order. The control plane lives on Heimdall (.4).
+#
+# Status column is informational (the script does not read it):
+#   nixos   = installed + validated on NixOS, joined k3s
+#   pending = not yet flashed (stock bootstrap or blank NVMe)
+heimdall:
+  ip: 192.168.10.4
+  ssh_user: owner
+
+nodes:
+  - { name: hyperion-alpha,   ip: 192.168.10.101, status: nixos }   # validated 2026-06-01 (8GB host file; this unit reports 4GB)
+  - { name: hyperion-beta,    ip: 192.168.10.102, status: pending }
+  - { name: hyperion-gamma,   ip: 192.168.10.103, status: pending }
+  - { name: hyperion-delta,   ip: 192.168.10.104, status: pending }
+  - { name: hyperion-epsilon, ip: 192.168.10.105, status: pending }
+  - { name: hyperion-zeta,    ip: 192.168.10.106, status: pending }
+  - { name: hyperion-eta,     ip: 192.168.10.107, status: pending }
+  - { name: hyperion-theta,   ip: 192.168.10.108, status: pending }
+  - { name: hyperion-iota,    ip: 192.168.10.109, status: pending }
+  - { name: hyperion-kappa,   ip: 192.168.10.110, status: pending }

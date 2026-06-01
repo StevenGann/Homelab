@@ -1,5 +1,17 @@
 # HANDOFF — Hyperion turnkey deploy (session handoff, 2026-05-29)
 
+> **UPDATE 2026-06-01 — PHASE 1 PASSED. The original blocker (network access)
+> was a WiFi guest-isolation policy on the WLAN, not the firewall theory below;
+> the operator fixed it UCG-side. From there `hyperion-alpha` was flashed to
+> NixOS-on-NVMe from the stock RasPi-OS SD and joined the Heimdall k3s control
+> plane (`Ready`, v1.34.5+k3s1). The proven method is now codified in
+> `Hyperion/setup-hyperion-node.sh` (+ `inventory.yaml`) and
+> `Hyperion/docs/runbooks/turnkey-node-setup.md`. Remaining 9 nodes are one
+> command each. Two gotchas were found + fixed (sops `mount`-on-PATH during
+> offline install; Pi `cgroup_enable=memory` kernelParam). See the runbook and
+> the `project_hyperion_nixos_flash_method` memory. Sections 3–8 below are kept
+> for history; the install method they speculate about is now settled.**
+
 > **Why this file exists:** the operator is killing the agent instance running on
 > the `192.168.0.x` workstation and restarting a fresh instance on a **laptop that
 > is on the `192.168.10.0/24` (homelab) VLAN**. Local memory and session state do

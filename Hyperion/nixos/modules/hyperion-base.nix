@@ -79,6 +79,15 @@
   boot.kernelParams = [
     "console=serial0,115200"
     "console=tty1"
+    # The Raspberry Pi kernel ships the memory cgroup controller DISABLED by
+    # default; without these k3s/containerd dies at start with
+    # "failed to find memory cgroup (v2)" (observed on hyperion-alpha
+    # 2026-06-01, first hardware boot). cpuset is added for kubelet QoS.
+    # The Debian path set the equivalent in config.txt; the NixOS scaffold
+    # had never been hardware-validated, so this was missing.
+    "cgroup_enable=cpuset"
+    "cgroup_enable=memory"
+    "cgroup_memory=1"
   ];
 
   # cgroups v2 required by k3s on recent kernels.

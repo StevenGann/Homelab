@@ -1,9 +1,25 @@
 # Homelab IaC — To Do
 
-## Status (2026-05-23)
+## Status (2026-06-01) — PHASE 1 PASSED ✅
 
-**Hyperion is mid-pivot to NixOS.** The dev-nixos-identity-usb pipeline
-(approved 6 YAE / 0 NAY across 2 iterations) lands a full NixOS scaffold
+**`hyperion-alpha` is a NixOS worker on its NVMe and joined the Heimdall k3s
+control plane (`Ready`, v1.34.5+k3s1).** The NixOS pivot is hardware-validated.
+The turnkey path is `Hyperion/setup-hyperion-node.sh --name <h> [--ip <ip>]`
+(see `Hyperion/docs/runbooks/turnkey-node-setup.md`), driven from the stock
+RasPi-OS bootstrap SD the operator moves node-to-node. Heimdall control plane
+runs via `Heimdall/k3s-control-plane/docker-compose.yml`.
+
+**Next:** flash the remaining 9 nodes (`hyperion-beta`..`kappa`) — one
+`setup-hyperion-node.sh` command each, as the operator powers them on and moves
+the SD. Then FluxCD bootstrap of `Hyperion/k8s/`. Loose ends: reconcile
+Heimdall's `/opt/Homelab` git tree (see `project_heimdall_repo_divergence`
+memory); migrate `kernelboot`→`kernel` bootloader before nixos-raspberrypi
+drops it.
+
+### History (superseded — pivot now validated)
+
+**Hyperion was mid-pivot to NixOS.** The dev-nixos-identity-usb pipeline
+(approved 6 YAE / 0 NAY across 2 iterations) landed a full NixOS scaffold
 under `Hyperion/nixos/`. **The pivot is not yet hardware-validated —
 that is the Phase 1 hard gate.**
 
