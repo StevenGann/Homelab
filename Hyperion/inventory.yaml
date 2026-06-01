@@ -18,5 +18,5 @@ nodes:
   - { name: hyperion-zeta,    ip: 192.168.10.106, status: nixos }    # validated 2026-06-01 (powered as the 5th node; MAC 2c:cf:67 batch -> .106)
   - { name: hyperion-eta,     ip: 192.168.10.107, status: nixos }    # validated 2026-06-01 (operator-run)
   - { name: hyperion-theta,   ip: 192.168.10.108, status: nixos }    # validated 2026-06-01 via setup-hyperion-node.sh (operator-run)
-  - { name: hyperion-iota,    ip: 192.168.10.109, status: pending }
-  - { name: hyperion-kappa,   ip: 192.168.10.110, status: pending }
+  - { name: hyperion-iota,    ip: 192.168.10.109, status: flashed-power-fault }  # flash ran; PSU fault blocked reboot — boots NixOS once repaired (2026-06-01)
+  - { name: hyperion-kappa,   ip: 192.168.10.110, status: nixos }    # validated 2026-06-01 (flashed cachix-excluded around an upstream cache outage)
