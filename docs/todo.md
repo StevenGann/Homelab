@@ -11,7 +11,8 @@ runs via `Heimdall/k3s-control-plane/docker-compose.yml`.
 
 **Next:** flash the remaining 9 nodes (`hyperion-beta`..`kappa`) — one
 `setup-hyperion-node.sh` command each, as the operator powers them on and moves
-the SD. Then FluxCD bootstrap of `Hyperion/k8s/`. Loose ends: reconcile
+the SD. FluxCD is bootstrapped (read-only GitOps, flux v2.8.8) and reconciling
+`Hyperion/k8s/`; MetalLB (v0.14.9, pool .10–.99) deployed + verified. Loose ends: reconcile
 Heimdall's `/opt/Homelab` git tree (see `project_heimdall_repo_divergence`
 memory); migrate `kernelboot`→`kernel` bootloader before nixos-raspberrypi
 drops it.
