@@ -37,7 +37,14 @@ services:
     # (observed 2026-06-01 via MetalLB's speaker crash-looping). Advertise the
     # host LAN IP instead, and add it as a cert SAN so workstation kubectl to
     # 192.168.10.4:6443 also validates.
-    command: server --advertise-address=192.168.10.4 --tls-san=192.168.10.4
+    # --node-taint: the control plane runs in a container with a docker-internal
+    # flannel VTEP (172.19.0.2) unreachable from the Pi workers, so any workload
+    # pod scheduled here is unreachable (cluster DNS, MetalLB-backed apps, …).
+    # Taint it NoExecute so it stays API+datastore-only and all workloads run on
+    # the properly-networked Pis. (We keep the embedded agent — kube-proxy/flannel
+    # — so the apiserver can still reach webhooks/aggregated APIs on Pi pods,
+    # which the control-plane→Pi direction handles fine.)
+    command: server --advertise-address=192.168.10.4 --tls-san=192.168.10.4 --node-taint=node.homelab/control-plane-only=true:NoExecute
     privileged: true
     restart: unless-stopped
     environment:
