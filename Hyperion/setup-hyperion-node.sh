@@ -51,25 +51,42 @@ CACHIX_KEY="nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLN
 NIX="/nix/var/nix/profiles/default/bin/nix"
 SOPS_AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
 
-NAME=""; IP=""; ASSUME_YES=0
+NAME=""; IP=""; ASSUME_YES=0; NO_REGISTER=0
 usage() {
     cat <<EOF
-Usage: $0 --name hyperion-<greek> [--ip <addr>] [--yes]
+Usage: $0 --name hyperion-<greek> [--ip <addr>] [--yes] [--no-register]
 
-  --name   Target hostname; must match nixos/hosts/<name>.nix
-  --ip     Node IP (the RasPi-OS bootstrap address). If omitted, looked up in
-           inventory.yaml.
-  --yes    Skip the destructive-wipe confirmation.
+  --name         Target hostname; must match nixos/hosts/<name>.nix
+  --ip           Node IP (the RasPi-OS bootstrap address). If omitted, looked
+                 up in inventory.yaml.
+  --yes          Skip the destructive-wipe confirmation.
+  --no-register  Skip Phase 2 (assume the per-node key bundle already exists).
+                 Use this for PARALLEL flashing — see "Flashing in parallel".
 
 Env overrides: BOOTSTRAP_USER, BOOTSTRAP_PASSWORD, BOOT_ORDER, SOPS_AGE_KEY_FILE
+
+Flashing in parallel (multiple nodes at once):
+  Needs one bootstrap SD per node (clone the card — ideally one already
+  through a flash so its Nix store is warm → ~2.5min each). Then, because
+  Phase 2 mutates shared files (.sops.yaml + common.yaml), PRE-REGISTER the
+  keys serially, commit, and fan out with --no-register so no instance
+  touches shared state during the parallel run:
+    for g in eta iota kappa; do ./register-node-key.sh hyperion-\$g; done
+    git add ../Hyperion/.sops.yaml nixos/secrets nixos/node-keys && git commit -m 'register ...'
+    ./setup-hyperion-node.sh --name hyperion-eta  --yes --no-register &
+    ./setup-hyperion-node.sh --name hyperion-iota --yes --no-register &
+    wait
+  (Phase 2 is also flock-guarded, so even without --no-register concurrent
+  registrations serialize — but --no-register is the clean, race-free path.)
 EOF
     exit 1
 }
 while [ $# -gt 0 ]; do
     case "$1" in
-        --name) NAME="$2"; shift 2 ;;
-        --ip)   IP="$2"; shift 2 ;;
-        --yes)  ASSUME_YES=1; shift ;;
+        --name)        NAME="$2"; shift 2 ;;
+        --ip)          IP="$2"; shift 2 ;;
+        --yes)         ASSUME_YES=1; shift ;;
+        --no-register) NO_REGISTER=1; shift ;;
         -h|--help) usage ;;
         *) die "Unknown argument: $1 (see --help)" ;;
     esac
@@ -98,7 +115,11 @@ PUBKEY="$(cat ~/.ssh/id_ed25519.pub 2>/dev/null)"
 [ -n "$PUBKEY" ] || PUBKEY="$(cat ~/.ssh/*.pub 2>/dev/null | head -1)"
 [ -n "$PUBKEY" ] || die "No workstation SSH pubkey in ~/.ssh/*.pub"
 
-SSH_K="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 ${BOOTSTRAP_USER}@${IP}"
+# Ignore host-key state on all node SSH: the bootstrap key is throwaway and the
+# host key changes after the flash anyway. This also removes the known_hosts
+# write-race (and "Permanently added" noise) that would break parallel runs.
+SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8"
+SSH_K="ssh $SSH_OPTS ${BOOTSTRAP_USER}@${IP}"
 
 # ── Phase 1: bootstrap access (key + passwordless sudo) ─────────────────────
 step "Phase 1 — bootstrap access (key + NOPASSWD sudo as ${BOOTSTRAP_USER})"
@@ -110,8 +131,9 @@ else
     cat > "$PTY_HELPER" <<'PYEOF'
 import os, pty, sys, select, time
 host, user, password, cmd = sys.argv[1:5]
-argv = ["ssh","-o","StrictHostKeyChecking=accept-new","-o","PreferredAuthentications=password",
-        "-o","PubkeyAuthentication=no","-o","ConnectTimeout=10","-o","NumberOfPasswordPrompts=1",
+argv = ["ssh","-o","StrictHostKeyChecking=no","-o","UserKnownHostsFile=/dev/null",
+        "-o","PreferredAuthentications=password","-o","PubkeyAuthentication=no",
+        "-o","ConnectTimeout=10","-o","NumberOfPasswordPrompts=1",
         f"{user}@{host}", cmd]
 pid, fd = pty.fork()
 if pid == 0:
@@ -147,11 +169,21 @@ log "Bootstrap OK: root on ${ROOT_SRC}, target /dev/nvme0n1 present."
 
 # ── Phase 2: register node key (idempotent) ─────────────────────────────────
 step "Phase 2 — register per-node keys + re-encrypt secrets"
-if [ -f "${FLAKE_DIR}/node-keys/${NAME}.tar.age" ]; then
-    log "Key bundle already exists for ${NAME} — skipping registration."
+if [ "$NO_REGISTER" -eq 1 ]; then
+    [ -f "${FLAKE_DIR}/node-keys/${NAME}.tar.age" ] \
+        || die "--no-register set but no key bundle for ${NAME}. Pre-register it (./register-node-key.sh ${NAME}) first."
+    log "--no-register: using the existing ${NAME} key bundle."
 else
-    SOPS_AGE_KEY_FILE="$SOPS_AGE_KEY_FILE" "${REPO_ROOT}/register-node-key.sh" "$NAME" \
-        || die "register-node-key.sh failed"
+    # register-node-key.sh mutates SHARED files (.sops.yaml + common.yaml), so a
+    # flock serializes it against concurrent runs. (The clean parallel path is
+    # still --no-register after a serial pre-register — see usage.)
+    ( flock 9 || die "could not acquire register lock"
+      if [ -f "${FLAKE_DIR}/node-keys/${NAME}.tar.age" ]; then
+          log "Key bundle already exists for ${NAME} — skipping registration."
+      else
+          SOPS_AGE_KEY_FILE="$SOPS_AGE_KEY_FILE" "${REPO_ROOT}/register-node-key.sh" "$NAME"
+      fi
+    ) 9>"/tmp/hyperion-register.lock" || die "register-node-key.sh failed"
 fi
 
 # ── Phase 3: prep the node (Nix + substituters + flake + secret tree) ───────
@@ -172,7 +204,7 @@ grep -q nix.custom.conf /etc/nix/nix.conf || echo '!include nix.custom.conf' | s
 sudo systemctl restart nix-daemon 2>/dev/null || true" || die "substituter config failed"
 
 log "Rsyncing flake to the node..."
-rsync -a --delete --exclude node-keys "${FLAKE_DIR}/" "${BOOTSTRAP_USER}@${IP}:/home/${BOOTSTRAP_USER}/hyperion-nixos/" \
+rsync -a --delete --exclude node-keys -e "ssh $SSH_OPTS" "${FLAKE_DIR}/" "${BOOTSTRAP_USER}@${IP}:/home/${BOOTSTRAP_USER}/hyperion-nixos/" \
     || die "flake rsync failed"
 
 log "Staging decrypted secret tree..."
@@ -182,7 +214,7 @@ age -d -i "$SOPS_AGE_KEY_FILE" "${FLAKE_DIR}/node-keys/${NAME}.tar.age" | tar -x
     || die "could not decrypt ${NAME}.tar.age"
 chmod 600 "$EXTRA/var/lib/sops-nix/key.txt" "$EXTRA/etc/ssh/ssh_host_ed25519_key"
 $SSH_K 'rm -rf /tmp/hyp-extra && mkdir -p /tmp/hyp-extra'
-rsync -a "$EXTRA"/ "${BOOTSTRAP_USER}@${IP}:/tmp/hyp-extra/" || die "secret rsync failed"
+rsync -a -e "ssh $SSH_OPTS" "$EXTRA"/ "${BOOTSTRAP_USER}@${IP}:/tmp/hyp-extra/" || die "secret rsync failed"
 
 # ── Phase 4: confirm + flash the NVMe ───────────────────────────────────────
 step "Phase 4 — flash NixOS onto /dev/nvme0n1"
