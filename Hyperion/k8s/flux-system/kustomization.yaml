@@ -1,0 +1,7 @@
+# The flux-system itself, managed by Flux (gotk-components = controllers/CRDs
+# pinned at flux v2.8.8; gotk-sync = GitRepository + root Kustomization).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gotk-components.yaml
+  - gotk-sync.yaml

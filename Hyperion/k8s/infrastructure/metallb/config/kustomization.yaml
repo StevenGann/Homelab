@@ -1,0 +1,7 @@
+# MetalLB runtime config (applied by the `metallb-config` Flux Kustomization,
+# which dependsOn `metallb` so the CRDs + validating webhook are ready first).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ipaddresspool.yaml
+  - l2advertisement.yaml

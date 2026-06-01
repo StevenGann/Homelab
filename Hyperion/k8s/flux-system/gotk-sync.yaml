@@ -1,0 +1,28 @@
+# Flux sync config (read-only). The GitRepository pulls the PUBLIC repo over
+# HTTPS with no credential; the root Kustomization reconciles the cluster
+# entrypoint. Applied once with `kubectl apply -k Hyperion/k8s/flux-system`;
+# thereafter Flux self-manages it (gotk-components included in the same dir).
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  ref:
+    branch: main
+  url: https://github.com/StevenGann/Homelab.git
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./Hyperion/k8s/clusters/hyperion
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

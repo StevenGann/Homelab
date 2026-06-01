@@ -4,5 +4,6 @@ metadata:
   name: homelab-pool
   namespace: metallb-system
 spec:
+  # LoadBalancer pool per the network reference in CLAUDE.md (.10–.99).
   addresses:
     - 192.168.10.10-192.168.10.99

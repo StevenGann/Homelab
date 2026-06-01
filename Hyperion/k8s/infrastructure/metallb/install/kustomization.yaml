@@ -1,0 +1,7 @@
+# MetalLB install — vendored upstream native manifest (namespace + CRDs +
+# controller + speaker + RBAC + webhook). Pinned: metallb v0.14.9.
+# Refresh by re-downloading config/manifests/metallb-native.yaml at a new tag.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - metallb-native.yaml

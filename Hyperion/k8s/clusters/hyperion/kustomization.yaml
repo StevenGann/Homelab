@@ -1,0 +1,6 @@
+# Reconciled by the root `flux-system` Kustomization. Lists the cluster's
+# Flux Kustomization CRs (add apps/ here when applications land).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - infrastructure.yaml
