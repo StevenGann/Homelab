@@ -23,9 +23,13 @@ data:
       location / {
         proxy_pass         http://127.0.0.1:9119;
         proxy_http_version 1.1;
-        # The dashboard enforces a localhost Host header (returns 400 otherwise),
-        # so present the upstream's own host; preserve the real one separately.
+        # The dashboard has an anti-DNS-rebinding Host+Origin guard tuned for a
+        # loopback bind. Present a localhost Host AND Origin so HTTP pages (400
+        # otherwise) and the Chat WebSocket (/api/pty, closed 4403 otherwise)
+        # both pass; nginx connects from 127.0.0.1 so the loopback client check
+        # is satisfied too. Preserve the real values in X-Forwarded-*.
         proxy_set_header   Host              localhost:9119;
+        proxy_set_header   Origin            http://localhost:9119;
         proxy_set_header   X-Forwarded-Host  $host;
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
