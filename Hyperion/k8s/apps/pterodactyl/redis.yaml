@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: redis, namespace: pterodactyl, labels: { app: pterodactyl, component: redis } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: pterodactyl, component: redis } }
+  template:
+    metadata: { labels: { app: pterodactyl, component: redis } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports: [ { name: redis, containerPort: 6379 } ]
+          readinessProbe: { tcpSocket: { port: 6379 }, periodSeconds: 10 }
+          resources:
+            requests: { cpu: "25m", memory: "32Mi" }
+            limits:   { cpu: "500m", memory: "192Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: redis, namespace: pterodactyl }
+spec:
+  selector: { app: pterodactyl, component: redis }
+  ports: [ { name: redis, port: 6379, targetPort: 6379 } ]

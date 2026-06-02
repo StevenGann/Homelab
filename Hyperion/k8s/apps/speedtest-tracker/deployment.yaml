@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: speedtest-tracker, namespace: speedtest-tracker, labels: { app: speedtest-tracker } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: speedtest-tracker } }
+  template:
+    metadata: { labels: { app: speedtest-tracker } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: speedtest-tracker
+          image: lscr.io/linuxserver/speedtest-tracker:latest@sha256:79c00631575dec6d91c10ed904c211224f00813013a305c2284324e195a538bb
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: TZ,   value: "America/Los_Angeles" }
+            - { name: APP_URL, value: "http://192.168.10.67" }
+            - { name: DB_CONNECTION, value: "sqlite" }
+            - { name: SPEEDTEST_SCHEDULE, value: "0 * * * *" }   # hourly
+          envFrom:
+            - secretRef: { name: speedtest-secret }   # APP_KEY (SOPS-seeded)
+          ports:
+            - { name: http, containerPort: 80 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+          startupProbe:   { tcpSocket: { port: 80 }, failureThreshold: 40, periodSeconds: 10 }
+          readinessProbe: { httpGet: { path: /api/healthcheck, port: 80 }, periodSeconds: 20 }
+          resources:
+            requests: { cpu: "50m",  memory: "128Mi" }
+            limits:   { cpu: "1",    memory: "512Mi" }
+      volumes:
+        - { name: config, persistentVolumeClaim: { claimName: speedtest-config } }

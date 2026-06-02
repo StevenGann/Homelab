@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: pterodactyl-db, namespace: pterodactyl }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 5Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: mariadb, namespace: pterodactyl, labels: { app: pterodactyl, component: mariadb } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: pterodactyl, component: mariadb } }
+  template:
+    metadata: { labels: { app: pterodactyl, component: mariadb } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: mariadb
+          image: mariadb:11@sha256:7974b628cbb4a37c4108d82f1e1d1123d1857ae3d94ab6fb20b8ad8580c271c8
+          envFrom:
+            - secretRef: { name: pterodactyl-secret }   # MARIADB_DATABASE/USER/PASSWORD/ROOT_PASSWORD
+          args: ["--default-authentication-plugin=mysql_native_password"]
+          ports: [ { name: mysql, containerPort: 3306 } ]
+          volumeMounts: [ { name: db, mountPath: /var/lib/mysql } ]
+          readinessProbe:
+            exec: { command: ["sh","-c","mariadb-admin ping -h 127.0.0.1 -u root -p\"$MARIADB_ROOT_PASSWORD\""] }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "768Mi" }
+      volumes:
+        - { name: db, persistentVolumeClaim: { claimName: pterodactyl-db } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: mariadb, namespace: pterodactyl }
+spec:
+  selector: { app: pterodactyl, component: mariadb }
+  ports: [ { name: mysql, port: 3306, targetPort: 3306 } ]

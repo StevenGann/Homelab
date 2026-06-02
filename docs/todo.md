@@ -39,17 +39,14 @@ Prowlarr→Sonarr/Radarr app-sync (API keys are SOPS-seeded; retrieve via
 Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after a
 ~1-week core soak (lean-core gate).
 
-**Backlog — more clean deployments off Akasha (queued 2026-06-01).** Fresh
-deploys on Hyperion, NOT data migrations:
-- **beszel** (henrygd/beszel) — lightweight monitoring hub (Go+SQLite, arm64). Easy.
-- **speedtest-tracker** (alexjustesen / lscr.io linuxserver) — Laravel; needs APP_KEY
-  (SOPS) + a DB (SQLite ok). Easy.
-- **portracker** (mostafa-wahied/portracker) — was Docker-socket-based on Akasha;
-  research k8s discovery mode (no docker.sock under containerd). Medium.
-- **pterodactyl/panel** — multi-component (Panel + MariaDB + Redis + queue + cron);
-  **Wings** needs Docker on its host (conflicts with k3s/containerd) → scope call:
-  Panel on Hyperion + Wings on a separate Docker host (Thoth/VM). Large.
-Sequence: after the *arr extras (PR-2) land.
+**Clean deployments off Akasha — status 2026-06-02:**
+- ✅ **beszel** (.68), **speedtest-tracker** (.67) — DEPLOYED.
+- ✅ **pterodactyl panel** (.69, Panel+MariaDB+Redis, admin user created) — DEPLOYED.
+  **Wings** on Thoth + other Docker hosts — operator to set up + connect to the panel.
+- ❌ **portracker** — DROPPED (Docker-socket discovery, poor k8s fit).
+- Still on Akasha (candidates): **monolithbot** (arm64 CI ready), **n8n+postgres+qdrant**,
+  **crafty-4** (or fold into Pterodactyl). **Cleanup:** stray `k3s-control-plane` stack
+  still running on Akasha (live one is on Heimdall); old stopped `qbit-gluetun`.
 
 **Open follow-ups:**
 - **Relocate the k3s control plane off Heimdall** (the bridge-networked

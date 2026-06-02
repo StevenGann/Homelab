@@ -60,6 +60,8 @@ usually never need to touch these. Admin/power-user territory.
 | **Homarr** | [192.168.10.53:7575](http://192.168.10.53:7575) | The homelab home page — quick links + at-a-glance status. **Bookmark this one.** |
 | **Uptime Kuma** | [192.168.10.51](http://192.168.10.51) | Service status / uptime monitoring — is everything healthy? |
 | **Headlamp** | [192.168.10.50](http://192.168.10.50) | Kubernetes dashboard — the cluster everything runs on (deep admin). |
+| **Beszel** | [192.168.10.68:8090](http://192.168.10.68:8090) | Lightweight server/host monitoring (CPU, memory, disk, network). |
+| **Speedtest Tracker** | [192.168.10.67](http://192.168.10.67) | Tracks internet speed over time (scheduled speedtests + history graphs). |
 
 ---
 
@@ -70,6 +72,12 @@ usually never need to touch these. Admin/power-user territory.
 | **Hermes** | [192.168.10.52](http://192.168.10.52) | Self-hosted AI agent (DeepSeek-backed). **Login required** (HTTP basic auth — ask the admin). |
 
 ---
+
+## 🎮 Game Servers
+
+| App | Link | What it's for |
+|---|---|---|
+| **Pterodactyl** | [192.168.10.69](http://192.168.10.69) | Game-server management panel. Create/manage servers (Minecraft, Rust, etc.). Game servers themselves run on dedicated "Wings" hosts (added separately). **Login required.** |
 
 ## 🛠️ Infrastructure (advanced — platform admins only)
 

@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: beszel, namespace: beszel, labels: { app: beszel } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: beszel } }
+  template:
+    metadata: { labels: { app: beszel } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: beszel
+          image: henrygd/beszel:latest@sha256:a849ad80814b6a1a3be665304dcace5d4854b3bed7bde4dd1227e8ce1b82d477
+          env:
+            - { name: TZ, value: "America/Los_Angeles" }
+          ports:
+            - { name: http, containerPort: 8090 }
+          volumeMounts:
+            - { name: data, mountPath: /beszel_data }
+          startupProbe:    { tcpSocket: { port: 8090 }, failureThreshold: 30, periodSeconds: 5 }
+          readinessProbe:  { httpGet: { path: /, port: 8090 }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: "25m", memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: beszel-data } }

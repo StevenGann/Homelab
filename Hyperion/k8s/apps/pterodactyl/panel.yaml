@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: pterodactyl-var, namespace: pterodactyl }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: panel
+  namespace: pterodactyl
+  labels: { app: pterodactyl, component: panel }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: pterodactyl, component: panel }
+  template:
+    metadata:
+      labels: { app: pterodactyl, component: panel }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command: ["sh","-c","until nc -z mariadb 3306; do echo waiting for mariadb; sleep 3; done"]
+      containers:
+        - name: panel
+          # Official image bundles nginx + php-fpm + cron + queue worker via supervisord
+          # when APP_ENVIRONMENT_ONLY=false. arm64-verified (v1.11.11).
+          image: ghcr.io/pterodactyl/panel:v1.11.11@sha256:3ad185c83818944cfd4dba4dcefbca5ffb64655aaa63363f8f76ce41cd19873f
+          env:
+            - { name: APP_ENV,             value: "production" }
+            - { name: APP_ENVIRONMENT_ONLY, value: "false" }   # run web + queue + schedule together
+            - { name: APP_DEBUG,           value: "false" }
+            - { name: APP_URL,             value: "http://192.168.10.69" }
+            - { name: APP_TIMEZONE,        value: "America/Los_Angeles" }
+            - { name: TRUSTED_PROXIES,     value: "*" }          # behind MetalLB
+            - { name: DB_HOST,             value: "mariadb" }
+            - { name: DB_PORT,             value: "3306" }
+            - { name: DB_DATABASE,         value: "panel" }
+            - { name: DB_USERNAME,         value: "pterodactyl" }
+            - { name: CACHE_DRIVER,        value: "redis" }
+            - { name: SESSION_DRIVER,      value: "redis" }
+            - { name: QUEUE_CONNECTION,    value: "redis" }
+            - { name: REDIS_HOST,          value: "redis" }
+            - { name: REDIS_PORT,          value: "6379" }
+            - { name: MAIL_MAILER,         value: "log" }        # configure SMTP later in-panel
+            - name: APP_KEY
+              valueFrom: { secretKeyRef: { name: pterodactyl-secret, key: APP_KEY } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: pterodactyl-secret, key: DB_PASSWORD } }
+          ports:
+            - { name: http, containerPort: 80 }
+          volumeMounts:
+            - { name: var, mountPath: /app/var }
+          startupProbe:                  # first boot runs DB migrations — be patient
+            tcpSocket: { port: 80 }
+            failureThreshold: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /auth/login, port: 80 }
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "2",    memory: "1Gi" }
+      volumes:
+        - { name: var, persistentVolumeClaim: { claimName: pterodactyl-var } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: panel
+  namespace: pterodactyl
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.10.69
+spec:
+  type: LoadBalancer
+  selector: { app: pterodactyl, component: panel }
+  ports:
+    - { name: http, port: 80, targetPort: 80 }
