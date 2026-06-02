@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navidrome
+  namespace: media
+  labels: { app: navidrome }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: navidrome }
+  template:
+    metadata:
+      labels: { app: navidrome }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext:
+        runAsUser: 568
+        runAsGroup: 568
+        fsGroup: 568
+      containers:
+        - name: navidrome
+          image: deluan/navidrome:latest@sha256:9fa40b3d8dec43ceb2213d1fa551da3dcfef6ac6d19c2e534efb92527c2bafd2
+          env:
+            - { name: ND_MUSICFOLDER, value: "/music" }
+            - { name: ND_DATAFOLDER,  value: "/data" }
+            - { name: ND_SCANSCHEDULE, value: "@every 6h" }
+            - { name: ND_LOGLEVEL,    value: "info" }
+            - { name: ND_PORT,        value: "4533" }
+            - { name: ND_BASEURL,     value: "" }
+            - { name: TZ,             value: "America/Los_Angeles" }
+          ports:
+            - { name: http, containerPort: 4533 }
+          volumeMounts:
+            - { name: data,  mountPath: /data }            # SQLite DB — local-path
+            - { name: music, mountPath: /music, readOnly: true }   # Akasha Music (NFS, read-only)
+          startupProbe:
+            httpGet: { path: /ping, port: 4533 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /ping, port: 4533 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /ping, port: 4533 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "192Mi" }
+            limits:   { cpu: "2",    memory: "768Mi" }   # scans/transcode can spike
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: navidrome-data }
+        - name: music
+          persistentVolumeClaim: { claimName: media-music }

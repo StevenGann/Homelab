@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lidarr
+  namespace: media
+  labels: { app: lidarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: lidarr }
+  template:
+    metadata:
+      labels: { app: lidarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: lidarr
+          image: lscr.io/linuxserver/lidarr:latest@sha256:ca2f95634d422fdeccfbff2a42cbe3a4fed1170f7e3546d99d5d5f2c9c9aa03b
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: TZ,   value: "America/Los_Angeles" }
+          envFrom:
+            - secretRef: { name: lidarr-secret }   # LIDARR__AUTH__APIKEY (SOPS-seeded)
+          ports:
+            - { name: http, containerPort: 8686 }
+          volumeMounts:
+            - { name: config,    mountPath: /config }
+            - { name: music,     mountPath: /data/media/music }   # Akasha Music (NFS, RWX)
+            - { name: downloads, mountPath: /data/downloads }     # Akasha Downloads (NFS, RWX) — copy-import
+          startupProbe:
+            httpGet: { path: /ping, port: 8686 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /ping, port: 8686 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /ping, port: 8686 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "768Mi" }
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: lidarr-config }
+        - name: music
+          persistentVolumeClaim: { claimName: media-music }
+        - name: downloads
+          persistentVolumeClaim: { claimName: media-downloads }

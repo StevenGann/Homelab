@@ -1,0 +1,83 @@
+# Additional per-dataset NFS PV+PVCs for the extras tier (Kapowarr comics, Youtarr).
+# New Akasha datasets created 2026-06-01 (Media-Storage/Media/{Comics,YouTube}).
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-comics-nfs
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 1Ti }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: media-comics }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Comics }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-comics
+  namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-comics-nfs
+  resources: { requests: { storage: 1Ti } }
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-youtube-nfs
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 1Ti }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: media-youtube }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/YouTube }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-youtube
+  namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-youtube-nfs
+  resources: { requests: { storage: 1Ti } }
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-music-nfs
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 1Ti }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: media-music }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Music }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-music
+  namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-music-nfs
+  resources: { requests: { storage: 1Ti } }

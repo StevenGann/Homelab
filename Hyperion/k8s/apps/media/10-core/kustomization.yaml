@@ -6,4 +6,5 @@ resources:
   - flaresolverr        # Cloudflare-challenge solver; Prowlarr proxies tagged indexers through it
   - sonarr
   - radarr
+  - lidarr
   - qbittorrent
