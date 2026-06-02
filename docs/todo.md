@@ -22,10 +22,22 @@ Youtarr/Homarr/Trailarr + Tdarr **server**; Tdarr **worker on Thoth** (dual RTX
 NFS export → single `/data` per pod (hardlink/EXDEV-safe, canary-Job gated);
 `/config` on local-path; API keys seeded via SOPS; 3-tier Flux (00-storage →
 10-core → 20-extras withheld for PR-2 = lean-core gate).
-**Two BLOCKING preflights before first apply:** (1) add `boot.supportedFilesystems
-= [ "nfs" ]` to `Hyperion/nixos/modules/hyperion-base.nix` + Colmena apply;
-(2) set the real TrueNAS pool name in the PV `nfs.path` (assumed `/mnt/pool/data`).
-Then PR-1 = 00-storage (canary must go green) + 10-core; PR-2 = 20-extras after soak.
+**PR-1 (core) DEPLOYED + validated 2026-06-01.** Both preflights done:
+(1) `boot.supportedFilesystems = [ "nfs" ]` applied live to all 10 nodes via
+per-node `nixos-rebuild switch` (no reboot, k3s undisturbed, closure-diff = NFS
+client only); (2) 3 NFS exports created on Akasha (`Downloads`/`TV-Shows`/`Movies`,
+`192.168.10.0/24`, `mapall=apps`/568). `00-storage` (probe `Complete`) + `10-core`
+(Prowlarr .55, Sonarr .56, Radarr .57 — all `/ping` 200, mounting the real Akasha
+library) are running. **Applied directly via control-plane kubectl** (committed at
+`f237d9f`); Flux's `media-storage`+`media-core` Kustomizations adopt them on the
+next `git push origin main`.
+**Remaining (manual, fresh-parallel):** in each *arr UI — set root folders
+(`/data/media/{tv,movies}`), add the qBittorrent download client (qbit-gluetun on
+Akasha) + a Remote Path Mapping to `/data/downloads`, connect Jellyfin, and
+Prowlarr→Sonarr/Radarr app-sync (API keys are SOPS-seeded; retrieve via
+`sops -d ...10-core/<app>/secret.sops.yaml`). **PR-2 = 20-extras** (seerr,
+Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after a
+~1-week core soak (lean-core gate).
 
 **Open follow-ups:**
 - **Relocate the k3s control plane off Heimdall** (the bridge-networked
