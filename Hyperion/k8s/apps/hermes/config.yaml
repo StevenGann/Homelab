@@ -6,6 +6,16 @@
 # DeepSeek is a first-class provider: the DEEPSEEK_API_KEY env (from the
 # hermes-deepseek SOPS Secret) registers the credential; this pins the provider
 # + default model so the gateway is non-interactive on first boot.
+#
+# WIDE-OPEN POSTURE (operator choice, 2026-06-02): the blocks below disable
+# Hermes's approval prompts, Tirith pre-exec scanning, and secret redaction so
+# the agent can self-modify and run scripts freely. Hermes DEEP-MERGES this over
+# its built-in defaults, so only the non-default keys need to appear here. This
+# governs a FRESH PVC's first boot only — it does NOT touch an existing
+# /opt/data/config.yaml (already configured live on the running cluster). The
+# matching live edit + rationale + the one non-config restriction (hardcoded
+# *_API_KEY/*_TOKEN env scrubbing in code_execution) are recorded with the
+# change that introduced this. Re-enable guards only with operator sign-off.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,3 +26,28 @@ data:
     model:
       provider: deepseek
       default: deepseek-chat
+    # ── Approvals: bypass every prompt ──────────────────────────────────────
+    approvals:
+      mode: 'off'                  # quoted: bare `off` parses as YAML bool False
+      cron_mode: approve
+      mcp_reload_confirm: false
+      destructive_slash_confirm: false
+    command_allowlist:
+      - '*'                        # moot under mode=off, kept belt-and-braces
+    hooks_auto_accept: true        # accept shell-hooks without a TTY prompt
+    # ── Security scanners off ───────────────────────────────────────────────
+    security:
+      tirith_enabled: false
+      redact_secrets: false
+      allow_private_urls: true
+      allow_lazy_installs: true
+    browser:
+      allow_private_urls: true
+    # ── Execution: capable mode + generous timeouts ─────────────────────────
+    code_execution:
+      mode: project
+      timeout: 1800
+    terminal:
+      timeout: 1800
+    agent:
+      disabled_toolsets: []
