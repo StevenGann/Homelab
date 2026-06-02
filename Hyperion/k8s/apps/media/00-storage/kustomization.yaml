@@ -6,4 +6,5 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - pv-pvc.yaml
+  - pv-pvc-extras.yaml
   - probe-job.yaml
