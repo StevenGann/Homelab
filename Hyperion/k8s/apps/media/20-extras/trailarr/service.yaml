@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: trailarr
+  namespace: media
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.10.63
+spec:
+  type: LoadBalancer
+  selector: { app: trailarr }
+  ports:
+    - { name: http, port: 7889, targetPort: 7889 }

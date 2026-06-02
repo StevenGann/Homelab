@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cleanuparr
+  namespace: media
+  labels: { app: cleanuparr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path config pins to a node
+  selector:
+    matchLabels: { app: cleanuparr }
+  template:
+    metadata:
+      labels: { app: cleanuparr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: cleanuparr
+          image: ghcr.io/cleanuparr/cleanuparr:2.3.3@sha256:d20efe405d4144e87736c25123cd22992fa4a76c9d80d7467ca5313b92107e4a
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: TZ,   value: "America/Los_Angeles" }
+            - { name: PORT, value: "11011" }
+          ports:
+            - { name: http, containerPort: 11011 }
+          volumeMounts:
+            - { name: config, mountPath: /config }   # *arr/qBit URLs + API keys entered in the UI
+          startupProbe:                  # generous for first-boot on slow arm64 storage
+            httpGet: { path: /health, port: 11011 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 11011 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /health, port: 11011 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "50m",  memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: cleanuparr-config }

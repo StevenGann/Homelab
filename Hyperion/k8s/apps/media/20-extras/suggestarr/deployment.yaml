@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: suggestarr
+  namespace: media
+  labels: { app: suggestarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path config pins to a node
+  selector:
+    matchLabels: { app: suggestarr }
+  template:
+    metadata:
+      labels: { app: suggestarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: suggestarr
+          image: ciuse99/suggestarr:v2.8.0@sha256:3db37a8756f6d79efd2536d5834709e7e0d3f32df8e5abf53977c1f742c785ea
+          env:
+            - { name: TZ,        value: "America/Los_Angeles" }
+            - { name: LOG_LEVEL, value: "info" }
+          ports:
+            - { name: http, containerPort: 5000 }
+          volumeMounts:
+            - { name: config, mountPath: /app/config }   # wizard writes config_files/ here
+          startupProbe:                  # no HTTP /health endpoint upstream — TCP on first boot
+            tcpSocket: { port: 5000 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket: { port: 5000 }
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket: { port: 5000 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "50m",  memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: suggestarr-config }

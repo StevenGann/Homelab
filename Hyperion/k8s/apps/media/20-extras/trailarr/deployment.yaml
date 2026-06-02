@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trailarr
+  namespace: media
+  labels: { app: trailarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path config pins to a node
+  selector:
+    matchLabels: { app: trailarr }
+  template:
+    metadata:
+      labels: { app: trailarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: trailarr
+          image: nandyalu/trailarr:latest@sha256:198a4fde10a941d62113720ff959c48730f0464c310b2458b4ab7e0b26649feb
+          env:
+            - { name: PUID, value: "568" }   # entrypoint chowns /config + drops to this uid
+            - { name: PGID, value: "568" }
+            - { name: TZ,   value: "America/Los_Angeles" }
+            - { name: APP_DATA_DIR, value: "/config" }
+          ports:
+            - { name: http, containerPort: 7889 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: tv,     mountPath: /data/media/tv }       # Akasha TV-Shows (NFS, RWX) — path must match Sonarr
+            - { name: movies, mountPath: /data/media/movies }   # Akasha Movies (NFS, RWX) — path must match Radarr
+          startupProbe:                  # generous for first-boot DB init on arm64; no HTTP health path documented
+            tcpSocket: { port: 7889 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket: { port: 7889 }
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket: { port: 7889 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "2",    memory: "1Gi" }      # CPU-only ffmpeg trailer transcodes
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: trailarr-config }
+        - name: tv
+          persistentVolumeClaim: { claimName: media-tv }
+        - name: movies
+          persistentVolumeClaim: { claimName: media-movies }

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tdarr
+  namespace: media
+  labels: { app: tdarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path server/configs pins to a node
+  selector:
+    matchLabels: { app: tdarr }
+  template:
+    metadata:
+      labels: { app: tdarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: tdarr
+          image: ghcr.io/haveagitgat/tdarr:latest@sha256:e317124469a2f500add53733e2c501be5e23ca0a4a18e9606f4f80cb3d63370d
+          env:
+            - { name: PUID,         value: "568" }
+            - { name: PGID,         value: "568" }
+            - { name: TZ,           value: "America/Los_Angeles" }
+            - { name: serverIP,     value: "0.0.0.0" }
+            - { name: serverPort,   value: "8266" }
+            - { name: webUIPort,    value: "8265" }
+            - { name: internalNode, value: "false" }   # SERVER ONLY — transcode worker runs on Thoth
+            - { name: inContainer,  value: "true" }
+          ports:
+            - { name: webui,  containerPort: 8265 }
+            - { name: server, containerPort: 8266 }     # Thoth worker node connects here
+          volumeMounts:
+            - { name: server,  mountPath: /app/server }
+            - { name: configs, mountPath: /app/configs }
+            - { name: logs,    mountPath: /app/logs }
+            - { name: temp,    mountPath: /temp }                          # emptyDir for now (see note)
+            - { name: tv,      mountPath: /data/media/tv,     readOnly: true }   # Akasha TV-Shows (NFS, RWX) — scan only
+            - { name: movies,  mountPath: /data/media/movies, readOnly: true }   # Akasha Movies (NFS, RWX) — scan only
+          startupProbe:                  # generous for first-boot on slow arm64 storage
+            tcpSocket: { port: 8265 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket: { port: 8265 }
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket: { port: 8265 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "512Mi" }   # server does no transcoding — stays light
+      volumes:
+        - name: server
+          persistentVolumeClaim: { claimName: tdarr-server }
+        - name: configs
+          persistentVolumeClaim: { claimName: tdarr-configs }
+        - name: logs
+          persistentVolumeClaim: { claimName: tdarr-logs }
+        - name: temp
+          emptyDir: {}                   # TODO: must become a SHARED NFS export when Thoth worker is added
+        - name: tv
+          persistentVolumeClaim: { claimName: media-tv }
+        - name: movies
+          persistentVolumeClaim: { claimName: media-movies }

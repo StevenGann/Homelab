@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: youtarr
+  namespace: media
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.10.61
+spec:
+  type: LoadBalancer
+  selector: { app: youtarr }
+  ports:
+    - { name: http, port: 3087, targetPort: 3011 }   # host-convention 3087 → app 3011

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kapowarr
+  namespace: media
+  labels: { app: kapowarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path config pins to a node
+  selector:
+    matchLabels: { app: kapowarr }
+  template:
+    metadata:
+      labels: { app: kapowarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: kapowarr
+          image: mrcas/kapowarr:latest@sha256:d455797e4f2c5b1a8ccc5ce05c427f1af2179451bb1af195ca3fa8c3e928623b
+          env:
+            - { name: PUID, value: "568" }   # image default is root (0) — override to TrueNAS apps
+            - { name: PGID, value: "568" }
+            - { name: TZ,   value: "America/Los_Angeles" }
+          ports:
+            - { name: http, containerPort: 5656 }
+          volumeMounts:
+            - { name: db,        mountPath: /app/db }              # SQLite DB — local-path, never NFS
+            - { name: comics,    mountPath: /comics }              # Akasha Comics (NFS, RWX) — library root
+            - { name: downloads, mountPath: /app/temp_downloads }  # Akasha Downloads (NFS, RWX) — import staging
+          startupProbe:                  # generous for first-boot DB init on arm64 storage
+            tcpSocket: { port: 5656 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket: { port: 5656 }
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket: { port: 5656 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: db
+          persistentVolumeClaim: { claimName: kapowarr-db }
+        - name: comics
+          persistentVolumeClaim: { claimName: media-comics }
+        - name: downloads
+          persistentVolumeClaim: { claimName: media-downloads }

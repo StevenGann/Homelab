@@ -6,7 +6,7 @@ metadata:
   labels: { app: flaresolverr }
 spec:
   replicas: 1
-  strategy: { type: Recreate }
+  strategy: { type: Recreate }          # stateless, but keep a single pod in the zone
   selector:
     matchLabels: { app: flaresolverr }
   template:
@@ -16,12 +16,14 @@ spec:
       nodeSelector: { topology.kubernetes.io/zone: hyperion }
       containers:
         - name: flaresolverr
-          # Multi-arch image; the :latest tag resolves an arm64 manifest for Pi 5.
-          image: ghcr.io/flaresolverr/flaresolverr:v3.3.21@sha256:f104ee51e5124d83cf3be9b37480649355d223f7d8f9e453d0d5ef06c6e3b31b
+          # ARM64: upstream ghcr.io/flaresolverr/flaresolverr ships NO arm64 image
+          # (amd64-only). 21hsmw 'nodriver' is the maintained community fork whose
+          # multi-arch index DOES carry a linux/arm64 child manifest (verified via
+          # registry-1.docker.io). The index digest below resolves arm64 on Pi 5.
+          image: 21hsmw/flaresolverr:nodriver@sha256:dca8cda5852b04e6142752fc044c9845eb536353ea6f8b7bb58b4ff9419538fa
           env:
-            - { name: LOG_LEVEL,        value: "info" }
-            - { name: TZ,               value: "America/Los_Angeles" }
-            - { name: BROWSER_TIMEOUT,  value: "40000" }   # ms per Cloudflare solve
+            - { name: LOG_LEVEL, value: "info" }
+            - { name: TZ,        value: "America/Los_Angeles" }
           ports:
             - { name: http, containerPort: 8191 }
           startupProbe:                  # headless Chromium cold-start is slow on arm64
@@ -35,5 +37,5 @@ spec:
             httpGet: { path: /, port: 8191 }
             periodSeconds: 30
           resources:
-            requests: { cpu: "100m", memory: "384Mi" }
-            limits:   { cpu: "1000m", memory: "1Gi" }   # a browser solve spikes both
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "768Mi" }   # a Chromium solve spikes both

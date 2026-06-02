@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seerr
+  namespace: media
+  labels: { app: seerr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path config pins to a node
+  selector:
+    matchLabels: { app: seerr }
+  template:
+    metadata:
+      labels: { app: seerr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext:                  # seerr runs as UID 1000 (no PUID/PGID)
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: seerr
+          image: ghcr.io/seerr-team/seerr@sha256:1b5fc1ea825631d9d165364472663b817a4c58ef6aa1013f58d82c1570d7c866
+          env:
+            - { name: TZ,               value: "America/Los_Angeles" }
+            - { name: CONFIG_DIRECTORY, value: "/app/config" }
+            - { name: LOG_LEVEL,        value: "info" }
+          envFrom:
+            - secretRef: { name: seerr-secret }   # API_KEY (SOPS-seeded)
+          ports:
+            - { name: http, containerPort: 5055 }
+          volumeMounts:
+            - { name: config, mountPath: /app/config }
+          startupProbe:                  # generous for first-boot DB init on arm64
+            httpGet: { path: /api/v1/status, port: 5055 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /api/v1/status, port: 5055 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /api/v1/status, port: 5055 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "768Mi" }   # Node/Next.js runtime
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: seerr-config }

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: youtarr-config
+  namespace: media
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path        # node-local; config/jobs/thumbnail cache
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: youtarr-db
+  namespace: media
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path        # node-local; MariaDB datadir must NOT run over NFS
+  resources: { requests: { storage: 2Gi } }

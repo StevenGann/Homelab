@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homarr
+  namespace: media
+  labels: { app: homarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path appdata pins to a node
+  selector:
+    matchLabels: { app: homarr }
+  template:
+    metadata:
+      labels: { app: homarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: homarr
+          image: ghcr.io/homarr-labs/homarr:v1.60.0@sha256:9ec1c487ca908471d83ddb7d56c9135f0034bd584295d56cdb4ee9830d747546
+          env:
+            - { name: TZ, value: "America/Los_Angeles" }
+          envFrom:
+            - secretRef: { name: homarr-secret }   # SECRET_ENCRYPTION_KEY (64-hex, SOPS-seeded)
+          ports:
+            - { name: http, containerPort: 7575 }
+          volumeMounts:
+            - { name: appdata, mountPath: /appdata }
+          startupProbe:                  # /api/health/ready is 200 once the HTTP server serves; generous for arm64 first boot
+            httpGet: { path: /api/health/ready, port: 7575 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:                # /api/health/live also checks the embedded DB
+            httpGet: { path: /api/health/live, port: 7575 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /api/health/live, port: 7575 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "200m", memory: "384Mi" }
+            limits:   { cpu: "1",    memory: "768Mi" }
+      volumes:
+        - name: appdata
+          persistentVolumeClaim: { claimName: homarr-appdata }

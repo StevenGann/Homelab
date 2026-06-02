@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: youtarr
+  namespace: media
+  labels: { app: youtarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path config + db pin to a node
+  selector:
+    matchLabels: { app: youtarr }
+  template:
+    metadata:
+      labels: { app: youtarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext: { fsGroup: 568 }   # NFS-written videos owned by TrueNAS 'apps'
+      containers:
+        # ── (1) youtarr app — port 3011, DB at 127.0.0.1 (same pod) ───────────
+        - name: youtarr
+          image: dialmaster/youtarr:latest@sha256:cf451bd793b9387a504a067e516c43753910e2e64f9b221976d4b9a6ef518881
+          env:
+            - { name: TZ,         value: "America/Los_Angeles" }
+            - { name: YOUTARR_UID, value: "568" }   # run as TrueNAS 'apps' for NFS writes
+            - { name: YOUTARR_GID, value: "568" }
+            - { name: IN_DOCKER_CONTAINER, value: "1" }
+            - { name: TRUST_PROXY, value: "1" }      # behind MetalLB/kube proxy hop
+            - { name: AUTH_ENABLED, value: "true" }  # never disable on a routable IP
+            - { name: DB_HOST,     value: "127.0.0.1" }   # mariadb in the same pod
+            - { name: DB_PORT,     value: "3306" }
+            - { name: DB_USER,     valueFrom: { secretKeyRef: { name: youtarr-secret, key: DB_USER } } }
+            - { name: DB_PASSWORD, valueFrom: { secretKeyRef: { name: youtarr-secret, key: DB_PASSWORD } } }
+            - { name: DB_NAME,     valueFrom: { secretKeyRef: { name: youtarr-secret, key: DB_NAME } } }
+          ports:
+            - { name: http, containerPort: 3011 }
+          volumeMounts:
+            - { name: config, mountPath: /app/config,        subPath: config }
+            - { name: config, mountPath: /app/jobs,          subPath: jobs }
+            - { name: config, mountPath: /app/server/images, subPath: images }
+            - { name: youtube, mountPath: /usr/src/app/data }   # media-youtube (NFS, RWX)
+          startupProbe:                  # generous — waits on MariaDB init on first boot
+            httpGet: { path: /setup/status, port: 3011 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /setup/status, port: 3011 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /setup/status, port: 3011 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "768Mi" }   # yt-dlp + ffmpeg muxing
+        # ── (2) MariaDB 11 — datadir on its own local-path PVC (NOT NFS) ──────
+        - name: mariadb
+          image: mariadb:11@sha256:7974b628cbb4a37c4108d82f1e1d1123d1857ae3d94ab6fb20b8ad8580c271c8
+          env:
+            - { name: MARIADB_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: youtarr-secret, key: MARIADB_ROOT_PASSWORD } } }
+            - { name: MARIADB_DATABASE,      valueFrom: { secretKeyRef: { name: youtarr-secret, key: MARIADB_DATABASE } } }
+            - { name: MARIADB_USER,          valueFrom: { secretKeyRef: { name: youtarr-secret, key: MARIADB_USER } } }
+            - { name: MARIADB_PASSWORD,      valueFrom: { secretKeyRef: { name: youtarr-secret, key: MARIADB_PASSWORD } } }
+          ports:
+            - { name: mysql, containerPort: 3306 }
+          volumeMounts:
+            - { name: db, mountPath: /var/lib/mysql }
+          startupProbe:
+            exec: { command: ["healthcheck.sh", "--connect", "--innodb_initialized"] }
+            failureThreshold: 30
+            periodSeconds: 10
+          livenessProbe:
+            exec: { command: ["healthcheck.sh", "--connect", "--innodb_initialized"] }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: youtarr-config }
+        - name: db
+          persistentVolumeClaim: { claimName: youtarr-db }
+        - name: youtube
+          persistentVolumeClaim: { claimName: media-youtube }

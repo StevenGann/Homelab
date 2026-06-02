@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kapowarr
+  namespace: media
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.10.60
+spec:
+  type: LoadBalancer
+  selector: { app: kapowarr }
+  ports:
+    - { name: http, port: 5656, targetPort: 5656 }
