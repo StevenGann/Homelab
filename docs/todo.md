@@ -39,6 +39,18 @@ Prowlarr→Sonarr/Radarr app-sync (API keys are SOPS-seeded; retrieve via
 Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after a
 ~1-week core soak (lean-core gate).
 
+**Backlog — more clean deployments off Akasha (queued 2026-06-01).** Fresh
+deploys on Hyperion, NOT data migrations:
+- **beszel** (henrygd/beszel) — lightweight monitoring hub (Go+SQLite, arm64). Easy.
+- **speedtest-tracker** (alexjustesen / lscr.io linuxserver) — Laravel; needs APP_KEY
+  (SOPS) + a DB (SQLite ok). Easy.
+- **portracker** (mostafa-wahied/portracker) — was Docker-socket-based on Akasha;
+  research k8s discovery mode (no docker.sock under containerd). Medium.
+- **pterodactyl/panel** — multi-component (Panel + MariaDB + Redis + queue + cron);
+  **Wings** needs Docker on its host (conflicts with k3s/containerd) → scope call:
+  Panel on Hyperion + Wings on a separate Docker host (Thoth/VM). Large.
+Sequence: after the *arr extras (PR-2) land.
+
 **Open follow-ups:**
 - **Relocate the k3s control plane off Heimdall** (the bridge-networked
   container limitation — breaks metrics-server, needs placement workarounds).
