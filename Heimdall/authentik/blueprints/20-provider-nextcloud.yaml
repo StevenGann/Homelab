@@ -1,0 +1,55 @@
+# Nextcloud — OIDC provider + application (PLACEHOLDER).
+#
+# Nextcloud is NOT deployed yet (see docs/design/sso-plan.md §3). This provider
+# exists so the IdP side is ready the moment Nextcloud lands: install the
+# `user_oidc` app and point it at https://auth.lab/application/o/nextcloud/ with
+# the client_id/secret below.
+#
+# The client secret here is generated INSIDE Authentik on first apply (no !Env),
+# then read back from the UI (Providers → Nextcloud) when you configure
+# Nextcloud. Restricted to friends-family like Homarr.
+#
+# To defer entirely, flip the instantiate label to "false".
+version: 1
+metadata:
+  name: homelab-provider-nextcloud
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider-nextcloud
+    identifiers: { name: Nextcloud }
+    attrs:
+      client_type: confidential
+      client_id: nextcloud
+      authorization_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+      invalidation_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key:
+        !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      redirect_uris:
+        - matching_mode: regex
+          url: "https?://nextcloud\\.lab/apps/user_oidc/code"
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-openid"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-email"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-profile"]]
+
+  - model: authentik_core.application
+    identifiers: { slug: nextcloud }
+    attrs:
+      name: Nextcloud
+      provider: !KeyOf provider-nextcloud
+      meta_launch_url: https://nextcloud.lab
+      meta_description: Files / calendar / contacts (not yet deployed)
+      group: Productivity
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !Find [authentik_core.application, [slug, nextcloud]]
+      group: !Find [authentik_core.group, [name, friends-family]]
+      order: 0
+    attrs:
+      enabled: true

@@ -1,0 +1,52 @@
+# LDAP — provider + application + outpost.
+#
+# This is the piece that retires the password-sync bot: Jellyfin's LDAP plugin
+# (and any LDAP-capable app) authenticates native TV/mobile clients against this,
+# so one Authentik password works everywhere — something OIDC/forward-auth cannot
+# do for those clients.
+#
+# Connection params for the Jellyfin LDAP plugin (configured on Akasha — manual,
+# outside this repo; see the runbook):
+#   LDAP server      : 192.168.10.4   port 389  (or 636 LDAPS if you add a cert)
+#   Base DN          : DC=lab,DC=homelab
+#   User search base : ou=users,DC=lab,DC=homelab
+#   Bind: a dedicated Authentik service account (create one), or per-user bind.
+#
+# The outpost token is minted by Authentik when this blueprint creates the
+# outpost. Copy it from the UI into AUTHENTIK_LDAP_OUTPOST_TOKEN, then redeploy
+# so the `ldap` container in docker-compose.yml authenticates.
+version: 1
+metadata:
+  name: homelab-provider-ldap
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  - model: authentik_providers_ldap.ldapprovider
+    id: provider-ldap
+    identifiers: { name: LDAP }
+    attrs:
+      base_dn: "DC=lab,DC=homelab"
+      bind_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      unbind_flow: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
+      # Only members of media-users are bindable/searchable over LDAP.
+      search_group: !Find [authentik_core.group, [name, media-users]]
+      mfa_support: true
+
+  - model: authentik_core.application
+    identifiers: { slug: ldap }
+    attrs:
+      name: LDAP
+      provider: !KeyOf provider-ldap
+      meta_description: LDAP directory for Jellyfin and other native-client apps
+      group: Infrastructure
+
+  - model: authentik_outposts.outpost
+    identifiers: { name: LDAP }
+    attrs:
+      type: ldap
+      providers:
+        - !Find [authentik_providers_ldap.ldapprovider, [name, LDAP]]
+      config:
+        authentik_host: "http://server:9000"
+        authentik_host_insecure: true
+        log_level: info

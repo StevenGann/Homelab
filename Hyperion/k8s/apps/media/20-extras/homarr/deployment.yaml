@@ -19,8 +19,22 @@ spec:
           image: ghcr.io/homarr-labs/homarr:v1.60.0@sha256:9ec1c487ca908471d83ddb7d56c9135f0034bd584295d56cdb4ee9830d747546
           env:
             - { name: TZ, value: "America/Los_Angeles" }
+            # ─── SSO via Authentik (OIDC) ─────────────────────────────────────
+            # CLIENT_ID/SECRET arrive through the homarr-secret (envFrom below),
+            # mirrored from Authentik's blueprint (AUTHENTIK_HOMARR_CLIENT_*).
+            # `credentials` is kept first as an admin fallback so an OIDC
+            # misconfig can never lock you out of Homarr.
+            # NOTE: AUTH_OIDC_ISSUER is https (auth.lab, Caddy internal CA). Homarr
+            # must trust that CA to validate the issuer — see the runbook's
+            # "Homarr ↔ Authentik TLS trust" step (NODE_EXTRA_CA_CERTS), or move the
+            # issuer to a publicly-trusted (Let's Encrypt) hostname.
+            - { name: AUTH_PROVIDERS,             value: "credentials,oidc" }
+            - { name: AUTH_OIDC_CLIENT_NAME,      value: "Authentik" }
+            - { name: AUTH_OIDC_ISSUER,           value: "https://auth.lab/application/o/homarr/" }
+            - { name: AUTH_OIDC_SCOPE_OVERWRITE,  value: "openid email profile" }
+            - { name: AUTH_OIDC_GROUPS_ATTRIBUTE, value: "groups" }
           envFrom:
-            - secretRef: { name: homarr-secret }   # SECRET_ENCRYPTION_KEY (64-hex, SOPS-seeded)
+            - secretRef: { name: homarr-secret }   # SECRET_ENCRYPTION_KEY + AUTH_OIDC_CLIENT_ID/SECRET (SOPS-seeded)
           ports:
             - { name: http, containerPort: 7575 }
           volumeMounts:

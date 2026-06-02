@@ -39,6 +39,7 @@ RECORDS=(
     # ─── Hosts ───────────────────────────────────────────────────────────────
     "komodo.lab|A|192.168.10.4"       # Komodo Core UI (also fronted by Caddy)
     "heimdall.lab|A|192.168.10.4"     # edge host: Caddy, Technitium, Komodo, k3s control plane
+    "auth.lab|A|192.168.10.4"         # Authentik SSO (Caddy-fronted; LDAP outpost on :389/:636)
     "akasha.lab|A|192.168.10.247"     # TrueNAS Scale (also hosts Jellyfin :30013)
     "jellyfin.lab|A|192.168.10.247"   # alias for Akasha; Jellyfin UI is at :30013 (NodePort)
 

@@ -189,6 +189,23 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
             echo "[remote] k3s control plane .env not present — skipping (mint the token first)."
         fi
 
+        # ─── Authentik (SSO) — separate Compose project ──────────────────
+        # Same single-root portability rule. Substitution vars come from the
+        # shipped .env via --env-file. media/certs/custom-templates are chowned
+        # to uid 1000 (the authentik runtime user); postgres/redis self-chown.
+        echo "[remote] Bringing up Authentik (SSO)..."
+        sudo install -d -o root -g root -m 0755 \
+            /opt/Homelab/Heimdall/authentik/database \
+            /opt/Homelab/Heimdall/authentik/redis
+        sudo install -d -o 1000 -g 1000 -m 0755 \
+            /opt/Homelab/Heimdall/authentik/media \
+            /opt/Homelab/Heimdall/authentik/certs \
+            /opt/Homelab/Heimdall/authentik/custom-templates
+        cd /opt/Homelab/Heimdall/authentik
+        docker compose --env-file /opt/Homelab/Heimdall/.env pull
+        docker compose --env-file /opt/Homelab/Heimdall/.env up -d
+        docker compose --env-file /opt/Homelab/Heimdall/.env ps
+
         cd /opt/Homelab/Heimdall
 
         echo "[remote] Waiting for Komodo Core HTTP API on :9120..."

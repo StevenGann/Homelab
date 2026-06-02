@@ -1,0 +1,139 @@
+# Heimdall — Authentik (SSO identity provider)
+#
+# SEPARATE Compose project, brought up by Heimdall/scripts/deploy.sh — same
+# "one root under /opt/Homelab/Heimdall/<stack>/, rsync-one-root portability"
+# convention as the hyperion/ and k3s-control-plane/ stacks. It is NOT part of
+# Heimdall/docker-compose.yml.
+#
+# Substitution vars come from the shipped /opt/Homelab/Heimdall/.env (decrypted
+# from Heimdall/secrets/env.sops.env). deploy.sh invokes compose with
+# `--env-file /opt/Homelab/Heimdall/.env` so ${AUTHENTIK_*} resolve here without
+# injecting the unrelated KOMODO_* vars into these containers.
+#
+# Reachability:
+#   - server HTTP is published on 127.0.0.1:9180 → Caddy reverse-proxies
+#     https://auth.lab → 127.0.0.1:9180 (see Heimdall/caddy/Caddyfile).
+#   - the LDAP outpost publishes 389/636 on ALL interfaces so Jellyfin on Akasha
+#     (192.168.10.247) can bind to 192.168.10.4:389. nftables must allow 389/636
+#     from 192.168.10.0/24 — see the runbook.
+#
+# Pin: confirmed latest stable 2026.5.2 (2026-06-02). Bump server+worker+ldap in
+# lockstep; pin by digest after first pull per repo convention.
+
+x-authentik-env: &authentik-env
+  AUTHENTIK_REDIS__HOST: redis
+  AUTHENTIK_POSTGRESQL__HOST: postgresql
+  AUTHENTIK_POSTGRESQL__USER: authentik
+  AUTHENTIK_POSTGRESQL__NAME: authentik
+  AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASS}
+  AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+  # First-boot only (ignored once akadmin exists). Read with:
+  #   cd Heimdall && sops -d secrets/env.sops.env | grep BOOTSTRAP
+  AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
+  AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+  # Consumed by the blueprints (applied by the worker) via !Env.
+  AUTHENTIK_HOMARR_CLIENT_ID: ${AUTHENTIK_HOMARR_CLIENT_ID}
+  AUTHENTIK_HOMARR_CLIENT_SECRET: ${AUTHENTIK_HOMARR_CLIENT_SECRET}
+  AUTHENTIK_DISABLE_STARTUP_ANALYTICS: "true"
+  AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+  AUTHENTIK_AVATARS: initials
+
+services:
+
+  # ─── PostgreSQL (Authentik's database) ───────────────────────────────────
+  postgresql:
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    environment:
+      POSTGRES_USER: authentik
+      POSTGRES_DB: authentik
+      POSTGRES_PASSWORD: ${AUTHENTIK_PG_PASS}
+    volumes:
+      - /opt/Homelab/Heimdall/authentik/database:/var/lib/postgresql/data
+    logging: { driver: journald }
+
+  # ─── Redis (cache / task broker) ─────────────────────────────────────────
+  redis:
+    image: docker.io/library/redis:7-alpine
+    command: --save 60 1 --loglevel warning
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 3s
+    volumes:
+      - /opt/Homelab/Heimdall/authentik/redis:/data
+    logging: { driver: journald }
+
+  # ─── Authentik server (web UI + API + OIDC/SAML endpoints) ───────────────
+  server:
+    image: ghcr.io/goauthentik/server:2026.5.2
+    restart: unless-stopped
+    command: server
+    environment: *authentik-env
+    healthcheck:
+      test: ["CMD", "ak", "healthcheck"]
+      start_period: 60s
+      interval: 30s
+      retries: 6
+      timeout: 30s
+    volumes:
+      - /opt/Homelab/Heimdall/authentik/media:/media
+      - /opt/Homelab/Heimdall/authentik/custom-templates:/templates
+      - /opt/Homelab/Heimdall/authentik/blueprints:/blueprints/custom:ro
+    ports:
+      # HTTP only, localhost only — Caddy terminates TLS for auth.lab.
+      - "127.0.0.1:9180:9000"
+    depends_on:
+      postgresql: { condition: service_healthy }
+      redis:      { condition: service_healthy }
+    logging: { driver: journald }
+
+  # ─── Authentik worker (applies blueprints, runs tasks) ───────────────────
+  worker:
+    image: ghcr.io/goauthentik/server:2026.5.2
+    restart: unless-stopped
+    command: worker
+    environment: *authentik-env
+    healthcheck:
+      test: ["CMD", "ak", "healthcheck"]
+      start_period: 60s
+      interval: 30s
+      retries: 6
+      timeout: 30s
+    volumes:
+      - /opt/Homelab/Heimdall/authentik/media:/media
+      - /opt/Homelab/Heimdall/authentik/certs:/certs
+      - /opt/Homelab/Heimdall/authentik/custom-templates:/templates
+      - /opt/Homelab/Heimdall/authentik/blueprints:/blueprints/custom:ro
+    depends_on:
+      postgresql: { condition: service_healthy }
+      redis:      { condition: service_healthy }
+    logging: { driver: journald }
+
+  # ─── LDAP outpost (so native-client apps — Jellyfin — can bind) ──────────
+  # Authentik mints this outpost's token when the blueprint creates the LDAP
+  # outpost. Copy it from the UI (Applications → Outposts → LDAP) into
+  # AUTHENTIK_LDAP_OUTPOST_TOKEN in secrets/env.sops.env, then redeploy. Until
+  # then this container retries auth harmlessly.
+  ldap:
+    image: ghcr.io/goauthentik/ldap:2026.5.2
+    restart: unless-stopped
+    environment:
+      AUTHENTIK_HOST: http://server:9000
+      AUTHENTIK_INSECURE: "true"          # in-cluster HTTP to the server
+      AUTHENTIK_TOKEN: ${AUTHENTIK_LDAP_OUTPOST_TOKEN}
+    ports:
+      - "389:3389"     # LDAP   (Jellyfin → 192.168.10.4:389)
+      - "636:6636"     # LDAPS  (optional; needs a cert on the provider)
+    depends_on:
+      server: { condition: service_healthy }
+    logging: { driver: journald }

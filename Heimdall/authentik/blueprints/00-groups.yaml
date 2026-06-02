@@ -1,0 +1,23 @@
+# Groups — the access tiers friends/family map onto.
+#
+# friends-family : everyone you share public-facing apps with (Jellyfin, Seerr,
+#                  Homarr, Navidrome). Bound to each application below.
+# media-users    : the subset exposed over LDAP (Jellyfin bind/search scope).
+#                  Keep == friends-family unless you want to narrow LDAP exposure.
+#
+# Auto-discovered + applied from /blueprints/custom by the worker.
+version: 1
+metadata:
+  name: homelab-groups
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  - model: authentik_core.group
+    identifiers: { name: friends-family }
+    attrs:
+      is_superuser: false
+
+  - model: authentik_core.group
+    identifiers: { name: media-users }
+    attrs:
+      is_superuser: false
