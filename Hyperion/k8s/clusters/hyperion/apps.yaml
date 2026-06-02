@@ -54,3 +54,43 @@ spec:
     provider: sops
     secretRef:
       name: sops-age
+---
+# ── *arr media stack (plan: docs/design/arr-stack-plan.md) ──────────────────
+# Two tiers wired here; 20-extras is deliberately NOT pointed at yet (lean-core
+# gate — added in a follow-up PR after a ~1-week core soak).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: media-storage
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/media/00-storage
+  prune: true
+  wait: true                   # the nfs-mount-probe Job must complete (storage gate)
+  timeout: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: media-core
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/media/10-core
+  prune: true
+  wait: true
+  timeout: 10m                 # first-boot SQLite migration on arm64
+  dependsOn:
+    - name: media-storage      # don't deploy *arr onto unproven NFS
+    - name: metallb-config     # needs the MetalLB pool for the LoadBalancer IPs
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:                  # SOPS-encrypted *arr API keys
+    provider: sops
+    secretRef:
+      name: sops-age

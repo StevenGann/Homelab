@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: radarr
+  namespace: media
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.10.57
+spec:
+  type: LoadBalancer
+  selector: { app: radarr }
+  ports:
+    - { name: http, port: 7878, targetPort: 7878 }

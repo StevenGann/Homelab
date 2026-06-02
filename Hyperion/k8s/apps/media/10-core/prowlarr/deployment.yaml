@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr
+  namespace: media
+  labels: { app: prowlarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path config pins to a node
+  selector:
+    matchLabels: { app: prowlarr }
+  template:
+    metadata:
+      labels: { app: prowlarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: prowlarr
+          image: lscr.io/linuxserver/prowlarr:latest@sha256:c9fe528f34b1fd3715438b6f6d6991d64e2965f2c055db36398bc66a0e7eab01
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: TZ,   value: "America/Los_Angeles" }
+          envFrom:
+            - secretRef: { name: prowlarr-secret }   # PROWLARR__AUTH__APIKEY (SOPS-seeded)
+          ports:
+            - { name: http, containerPort: 9696 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+          startupProbe:                  # generous for first-boot SQLite migration on arm64
+            httpGet: { path: /ping, port: 9696 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /ping, port: 9696 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /ping, port: 9696 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: prowlarr-config }

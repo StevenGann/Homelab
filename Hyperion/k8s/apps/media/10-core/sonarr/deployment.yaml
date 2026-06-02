@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr
+  namespace: media
+  labels: { app: sonarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: sonarr }
+  template:
+    metadata:
+      labels: { app: sonarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: sonarr
+          image: lscr.io/linuxserver/sonarr:latest@sha256:0b5c4803f92456fb9b65bae8375716ea120b4ea17b3cced7da32b63f0085782b
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: TZ,   value: "America/Los_Angeles" }
+          envFrom:
+            - secretRef: { name: sonarr-secret }   # SONARR__AUTH__APIKEY (SOPS-seeded)
+          ports:
+            - { name: http, containerPort: 8989 }
+          volumeMounts:
+            - { name: config,    mountPath: /config }
+            - { name: tv,        mountPath: /data/media/tv }    # Akasha TV-Shows (NFS, RWX)
+            - { name: downloads, mountPath: /data/downloads }   # Akasha Downloads (NFS, RWX) — copy-import
+          startupProbe:
+            httpGet: { path: /ping, port: 8989 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /ping, port: 8989 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /ping, port: 8989 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }      # do NOT cap tighter — Sonarr OOM history
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: sonarr-config }
+        - name: tv
+          persistentVolumeClaim: { claimName: media-tv }
+        - name: downloads
+          persistentVolumeClaim: { claimName: media-downloads }
