@@ -1,0 +1,58 @@
+# EXPERIMENT: Jellyfin on a Pi 5 worker. Separate instance from the production
+# Jellyfin on Akasha — fresh config, reads the same libraries over NFS (read-only).
+# Direct-play only: NO hardware transcode (the Pi VideoCore isn't exposed to pods),
+# and you should disable transcoding server-side (Dashboard → Playback) so an
+# incompatible client doesn't pin the Pi CPU with software transcode.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin
+  namespace: media
+  labels: { app: jellyfin }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path config pins to a node
+  selector:
+    matchLabels: { app: jellyfin }
+  template:
+    metadata:
+      labels: { app: jellyfin }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: jellyfin
+          image: lscr.io/linuxserver/jellyfin:latest@sha256:c0ed73678fb4ca761e0d940a92e49b95352f7f241a9be79a2c575c0099288f46
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: TZ,   value: "America/Los_Angeles" }
+            - { name: JELLYFIN_PublishedServerUrl, value: "http://192.168.10.70" }
+          ports:
+            - { name: http, containerPort: 8096 }
+          volumeMounts:
+            - { name: config,    mountPath: /config }
+            - { name: transcode, mountPath: /config/transcodes }     # emptyDir — keep any temp off the config PVC
+            - { name: tv,     mountPath: /data/media/tv,     readOnly: true }
+            - { name: movies, mountPath: /data/media/movies, readOnly: true }
+            - { name: music,  mountPath: /data/media/music,  readOnly: true }
+          startupProbe:                  # first boot + library scan can be slow on a Pi
+            httpGet: { path: /health, port: 8096 }
+            failureThreshold: 40
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /health, port: 8096 }
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits:   { cpu: "3",    memory: "3Gi" }   # headroom for library scans; no transcode
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: jellyfin-config }
+        - name: transcode
+          emptyDir: {}
+        - name: tv
+          persistentVolumeClaim: { claimName: media-tv }
+        - name: movies
+          persistentVolumeClaim: { claimName: media-movies }
+        - name: music
+          persistentVolumeClaim: { claimName: media-music }
