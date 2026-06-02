@@ -40,6 +40,7 @@ RECORDS=(
     "komodo.lab|A|192.168.10.4"       # Komodo Core UI (also fronted by Caddy)
     "heimdall.lab|A|192.168.10.4"     # edge host: Caddy, Technitium, Komodo, k3s control plane
     "akasha.lab|A|192.168.10.247"     # TrueNAS Scale (also hosts Jellyfin :30013)
+    "jellyfin.lab|A|192.168.10.247"   # alias for Akasha; Jellyfin UI is at :30013 (NodePort)
 
     # ─── Hyperion k3s nodes (.101..110, Greek-letter order) ──────────────────
     "hyperion-alpha.lab|A|192.168.10.101"
