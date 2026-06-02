@@ -1,0 +1,76 @@
+# qBittorrent behind a gluetun VPN tunnel (PIA / OpenVPN), migrated from Akasha.
+# Containers in a pod share a network namespace, so qBittorrent's traffic routes
+# through gluetun's tun0 with its kill-switch — the k8s-native equivalent of the
+# Akasha `network_mode: service:gluetun`. The NFS download volume is mounted by the
+# kubelet (host-level), so file I/O does NOT traverse the VPN; only torrent + WebUI
+# traffic does. Co-located in `media`, so Sonarr/Radarr reach it as
+# http://qbittorrent.media.svc.cluster.local:8085 with NO remote-path-mapping
+# (everyone mounts media-downloads at /data/downloads).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent
+  namespace: media
+  labels: { app: qbittorrent }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: qbittorrent }
+  template:
+    metadata:
+      labels: { app: qbittorrent }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        # ── VPN tunnel (provides the pod's egress + kill-switch) ────────────
+        - name: gluetun
+          image: qmcgaw/gluetun:latest@sha256:10b4895fde4499c2d1d9fbd8e681d040ede0efe8c6cfe5d0c51daf0461836ee8
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          env:
+            - { name: VPN_SERVICE_PROVIDER,      value: "private internet access" }
+            - { name: VPN_TYPE,                  value: "openvpn" }
+            - { name: OPENVPN_PROTOCOL,          value: "udp" }
+            - { name: SERVER_REGIONS,            value: "US East,US West" }
+            - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" }  # LAN + cluster reach the WebUI/health
+            - { name: FIREWALL_INPUT_PORTS,      value: "8085" }     # allow inbound to the qBittorrent WebUI
+            - { name: UPDATER_PERIOD,            value: "24h" }
+            - { name: TZ,                        value: "America/Los_Angeles" }
+          envFrom:
+            - secretRef: { name: qbittorrent-vpn }   # OPENVPN_USER / OPENVPN_PASSWORD (SOPS)
+          volumeMounts:
+            - { name: tun,           mountPath: /dev/net/tun }
+            - { name: gluetun-state, mountPath: /gluetun }
+          resources:
+            requests: { cpu: "50m",  memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+        # ── qBittorrent (shares gluetun's netns) ────────────────────────────
+        - name: qbittorrent
+          image: lscr.io/linuxserver/qbittorrent:latest@sha256:715d2bfbcf1cd3d734cbbd4fbd599eb7ea0642eaa079a372dd0d343f59516700
+          env:
+            - { name: PUID,            value: "568" }
+            - { name: PGID,            value: "568" }
+            - { name: TZ,              value: "America/Los_Angeles" }
+            - { name: WEBUI_PORT,      value: "8085" }
+            - { name: TORRENTING_PORT, value: "6881" }
+          volumeMounts:
+            - { name: config,    mountPath: /config }
+            - { name: downloads, mountPath: /data/downloads }   # same NFS path Sonarr/Radarr see
+          readinessProbe:
+            tcpSocket: { port: 8085 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }
+      volumes:
+        - name: tun
+          hostPath: { path: /dev/net/tun, type: CharDevice }
+        - name: gluetun-state
+          emptyDir: {}
+        - name: config
+          persistentVolumeClaim: { claimName: qbittorrent-config }
+        - name: downloads
+          persistentVolumeClaim: { claimName: media-downloads }
