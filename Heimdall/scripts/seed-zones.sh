@@ -36,22 +36,47 @@ TOKEN_FILE="${TOKEN_FILE:-/tmp/heimdall-technitium-token}"
 # Phase 2 minimum-viable seed: just komodo.lab so the Phase 2 end-to-end self-test
 # can pass. Phase 3 grows this list.
 RECORDS=(
-    # Phase 2 minimum-viable:
-    "komodo.lab|A|192.168.10.4"
+    # ─── Hosts ───────────────────────────────────────────────────────────────
+    "komodo.lab|A|192.168.10.4"       # Komodo Core UI (also fronted by Caddy)
+    "heimdall.lab|A|192.168.10.4"     # edge host: Caddy, Technitium, Komodo, k3s control plane
+    "akasha.lab|A|192.168.10.247"     # TrueNAS Scale (also hosts Jellyfin :30013)
 
-    # Phase 3 baseline (uncomment when ready to seed):
-    # "heimdall.lab|A|192.168.10.4"
-    # "akasha.lab|A|192.168.10.247"
-    # "hyperion-alpha.lab|A|192.168.10.101"
-    # "hyperion-beta.lab|A|192.168.10.102"
-    # "hyperion-gamma.lab|A|192.168.10.103"
-    # "hyperion-delta.lab|A|192.168.10.104"
-    # "hyperion-epsilon.lab|A|192.168.10.105"
-    # "hyperion-zeta.lab|A|192.168.10.106"
-    # "hyperion-eta.lab|A|192.168.10.107"
-    # "hyperion-theta.lab|A|192.168.10.108"
-    # "hyperion-iota.lab|A|192.168.10.109"
-    # "hyperion-kappa.lab|A|192.168.10.110"
+    # ─── Hyperion k3s nodes (.101..110, Greek-letter order) ──────────────────
+    "hyperion-alpha.lab|A|192.168.10.101"
+    "hyperion-beta.lab|A|192.168.10.102"
+    "hyperion-gamma.lab|A|192.168.10.103"
+    "hyperion-delta.lab|A|192.168.10.104"
+    "hyperion-epsilon.lab|A|192.168.10.105"
+    "hyperion-zeta.lab|A|192.168.10.106"
+    "hyperion-eta.lab|A|192.168.10.107"
+    "hyperion-theta.lab|A|192.168.10.108"
+    "hyperion-iota.lab|A|192.168.10.109"
+    "hyperion-kappa.lab|A|192.168.10.110"
+
+    # ─── Apps (MetalLB LoadBalancer IPs) ─────────────────────────────────────
+    # NOTE: DNS resolves name->IP only; the service port is NOT encoded. Append
+    # the port shown below (e.g. http://beszel.lab:8090). To get portless
+    # https://<app>.lab you'd add Caddy reverse-proxy routes — out of scope here.
+    "beszel.lab|A|192.168.10.68"          # :8090  (monitoring — "Bes")
+    "headlamp.lab|A|192.168.10.50"        # :80    (k8s dashboard)
+    "hermes.lab|A|192.168.10.52"          # :80    (DeepSeek AI, basic-auth)
+    "pterodactyl.lab|A|192.168.10.69"     # :80    (game-server panel)
+    "speedtest.lab|A|192.168.10.67"       # :80    (speedtest-tracker)
+    "uptime.lab|A|192.168.10.51"          # :80    (uptime-kuma)
+    "homarr.lab|A|192.168.10.53"          # :7575  (dashboard)
+    "seerr.lab|A|192.168.10.54"           # :5055  (media requests)
+    "prowlarr.lab|A|192.168.10.55"        # :9696  (indexer manager)
+    "sonarr.lab|A|192.168.10.56"          # :8989  (TV)
+    "radarr.lab|A|192.168.10.57"          # :7878  (movies)
+    "qbittorrent.lab|A|192.168.10.58"     # :8085  (downloads)
+    "cleanuparr.lab|A|192.168.10.59"      # :11011 (download cleanup)
+    "kapowarr.lab|A|192.168.10.60"        # :5656  (comics/manga)
+    "youtarr.lab|A|192.168.10.61"         # :3087  (youtube archival)
+    "tdarr.lab|A|192.168.10.62"           # :8265  (transcoding)
+    "trailarr.lab|A|192.168.10.63"        # :7889  (trailers)
+    "suggestarr.lab|A|192.168.10.64"      # :5000  (content suggestions)
+    "lidarr.lab|A|192.168.10.65"          # :8686  (music)
+    "navidrome.lab|A|192.168.10.66"       # :4533  (music streaming)
 )
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────────────
