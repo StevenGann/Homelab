@@ -38,19 +38,32 @@ covers the shareable set — we need three, behind one directory.
 
 ## 2. Architecture — two identity layers, three integration patterns
 
-### 2.1 Two layers (keep both — they answer different questions)
+### 2.1 Layers — one identity directory, two transports
 
-- **The existing VPN (network identity)** — *"is this device allowed on the
-  network?"* Friends connect through the operator's already-deployed VPN and reach
-  services on the LAN. Nothing is exposed to the WAN. The VPN choice is out of scope
-  for this plan; the only two things SSO needs from it are: (a) the VPN routes the
-  `192.168.10.0/24` LAN to clients, and (b) clients resolve `.lab` names via
-  Technitium (so `auth.lab`, `jellyfin.lab`, etc. work). Confirm both for whatever
-  VPN is in use.
-- **Authentik (app identity)** — *"which user is this, and what may they see?"* The
-  VPN cannot give each friend their own Jellyfin library, per-user Seerr requests,
-  etc. Authentik is the one directory all apps authenticate against — independent of
-  the transport.
+**Network/transport (two tiers — answer "can this device reach the service?"):**
+
+- **Admin tier — UniFi WiFiman/Teleport VPN (WireGuard).** Trusted friends with
+  admin intent. Full LAN, `.lab` names, internal-CA TLS (admins can trust the CA).
+  Needs: the VPN routes `192.168.10.0/24` and clients resolve `.lab` via Technitium
+  (verify — Teleport hands out the gateway resolver by default).
+- **Public tier — Cloudflare Tunnel → cloudflared → Caddy → service.** Broader
+  friends/family. A **narrow allowlist** of public services only (Jellyfin, Seerr,
+  Navidrome, Nextcloud, + a few). Cloudflare's edge presents a **publicly-trusted
+  cert** for `*.<yourdomain>` — no CA distribution to friends. cloudflared dials the
+  origin (Caddy) over the LAN; only the listed hostnames are routable.
+
+**App identity (one layer — answers "who is this, and what may they see?"):**
+
+- **Authentik.** Neither transport gives each friend their own Jellyfin library /
+  per-user Seerr requests. Authentik is the one directory all apps authenticate
+  against, reachable on **both** `auth.lab` (admin tier) and `auth.<yourdomain>`
+  (public tier, via the tunnel). Transport-independent.
+
+**Hard rule for the public tier:** never put Cloudflare Access / forward-auth in
+front of **Jellyfin or Navidrome** — their native clients can't carry an Access
+cookie/token (same constraint as forward-auth). Expose them directly; the app's own
+Authentik-backed login is the gate. Browser-only apps (Seerr/Nextcloud/Homarr)
+already have SSO, so Access there is redundant.
 
 ### 2.2 Three integration patterns
 
@@ -108,16 +121,14 @@ the existing Heimdall/Hyperion conventions.
    run a VPN client at all. If the VPN does whole-LAN routing from a gateway/router
    the friend connects through, the TV is covered without an on-TV client; if it's a
    per-device client VPN, TVs that can't run it are stuck. Set expectations either way.
-2. **TLS trust.** Caddy's internal CA throws cert warnings on friends' devices and
-   you can't realistically install your root CA on someone's iPhone/Apple TV. Two
-   escapes: distribute nothing and front the shared services with a **publicly-trusted
-   cert** (a real domain + **Let's Encrypt via DNS-01**), or accept the warnings for
-   browser apps and rely on each native client's own trust. NB: the Heimdall Caddy
-   image (`Heimdall/caddy/image/Dockerfile`) currently bundles **only `caddy-l4`** —
-   the `caddy-dns/cloudflare` (or other DNS) plugin is **not** built in, so the
-   LE-DNS-01 path needs an image rebuild first. Do **not** ship the internal CA to
-   friends. (Jellyfin's own client validates its own endpoint, so Jellyfin is the
-   least affected.)
+2. **TLS trust — solved per tier, no Caddy change.** Public tier: **Cloudflare's
+   edge terminates TLS** with a real cert for `*.<yourdomain>`, so friends never see
+   the internal CA and the OIDC issuer is a public hostname (no `NODE_EXTRA_CA_CERTS`
+   needed for anything exposed publicly). cloudflared dials the Caddy origin over the
+   LAN — Caddy can keep serving `tls internal` to it (cloudflared
+   `originRequest.noTLSVerify: true`), so **no Caddy image rebuild / DNS plugin is
+   required**. Admin tier: `.lab` keeps the internal CA; admins can trust it. The CA
+   is never shipped to public friends.
 3. **Two-step onboarding.** Each friend now has connect-the-VPN **and**
    create-the-Authentik-account. Self-service enrollment is **deferred** in the
    as-built scaffold: it realistically needs SMTP (email verification), which isn't
@@ -145,14 +156,18 @@ Each phase is independently useful; phase 2 alone justifies the project.
 
 ## 7. Open decisions (resolve before building)
 
+- **Public domain** — the Cloudflare-managed domain for `auth.<domain>`,
+  `jellyfin.<domain>`, etc. Needed to author the cloudflared ingress + Caddy public
+  site blocks + the public OIDC issuer. (Was "TLS strategy" — Cloudflare resolves it.)
+- **Public app allowlist** — confirm exactly which services the tunnel exposes
+  (Jellyfin, Seerr, Navidrome, Nextcloud, + which "couple others" — Homarr?). Each
+  must have strong app-native auth since it's internet-facing.
 - **Navidrome disposition** — web-only share vs. separate password vs. Jellyfin-for-music.
-- **TLS strategy** — accept internal-CA warnings vs. real domain + LE DNS-01 (needs a
-  Caddy image rebuild for a DNS plugin, and a registered domain).
-- **VPN ↔ SSO assumptions** — confirm the existing VPN routes `192.168.10.0/24` to
-  friends and that they get `.lab` DNS from Technitium (else `auth.lab`/app names
-  won't resolve over the VPN).
+- **Teleport `.lab` DNS** — confirm WiFiman/Teleport VPN clients resolve `.lab` via
+  Technitium (else admins can't hit `auth.lab`/app names; hand out IPs or set VPN DNS).
 - **How far to extend forward-auth** over admin apps — uniform login wall, or leave
-  admin apps on their current per-app auth (LAN-only already gates them).
+  admin apps on their current per-app auth (LAN-only already gates them). Public-tier
+  native-client apps (Jellyfin/Navidrome) must stay OFF forward-auth/Cloudflare Access.
 - **Authentik vs. lighter Authelia+LLDAP** — locked to Authentik for the
   self-service/invite UX; revisit only if Heimdall resource pressure becomes real.
 

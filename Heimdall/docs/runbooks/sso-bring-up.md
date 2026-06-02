@@ -71,19 +71,24 @@ Jellyfin runs on TrueNAS (`192.168.10.247:30013`); configure in its web UI:
 
 **Seerr** then just works via its "Sign in with Jellyfin" — no separate config.
 
-## 4. Remote access (existing VPN — out of scope, just verify)
+## 4. Remote access (two tiers)
 
-SSO doesn't care which VPN you run. Before onboarding friends, confirm a test
-client on the VPN can:
+Both tiers authenticate against the same Authentik.
 
-- reach the LAN: `curl -k https://192.168.10.4` and `…:30013` (Jellyfin) succeed.
-- resolve `.lab`: `auth.lab`, `jellyfin.lab`, `homarr.lab` resolve via Technitium.
-  If the VPN doesn't push Technitium as DNS, either add it to the VPN's DNS config
-  or hand friends the few IPs.
+**Admin tier — UniFi WiFiman/Teleport VPN.** Trusted friends, full LAN, `.lab`.
+Verify a test client can:
+- reach the LAN: `curl -k https://192.168.10.4` and `https://192.168.10.247:30013`
+  (Jellyfin) succeed.
+- resolve `.lab`: `auth.lab`, `jellyfin.lab` resolve. Teleport hands out the gateway
+  resolver by default — if `.lab` doesn't resolve, point the VPN/gateway DNS at
+  Technitium (`192.168.10.4`) or hand admins the IPs.
 
-TV/streaming clients: if the VPN routes the whole LAN from a gateway the friend
-connects through, TVs are covered with no on-TV client; if it's a per-device client
-VPN, TVs that can't run it won't reach the LAN.
+**Public tier — Cloudflare Tunnel** (`Heimdall/cloudflared/`, scaffolded separately).
+cloudflared dials Caddy; only the allowlisted public hostnames (`jellyfin.<domain>`,
+`seerr.<domain>`, `navidrome.<domain>`, `nextcloud.<domain>`, `auth.<domain>`) are
+routable. Cloudflare presents the public cert; apps use their own Authentik-backed
+login. **Do not** put Cloudflare Access in front of Jellyfin/Navidrome (native
+clients can't pass its token). See that stack's README for tunnel-token + DNS steps.
 
 ## 5. Homarr ↔ Authentik TLS trust (the one OIDC gotcha)
 
@@ -98,9 +103,10 @@ internal CA — which Node won't trust by default. Pick one:
   then add to the Homarr deployment: a `homarr-ca` configMap volume at
   `/certs/ca.crt` and `NODE_EXTRA_CA_CERTS=/certs/ca.crt`. (Left out of git
   because `root.crt` is generated at Caddy runtime, not committed.)
-- **B — publicly-trusted issuer:** front `auth.lab` with a Let's Encrypt cert (real
-  domain + DNS-01; needs a Caddy image rebuild for a DNS plugin) and set
-  `AUTH_OIDC_ISSUER` to that hostname. No CA mount.
+- **B — public issuer (simplest if Homarr is on the public tier):** set
+  `AUTH_OIDC_ISSUER` to `https://auth.<domain>/application/o/homarr/`. Cloudflare's
+  edge already serves a publicly-trusted cert for it, so Homarr validates with no CA
+  mount and no Caddy change. Recommended once the tunnel is up.
 
 Then on Homarr's login page choose **Authentik**; first OIDC login auto-creates the
 Homarr user, role from the `groups` claim.
