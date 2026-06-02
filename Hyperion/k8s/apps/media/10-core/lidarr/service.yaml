@@ -10,3 +10,4 @@ spec:
   selector: { app: lidarr }
   ports:
     - { name: http, port: 8686, targetPort: 8686 }
+    - { name: web,  port: 80,   targetPort: 8686 }   # bare http://lidarr.lab

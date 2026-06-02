@@ -10,3 +10,4 @@ spec:
   selector: { app: sonarr }
   ports:
     - { name: http, port: 8989, targetPort: 8989 }
+    - { name: web,  port: 80,   targetPort: 8989 }   # bare http://sonarr.lab

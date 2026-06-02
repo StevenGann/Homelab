@@ -10,3 +10,4 @@ spec:
   selector: { app: qbittorrent }
   ports:
     - { name: webui, port: 8085, targetPort: 8085 }
+    - { name: web,   port: 80,   targetPort: 8085 }   # bare http://qbittorrent.lab

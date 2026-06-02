@@ -7,4 +7,6 @@ metadata:
 spec:
   type: LoadBalancer
   selector: { app: beszel }
-  ports: [ { name: http, port: 8090, targetPort: 8090 } ]
+  ports:
+    - { name: http, port: 8090, targetPort: 8090 }
+    - { name: web,  port: 80,   targetPort: 8090 }   # bare http://beszel.lab

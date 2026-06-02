@@ -10,3 +10,4 @@ spec:
   selector: { app: cleanuparr }
   ports:
     - { name: http, port: 11011, targetPort: 11011 }
+    - { name: web,  port: 80,    targetPort: 11011 }   # bare http://cleanuparr.lab

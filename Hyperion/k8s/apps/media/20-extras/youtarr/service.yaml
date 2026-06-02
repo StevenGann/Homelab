@@ -10,3 +10,4 @@ spec:
   selector: { app: youtarr }
   ports:
     - { name: http, port: 3087, targetPort: 3011 }   # host-convention 3087 → app 3011
+    - { name: web,  port: 80,   targetPort: 3011 }   # bare http://youtarr.lab

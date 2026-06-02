@@ -10,3 +10,4 @@ spec:
   selector: { app: seerr }
   ports:
     - { name: http, port: 5055, targetPort: 5055 }
+    - { name: web,  port: 80,   targetPort: 5055 }   # bare http://seerr.lab

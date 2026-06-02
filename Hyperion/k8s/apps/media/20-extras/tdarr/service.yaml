@@ -11,3 +11,4 @@ spec:
   ports:
     - { name: webui,  port: 8265, targetPort: 8265 }
     - { name: server, port: 8266, targetPort: 8266 }   # Thoth worker connects here
+    - { name: web,    port: 80,   targetPort: 8265 }   # bare http://tdarr.lab → webui

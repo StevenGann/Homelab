@@ -10,3 +10,4 @@ spec:
   selector: { app: prowlarr }
   ports:
     - { name: http, port: 9696, targetPort: 9696 }
+    - { name: web,  port: 80,   targetPort: 9696 }   # bare http://prowlarr.lab

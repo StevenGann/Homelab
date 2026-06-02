@@ -10,3 +10,4 @@ spec:
   selector: { app: homarr }
   ports:
     - { name: http, port: 7575, targetPort: 7575 }
+    - { name: web,  port: 80,   targetPort: 7575 }   # bare http://homarr.lab

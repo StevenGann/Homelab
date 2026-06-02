@@ -10,3 +10,4 @@ spec:
   selector: { app: navidrome }
   ports:
     - { name: http, port: 4533, targetPort: 4533 }
+    - { name: web,  port: 80,   targetPort: 4533 }   # bare http://navidrome.lab
