@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flaresolverr
+  namespace: media
+  labels: { app: flaresolverr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: flaresolverr }
+  template:
+    metadata:
+      labels: { app: flaresolverr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: flaresolverr
+          # Multi-arch image; the :latest tag resolves an arm64 manifest for Pi 5.
+          image: ghcr.io/flaresolverr/flaresolverr:v3.3.21@sha256:f104ee51e5124d83cf3be9b37480649355d223f7d8f9e453d0d5ef06c6e3b31b
+          env:
+            - { name: LOG_LEVEL,        value: "info" }
+            - { name: TZ,               value: "America/Los_Angeles" }
+            - { name: BROWSER_TIMEOUT,  value: "40000" }   # ms per Cloudflare solve
+          ports:
+            - { name: http, containerPort: 8191 }
+          startupProbe:                  # headless Chromium cold-start is slow on arm64
+            httpGet: { path: /, port: 8191 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /, port: 8191 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /, port: 8191 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "384Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }   # a browser solve spikes both

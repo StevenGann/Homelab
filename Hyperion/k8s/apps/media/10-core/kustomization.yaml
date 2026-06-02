@@ -3,6 +3,7 @@ kind: Kustomization
 # Aggregates the core *arr services. Each child sets `namespace: media` itself.
 resources:
   - prowlarr
+  - flaresolverr        # Cloudflare-challenge solver; Prowlarr proxies tagged indexers through it
   - sonarr
   - radarr
   - qbittorrent
