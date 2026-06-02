@@ -14,12 +14,16 @@ spec:
       labels: { app: suggestarr }
     spec:
       nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      enableServiceLinks: false            # k8s injects SUGGESTARR_PORT=tcp://<svc-ip>:5000 (named after the
+                                           # 'suggestarr' Service), which the app reads as its listen port and
+                                           # feeds to uvicorn --port → crash. Disable the injection.
       containers:
         - name: suggestarr
           image: ciuse99/suggestarr:v2.8.0@sha256:3db37a8756f6d79efd2536d5834709e7e0d3f32df8e5abf53977c1f742c785ea
           env:
-            - { name: TZ,        value: "America/Los_Angeles" }
-            - { name: LOG_LEVEL, value: "info" }
+            - { name: TZ,             value: "America/Los_Angeles" }
+            - { name: LOG_LEVEL,      value: "info" }
+            - { name: SUGGESTARR_PORT, value: "5000" }   # explicit, belt-and-suspenders over the service-link var
           ports:
             - { name: http, containerPort: 5000 }
           volumeMounts:
