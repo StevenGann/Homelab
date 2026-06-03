@@ -66,11 +66,13 @@ komodo.lab {
 #
 # Fronts the Authentik server (separate Compose project, published on
 # 127.0.0.1:9180). Authentik reads X-Forwarded-Proto from this proxy to build
-# correct https:// OIDC issuer/redirect URLs. `tls internal` for now; for friends
-# over Tailscale prefer a publicly-trusted cert (ts.net / LE) so their devices
-# don't need the internal CA — see docs/runbooks/sso-bring-up.md.
+# correct https:// OIDC issuer/redirect URLs.
+#   - auth.lab            : admin tier (WiFiman VPN), internal-CA cert.
+#   - auth.stevengann.com : public tier — the Cloudflare Tunnel dials this Caddy
+#     origin (noTLSVerify), Cloudflare's edge presents the real public cert. Caddy
+#     mints an internal cert here too; cloudflared ignores its trust.
 
-auth.lab {
+auth.lab, auth.stevengann.com {
     tls internal
     reverse_proxy 127.0.0.1:9180
 }

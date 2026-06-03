@@ -90,23 +90,17 @@ routable. Cloudflare presents the public cert; apps use their own Authentik-back
 login. **Do not** put Cloudflare Access in front of Jellyfin/Navidrome (native
 clients can't pass its token). See that stack's README for tunnel-token + DNS steps.
 
-## 5. Homarr ↔ Authentik TLS trust (the one OIDC gotcha)
+## 5. Homarr ↔ Authentik TLS trust (handled by the public issuer)
 
-Homarr (in k8s) validates the issuer `https://auth.lab/...`, signed by Caddy's
-internal CA — which Node won't trust by default. Pick one:
+As-built, Homarr's `AUTH_OIDC_ISSUER` is `https://auth.stevengann.com/...` (the
+public Cloudflare hostname). Cloudflare's edge serves a publicly-trusted cert, so
+Homarr validates with **no CA mount and no Caddy change** — the old internal-CA
+gotcha is gone. This requires the tunnel (§7) to be up and `auth.stevengann.com` to
+resolve from the cluster (Technitium forwards public queries upstream).
 
-- **A — trust the CA (keeps `.lab`):** fetch the root and mount it:
-  ```bash
-  curl -s http://heimdall.lab/ca.crt -o caddy-internal-ca.crt
-  kubectl -n media create configmap homarr-ca --from-file=ca.crt=caddy-internal-ca.crt
-  ```
-  then add to the Homarr deployment: a `homarr-ca` configMap volume at
-  `/certs/ca.crt` and `NODE_EXTRA_CA_CERTS=/certs/ca.crt`. (Left out of git
-  because `root.crt` is generated at Caddy runtime, not committed.)
-- **B — public issuer (simplest if Homarr is on the public tier):** set
-  `AUTH_OIDC_ISSUER` to `https://auth.<domain>/application/o/homarr/`. Cloudflare's
-  edge already serves a publicly-trusted cert for it, so Homarr validates with no CA
-  mount and no Caddy change. Recommended once the tunnel is up.
+Fallback only if you ever make Homarr admin-only (`.lab` issuer, internal CA): fetch
+`http://heimdall.lab/ca.crt`, mount it as a configMap at `/certs/ca.crt`, and set
+`NODE_EXTRA_CA_CERTS=/certs/ca.crt` on the deployment.
 
 Then on Homarr's login page choose **Authentik**; first OIDC login auto-creates the
 Homarr user, role from the `groups` claim.
@@ -119,10 +113,52 @@ Homarr user, role from the `groups` claim.
   [authentik README](../../authentik/README.md)) and redeploy. Note blueprints
   don't prune users — disable/delete in the UI.
 
+## 7. Public web exposure — Cloudflare Tunnel
+
+One-time, after you've decided to go live (stack + ingress map:
+[`Heimdall/cloudflared/`](../../cloudflared/)).
+
+1. **Move stevengann.com DNS to Cloudflare** (registrar stays Namecheap):
+   - Create a free Cloudflare account → Add site `stevengann.com` → let it import
+     existing records. **Verify the GitHub Pages records imported** (apex `A` →
+     185.199.108–111.153, `www` CNAME → `stevengann.github.io`); set those to **DNS
+     only / grey-cloud** so GitHub keeps serving the blog + its own cert.
+   - At Namecheap → Domain → Nameservers → **Custom DNS** → enter the two Cloudflare
+     nameservers. Propagates in minutes–hours; the blog keeps working throughout.
+2. **Create the tunnel + routes + credentials** — see
+   [`Heimdall/cloudflared/README.md`](../../cloudflared/README.md) "Operator setup":
+   `cloudflared tunnel login` → `create heimdall` → put the UUID in `config.yml` →
+   SOPS-encrypt the JSON to `secrets/cloudflared-credentials.sops` →
+   `tunnel route dns` for `auth jf seerr music homarr`.
+3. **Deploy:** `cd Heimdall && ./scripts/deploy.sh` (brings up the tunnel once the
+   credentials exist).
+4. **Switch Authentik's default brand/issuer host to public** if needed and confirm
+   `https://jf.stevengann.com` + `https://auth.stevengann.com` load with a valid
+   public cert from off-network.
+
+WAF/hardening (optional): add a Cloudflare rate-limit rule on `auth.stevengann.com`.
+Never put Cloudflare Access in front of `auth`, `jf`, or `music`.
+
+## 8. Game servers — NOT via the tunnel
+
+Cloudflare's free tunnel is HTTP-only; Minecraft/Space Engineers are raw TCP/UDP.
+Expose them the traditional way (the one path that uses the home IP, scoped to the
+game ports):
+
+- In Cloudflare, add `mc.stevengann.com` and `se.stevengann.com` as **CNAME →
+  `monolith.ddns.net`, DNS only (grey-cloud)** — reusing your existing DDNS for the
+  dynamic IP, behind a clean hostname.
+- On the UCG, port-forward to the server's host:port (from its Pterodactyl
+  allocation): **Minecraft TCP 25565**; **Space Engineers UDP 27016** (confirm
+  against the egg). Optionally a Minecraft `SRV` record so players omit the port.
+- To avoid home-IP exposure entirely you'd need paid Cloudflare Spectrum or a VPS
+  relay (e.g. playit.gg) — out of scope.
+
 ## Rollback
 
 ```bash
-cd /opt/Homelab/Heimdall/authentik && docker compose -p authentik down   # keeps volumes
+cd /opt/Homelab/Heimdall/authentik  && docker compose -p authentik  down   # keeps volumes
+cd /opt/Homelab/Heimdall/cloudflared && docker compose -p cloudflared down  # stops public access
 ```
 No app is forced through SSO: Jellyfin keeps local accounts until you enable the
 plugin; Homarr keeps `credentials`. Removing the stack reverts cleanly.

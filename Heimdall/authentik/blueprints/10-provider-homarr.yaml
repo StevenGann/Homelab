@@ -5,8 +5,9 @@
 # so both sides share one credential. Homarr env wiring lives in that app's
 # deployment.yaml.
 #
-# Issuer Homarr must use: https://auth.lab/application/o/homarr/
-# Callback Homarr sends:  http(s)://homarr.lab[:7575]/api/auth/callback/oidc
+# Issuer Homarr uses:    https://auth.stevengann.com/application/o/homarr/ (public)
+# Callback (public tier): https://homarr.stevengann.com/api/auth/callback/oidc
+# Callback (admin/.lab):  http(s)://homarr.lab[:7575]/api/auth/callback/oidc
 version: 1
 metadata:
   name: homelab-provider-homarr
@@ -26,8 +27,10 @@ entries:
         !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       signing_key:
         !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
-      # Tolerant of http/https and the optional :7575 NodePort-style access.
+      # Public hostname (Cloudflare Tunnel) + the internal .lab/NodePort variants.
       redirect_uris:
+        - matching_mode: strict
+          url: "https://homarr.stevengann.com/api/auth/callback/oidc"
         - matching_mode: regex
           url: "https?://homarr\\.lab(:7575)?/api/auth/callback/oidc"
       property_mappings:

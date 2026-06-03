@@ -1,0 +1,52 @@
+# Cloudflare Tunnel — ingress (locally-managed = IaC source of truth)
+#
+# Public web services only. cloudflared dials these origins over the LAN; only the
+# hostnames listed here are routable from the internet. Cloudflare's edge presents
+# the public cert for *.stevengann.com, so no origin cert/CA work is needed.
+#
+# Games (mc/se) are NOT here — Cloudflare's free tunnel is HTTP-only. They use a
+# grey-cloud DNS record + UCG port-forward (see README + the runbook).
+#
+# Fill `tunnel:` with the UUID from `cloudflared tunnel create heimdall`. The
+# matching credentials.json is shipped (SOPS) to /etc/cloudflared/credentials.json.
+
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: /etc/cloudflared/credentials.json
+
+# Outbound keep-alive niceties (optional, sane defaults).
+originRequest:
+  connectTimeout: 30s
+  noHappyEyeballs: true
+
+ingress:
+  # ── Authentik (REQUIRED for public OIDC login) ──────────────────────────────
+  # Via Caddy so X-Forwarded-Proto is set and the issuer is built as https. Caddy
+  # must answer auth.stevengann.com (added to the auth block in Caddyfile).
+  - hostname: auth.stevengann.com
+    service: https://192.168.10.4:443
+    originRequest:
+      noTLSVerify: true                 # Caddy serves its internal-CA cert to cloudflared
+      originServerName: auth.stevengann.com
+
+  # ── Jellyfin (on Akasha NodePort; not behind Caddy) ─────────────────────────
+  - hostname: jf.stevengann.com
+    service: http://192.168.10.247:30013
+
+  # ── Seerr (media requests) ──────────────────────────────────────────────────
+  - hostname: seerr.stevengann.com
+    service: http://192.168.10.54         # MetalLB VIP :80
+
+  # ── Navidrome (music) ───────────────────────────────────────────────────────
+  - hostname: music.stevengann.com
+    service: http://192.168.10.66         # MetalLB VIP :80
+
+  # ── Homarr (friend landing page) ────────────────────────────────────────────
+  - hostname: homarr.stevengann.com
+    service: http://192.168.10.53         # MetalLB VIP :80
+
+  # ── Nextcloud — NOT deployed yet. Uncomment + set the VIP when it lands. ─────
+  # - hostname: cloud.stevengann.com
+  #   service: http://<nextcloud-metallb-vip>
+
+  # Catch-all: anything not matched above is refused (don't proxy the whole host).
+  - service: http_status:404

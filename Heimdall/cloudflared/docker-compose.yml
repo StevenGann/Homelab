@@ -1,0 +1,29 @@
+# Heimdall — Cloudflare Tunnel (public access to web services)
+#
+# SEPARATE Compose project (started by scripts/deploy.sh), same single-root
+# portability convention as authentik/, hyperion/, k3s-control-plane/.
+#
+# Outbound-only: no inbound ports are opened on the UCG and the home IP is never
+# exposed. cloudflared makes an outbound connection to Cloudflare's edge; traffic
+# flows edge → tunnel → these LAN origins (per config.yml). This REPLACES the old
+# DDNS+port-forward exposure for the WEB services. (Game servers still use a
+# port-forward — see README.)
+#
+# Locally-managed tunnel: ingress lives in config.yml (in git = IaC); the tunnel
+# secret is credentials.json, SOPS-encrypted in the repo and shipped by deploy.sh.
+# Skips cleanly until credentials.json exists (see deploy.sh).
+#
+# Pin: pin cloudflare/cloudflared to a specific version after the first pull
+# (Cloudflare ships frequently). `latest` is used here for first bring-up.
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml --no-autoupdate run
+    volumes:
+      - /opt/Homelab/Heimdall/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - /opt/Homelab/Heimdall/cloudflared/credentials.json:/etc/cloudflared/credentials.json:ro
+    # No published ports — outbound tunnel only. Default bridge network can reach
+    # LAN origins (192.168.10.x) via the host.
+    logging: { driver: journald }

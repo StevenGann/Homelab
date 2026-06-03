@@ -156,12 +156,11 @@ Each phase is independently useful; phase 2 alone justifies the project.
 
 ## 7. Open decisions (resolve before building)
 
-- **Public domain** — the Cloudflare-managed domain for `auth.<domain>`,
-  `jellyfin.<domain>`, etc. Needed to author the cloudflared ingress + Caddy public
-  site blocks + the public OIDC issuer. (Was "TLS strategy" — Cloudflare resolves it.)
-- **Public app allowlist** — confirm exactly which services the tunnel exposes
-  (Jellyfin, Seerr, Navidrome, Nextcloud, + which "couple others" — Homarr?). Each
-  must have strong app-native auth since it's internet-facing.
+- **Public domain — RESOLVED:** `stevengann.com` (Namecheap registrar, DNS moving to
+  Cloudflare). Apex stays on GitHub Pages (blog); apps on subdomains. See the
+  hostname map in §8.
+- **Public allowlist — RESOLVED (web):** Jellyfin, Seerr, Navidrome, Homarr, Nextcloud
+  (when deployed) via the tunnel; `mc`/`se` game servers via DDNS+port-forward (§8).
 - **Navidrome disposition** — web-only share vs. separate password vs. Jellyfin-for-music.
 - **Teleport `.lab` DNS** — confirm WiFiman/Teleport VPN clients resolve `.lab` via
   Technitium (else admins can't hit `auth.lab`/app names; hand out IPs or set VPN DNS).
@@ -177,16 +176,36 @@ Each phase is independently useful; phase 2 alone justifies the project.
 
 Three bands, mapped to what's committed:
 
+**Public hostname map (`stevengann.com`):**
+
+| Host | Transport | → Origin |
+|------|-----------|----------|
+| `auth` | Cloudflare Tunnel | Caddy → Authentik (required for public OIDC) |
+| `jf` | Cloudflare Tunnel | Akasha `:30013` (Jellyfin) |
+| `seerr` | Cloudflare Tunnel | `192.168.10.54` |
+| `music` | Cloudflare Tunnel | `192.168.10.66` (Navidrome) |
+| `homarr` | Cloudflare Tunnel | `192.168.10.53` |
+| `cloud` | Cloudflare Tunnel | Nextcloud (commented until deployed) |
+| `mc` / `se` | **DDNS CNAME + UCG port-forward** (HTTP-only tunnel can't carry games) | Minecraft TCP 25565 / Space Engineers UDP 27016 |
+
+Apex `stevengann.com` + `www` stay on GitHub Pages (blog), grey-cloud.
+
 **✅ Committed IaC (deploys mechanically via `git push` + `deploy.sh`/Flux):**
 - `Heimdall/authentik/` — compose stack (server/worker/postgres/redis/LDAP outpost)
   + blueprints (groups, Homarr OIDC, Nextcloud placeholder, LDAP provider+outpost).
-- `Heimdall/scripts/deploy.sh` — brings up the Authentik project.
-- `Heimdall/caddy/Caddyfile` (`auth.lab`) + `Heimdall/scripts/seed-zones.sh` (`auth.lab` A).
-- `Hyperion/k8s/apps/media/20-extras/homarr/` — OIDC env + client creds in the SOPS secret.
+- `Heimdall/cloudflared/` — tunnel compose + `config.yml` ingress (web allowlist).
+- `Heimdall/scripts/deploy.sh` — brings up Authentik + (when keyed) the tunnel.
+- `Heimdall/caddy/Caddyfile` (`auth.lab` + `auth.stevengann.com`) +
+  `Heimdall/scripts/seed-zones.sh` (`auth.lab` A).
+- `Hyperion/k8s/apps/media/20-extras/homarr/` — OIDC env (public issuer) + client
+  creds in the SOPS secret.
 - Machine secrets generated + SOPS-encrypted into `Heimdall/secrets/env.sops.env`.
 
-**🟡 One external value, then it deploys (placeholder committed):**
+**🟡 External values, then it deploys (operator-supplied):**
 - `AUTHENTIK_LDAP_OUTPOST_TOKEN` — read from the Authentik UI after first apply.
+- `secrets/cloudflared-credentials.sops` + the tunnel UUID in `config.yml` — from
+  `cloudflared tunnel create` once stevengann.com DNS is on Cloudflare.
+- Cloudflare account + nameserver move at Namecheap; UCG port-forwards for `mc`/`se`.
 
 **❌ Not IaC-able in this repo (hands-on):**
 - **Jellyfin LDAP plugin install + config — on Akasha (TrueNAS), outside the tree.**

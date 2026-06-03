@@ -29,9 +29,11 @@ HEIMDALL_HOST="${HEIMDALL_HOST:-owner@192.168.10.4}"
 ENV_SOPS="${REPO_ROOT}/Heimdall/secrets/env.sops.env"
 PW_SOPS="${REPO_ROOT}/Heimdall/secrets/technitium-admin-pw.sops"
 K3S_ENV_SOPS="${REPO_ROOT}/Heimdall/secrets/k3s-control-plane.sops.env"
+CF_CREDS_SOPS="${REPO_ROOT}/Heimdall/secrets/cloudflared-credentials.sops"
 ENV_REMOTE="/opt/Homelab/Heimdall/.env"
 PW_REMOTE="/opt/Homelab/Heimdall/secrets/technitium-admin-pw"
 K3S_ENV_REMOTE="/opt/Homelab/Heimdall/k3s-control-plane/.env"
+CF_CREDS_REMOTE="/opt/Homelab/Heimdall/cloudflared/credentials.json"
 
 DO_SECRETS=1
 DO_DEPLOY=1
@@ -112,6 +114,24 @@ if [ "$DO_SECRETS" -eq 1 ]; then
         fi
     else
         warn "k3s-control-plane.sops.env not found — skipping (mint it first per Heimdall/k3s-control-plane/README.md)."
+    fi
+
+    # cloudflared tunnel credentials — present only after the operator has run
+    # `cloudflared tunnel create` and SOPS-encrypted the JSON (see
+    # Heimdall/cloudflared/README.md). Tolerate absence during bring-up.
+    if [ -f "$CF_CREDS_SOPS" ]; then
+        log "Shipping cloudflared credentials (decrypted from $CF_CREDS_SOPS)..."
+        if [ -n "$DRY_RUN" ]; then
+            printf '\033[1;36m[dry-run]\033[0m sops --decrypt --input-type json --output-type json %s | ssh %s "sudo install -d -m 0755 $(dirname %s) && sudo tee %s > /dev/null && sudo chmod 600 %s"\n' \
+                "$CF_CREDS_SOPS" "$HEIMDALL_HOST" "$CF_CREDS_REMOTE" "$CF_CREDS_REMOTE" "$CF_CREDS_REMOTE"
+        else
+            CF_DIR="$(dirname "$CF_CREDS_REMOTE")"
+            sops --decrypt --input-type json --output-type json "$CF_CREDS_SOPS" | \
+                ssh "$HEIMDALL_HOST" "sudo install -d -m 0755 $CF_DIR && sudo tee $CF_CREDS_REMOTE > /dev/null && sudo chmod 600 $CF_CREDS_REMOTE" \
+                || die "Failed to ship cloudflared credentials"
+        fi
+    else
+        warn "cloudflared-credentials.sops not found — skipping tunnel (create it first per Heimdall/cloudflared/README.md)."
     fi
 else
     log "Skipping secrets shipment (--no-secrets)"
@@ -205,6 +225,19 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
         docker compose --env-file /opt/Homelab/Heimdall/.env pull
         docker compose --env-file /opt/Homelab/Heimdall/.env up -d
         docker compose --env-file /opt/Homelab/Heimdall/.env ps
+
+        # ─── Cloudflare Tunnel — separate Compose project ────────────────
+        # Public web access. Skips until credentials.json is shipped (operator
+        # runs `cloudflared tunnel create` first — see Heimdall/cloudflared/).
+        if [ -f /opt/Homelab/Heimdall/cloudflared/credentials.json ]; then
+            echo "[remote] Bringing up Cloudflare Tunnel..."
+            cd /opt/Homelab/Heimdall/cloudflared
+            docker compose pull
+            docker compose up -d
+            docker compose ps
+        else
+            echo "[remote] cloudflared credentials.json not present — skipping tunnel (create it first)."
+        fi
 
         cd /opt/Homelab/Heimdall
 
