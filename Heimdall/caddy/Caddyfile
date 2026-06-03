@@ -111,6 +111,25 @@ ollama.lab {
     }
 }
 
+# ─── OpenWebUI (chat UI for Ollama, on Thoth) ─────────────────────────────────────────
+# Has its own login. WebSocket (socket.io) + streamed tokens — flush_interval -1.
+openwebui.lab {
+    tls internal
+    reverse_proxy 192.168.10.144:3000 {
+        flush_interval -1
+    }
+}
+
+# ─── ComfyUI (image gen, on Thoth — GPU) ──────────────────────────────────────────────
+# No native auth — LAN/VPN only. Uses a /ws WebSocket for queue/progress (Caddy
+# proxies WS automatically).
+comfyui.lab {
+    tls internal
+    reverse_proxy 192.168.10.144:8188 {
+        flush_interval -1
+    }
+}
+
 # ─── Phase 3 routes go below this line ────────────────────────────────────────────────
 #
 # Pattern for HTTP services on the k3s cluster (NodePort fanout across all Pi nodes):

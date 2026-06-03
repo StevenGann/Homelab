@@ -44,5 +44,10 @@ docker exec thoth-ollama-1 ollama pull <model>        # models land on /tank/oll
 ```
 
 - **Ollama** — `http://ollama.lab` (Heimdall Caddy → `192.168.10.144:11434`) or direct on `:11434`.
+- **OpenWebUI** — `http://openwebui.lab` (or `:3000`); chat UI for Ollama, own login (first user = admin).
+- **ComfyUI** — `http://comfyui.lab` (or `:8188`); image gen on GPU, models under `/tank/comfyui` (start empty). No native auth — LAN/VPN only.
+- **Komodo Periphery** — `:8120`; manages Thoth's containers from `komodo.lab`. Onboard from the panel (v2 onboarding-key handshake; see the runbook).
 - **Tdarr worker** — enable once Akasha exports the shared transcode cache + media (plan §3b).
 - **Wings** — enable after creating the Thoth node in the panel (`192.168.10.69`) to mint its token.
+
+Deploy/update the stack: `Thoth/scripts/deploy.sh` (ships SOPS secrets + compose, then `docker compose up -d`).

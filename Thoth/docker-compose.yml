@@ -33,6 +33,60 @@ services:
               capabilities: [gpu]
     logging: { driver: journald }
 
+  # ─── OpenWebUI (chat UI for Ollama) ─────────────────────────────────────────
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:latest
+    restart: unless-stopped
+    depends_on: [ollama]
+    environment:
+      OLLAMA_BASE_URL: "http://ollama:11434"   # same compose network
+      WEBUI_SECRET_KEY: ${OPENWEBUI_SECRET}    # from /opt/Homelab/Thoth/.env (SOPS)
+      WEBUI_URL: "http://openwebui.lab"
+    ports:
+      - "3000:8080"                            # Caddy fronts openwebui.lab here
+    volumes:
+      - /fast/open-webui:/app/backend/data      # users/chats/settings (SSD)
+    logging: { driver: journald }
+
+  # ─── ComfyUI (Stable Diffusion / image gen — GPU) ───────────────────────────
+  # ai-dock image: ComfyUI on :8188, persistent /workspace. Models start EMPTY
+  # (the old 329 GB ComfyUI pool was wiped) — add checkpoints under
+  # /tank/comfyui/ComfyUI/models. No native auth; LAN/Caddy only.
+  comfyui:
+    image: ghcr.io/ai-dock/comfyui:latest-cuda
+    restart: unless-stopped
+    environment:
+      WORKSPACE: "/workspace"
+      WEB_ENABLE_AUTH: "false"                 # rely on LAN/Caddy, not ai-dock's portal
+      COMFYUI_ARGS: "--listen 0.0.0.0"
+    ports:
+      - "8188:8188"
+    volumes:
+      - /tank/comfyui:/workspace                # models + outputs + custom_nodes (HDD pool)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    logging: { driver: journald }
+
+  # ─── Komodo Periphery (manage Thoth's containers from komodo.lab) ───────────
+  # v2: Core/Periphery auto-generate keypairs; onboard from the Komodo panel with
+  # an onboarding key (see the runbook). Persist /etc/komodo so the keypair +
+  # onboarding survive restarts.
+  periphery:
+    image: ghcr.io/moghtech/komodo-periphery:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/proc
+      - /opt/Homelab/Thoth/periphery:/etc/komodo
+    ports:
+      - "8120:8120"                            # Komodo Core (Heimdall) dials this
+    logging: { driver: journald }
+
   # ─── Tdarr worker/node (hardware transcode — GPU) ───────────────────────────
   # STAGED — enable once the Akasha shared-cache + media NFS exports exist (see
   # docs/design/thoth-plan.md §3b). Connects to the Tdarr SERVER on Hyperion.

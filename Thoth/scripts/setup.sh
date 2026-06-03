@@ -73,7 +73,10 @@ if [ "$PROVISION_STORAGE" -eq 1 ]; then
         sudo zpool create -f -o ashift=12 -O compression=lz4 -O atime=off -O xattr=sa -m /tank tank raidz1 /dev/sda /dev/sdc /dev/sdd /dev/sdf
         sudo zpool create -f -o ashift=12 -O compression=lz4 -O atime=off -O xattr=sa -m /fast fast /dev/sde
         for P in tank fast; do sudo zpool export $P; sudo zpool import -d /dev/disk/by-id $P; done
-        sudo zfs create tank/ollama
+        sudo zfs create -o compression=lz4 tank/ollama       # Ollama models
+        sudo zfs create -o compression=lz4 tank/comfyui      # ComfyUI models/outputs
+        sudo zfs create -o compression=lz4 fast/open-webui   # OpenWebUI data (SSD)
+        sudo chmod 777 /tank/comfyui /fast/open-webui
         sudo mkfs.ext4 -F -q -L docker /dev/sdb
         sudo mkdir -p /var/lib/docker
         grep -q 'LABEL=docker' /etc/fstab || echo 'LABEL=docker /var/lib/docker ext4 defaults,noatime 0 2' | sudo tee -a /etc/fstab >/dev/null
