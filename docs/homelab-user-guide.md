@@ -1,6 +1,6 @@
 # Homelab — User Guide
 
-*A hand-off reference for trusted users with admin access. Last updated 2026-06-01.*
+*A hand-off reference for trusted users with admin access. Last updated 2026-06-02.*
 
 All services below run on the home network (`192.168.10.0/24`) — open the links
 while connected to the LAN (or through the remote-access method the administrator
@@ -78,6 +78,7 @@ usually never need to touch these. Admin/power-user territory.
 | App | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
 | **Hermes** | [hermes.lab](http://hermes.lab) | [192.168.10.52](http://192.168.10.52) | Self-hosted AI agent (DeepSeek-backed). **Login required** (HTTP basic auth — ask the admin). |
+| **Caldera** | [caldera.lab](http://caldera.lab) | [192.168.10.70:8000](http://192.168.10.70:8000) | REST/MCP API that exposes the Obsidian vault to AI agents (read/write notes, search). Not a click-and-use site — needs a **Bearer token** (ask the admin); interactive API docs at `/docs`. |
 
 ---
 
