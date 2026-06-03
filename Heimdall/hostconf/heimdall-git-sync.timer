@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic GitOps clone refresh for /opt/Homelab
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+# Catch up after downtime; small jitter so many hosts don't hammer GitHub at once.
+Persistent=true
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

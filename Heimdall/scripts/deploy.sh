@@ -158,7 +158,15 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
 
     log "Running git pull + docker compose pull + up -d + onboard + seed on Heimdall..."
     REMOTE_CMD='set -e
-        cd /opt/Homelab && git pull
+        # Sync the clone via the shared GitOps script (runs as root, surgical
+        # chown — never blanket-chowns the live container data under the repo).
+        # Same logic the heimdall-git-sync.timer runs; robust vs the divergence
+        # that broke a plain `git pull`. Falls through if the script predates this.
+        if [ -f /opt/Homelab/Heimdall/scripts/git-sync.sh ]; then
+            sudo bash /opt/Homelab/Heimdall/scripts/git-sync.sh
+        else
+            cd /opt/Homelab && git fetch origin -q main && git reset --hard origin/main
+        fi
         cd /opt/Homelab/Heimdall
         docker compose pull
         docker compose up -d

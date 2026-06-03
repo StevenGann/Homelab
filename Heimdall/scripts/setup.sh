@@ -351,6 +351,21 @@ EOF
     mark_step 10_unattended
 }
 
+# ─── Step 11 — GitOps clone-refresh timer ────────────────────────────────────────────
+# Keeps /opt/Homelab matching origin/main automatically (files only — deploys stay
+# workstation-driven because Heimdall never holds the SOPS age key). Fixes the
+# recurring "on-host clone goes stale" problem.
+step_11_git_sync() {
+    log "Installing GitOps clone-refresh timer..."
+
+    install -m 0644 "${HEIMDALL_DIR}/hostconf/heimdall-git-sync.service" /etc/systemd/system/heimdall-git-sync.service
+    install -m 0644 "${HEIMDALL_DIR}/hostconf/heimdall-git-sync.timer"   /etc/systemd/system/heimdall-git-sync.timer
+    systemctl daemon-reload
+    systemctl enable --now heimdall-git-sync.timer
+
+    mark_step 11_git_sync
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────────────
 main() {
     log "Heimdall Phase 1 host setup beginning..."
@@ -369,6 +384,7 @@ main() {
     step_done 09_chrony            || step_09_chrony
     step_done 10_unattended        || step_10_unattended
     step_done 08_periphery         || step_08_periphery
+    step_done 11_git_sync          || step_11_git_sync
 
     log "Phase 1 complete."
     log

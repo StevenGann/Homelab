@@ -1,0 +1,12 @@
+[Unit]
+Description=GitOps clone refresh — sync /opt/Homelab to origin/main (files only)
+After=network-online.target
+Wants=network-online.target
+# Don't fight a workstation deploy.sh that's mid-pull.
+ConditionPathExists=/opt/Homelab/.git
+
+[Service]
+Type=oneshot
+ExecStart=/opt/Homelab/Heimdall/scripts/git-sync.sh
+Nice=10
+IOSchedulingClass=idle
