@@ -80,6 +80,8 @@ usually never need to touch these. Admin/power-user territory.
 | **Hermes** | [hermes.lab](http://hermes.lab) | [192.168.10.52](http://192.168.10.52) | Self-hosted AI agent (DeepSeek-backed). **Login required** (HTTP basic auth — ask the admin). |
 | **Caldera** | [caldera.lab](http://caldera.lab) | [192.168.10.70:8000](http://192.168.10.70:8000) | REST/MCP API that exposes the Obsidian vault to AI agents (read/write notes, search). Not a click-and-use site — needs a **Bearer token** (ask the admin); interactive API docs at `/docs`. |
 | **Ollama** | [ollama.lab](http://ollama.lab) | [192.168.10.144:11434](http://192.168.10.144:11434) | Local LLM inference on the GPU server (Thoth, 2× RTX 6000 Ada). An API for agents/apps (OpenAI-compatible at `/v1`) — pair it with a chat UI. No login; internal only. |
+| **OpenWebUI** | [openwebui.lab](http://openwebui.lab) | [192.168.10.144:3000](http://192.168.10.144:3000) | **The friendly chat front-end for Ollama** (ChatGPT-style). The easy way to talk to the local models. **Own login** — the first account created becomes the admin. |
+| **ComfyUI** | [comfyui.lab](http://comfyui.lab) | [192.168.10.144:8188](http://192.168.10.144:8188) | AI image generation (Stable Diffusion, node-based) on the GPU. No login — internal only. Needs models added before it can generate. |
 
 ---
 
@@ -94,7 +96,7 @@ usually never need to touch these. Admin/power-user territory.
 | System | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
 | **TrueNAS (Akasha)** | [akasha.lab](https://akasha.lab) | [192.168.10.247](https://192.168.10.247) | The storage server — all media + app data lives here. |
-| **Thoth** (GPU compute) | [thoth.lab](http://thoth.lab) | [192.168.10.144](http://192.168.10.144) | GPU server (2× RTX 6000 Ada). Runs **Ollama** (LLM); the Tdarr transcode worker + game-server **Wings** are planned. Container host — manage it via **Komodo** (`komodo.lab`), no separate panel of its own. |
+| **Thoth** (GPU compute) | [thoth.lab](http://thoth.lab) | [192.168.10.144](http://192.168.10.144) | GPU server (2× RTX 6000 Ada). Runs **Ollama** (LLM), **OpenWebUI** (chat), **ComfyUI** (image gen); the Tdarr transcode worker + game-server **Wings** are planned. Container host — manage it via **Komodo** (`komodo.lab`), no separate panel of its own. |
 | **DNS / Container manager / Reverse proxy** | on **[heimdall.lab](http://heimdall.lab)** (`192.168.10.4`) | `192.168.10.4` | Technitium (DNS + ad-blocking), Komodo (containers — `komodo.lab` via the reverse proxy), and Caddy (reverse proxy). **Ask the administrator for the admin URLs.** |
 
 ---
