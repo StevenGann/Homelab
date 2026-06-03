@@ -73,10 +73,9 @@ sudo docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi
 ### GPU allocation across the three workloads
 
 NVENC/NVDEC (Tdarr) and CUDA cores (Ollama) are separate engines, so the two can
-**share both GPUs** without much contention; Wings/Minecraft needs no GPU. Proposed
-default: let **Ollama** and **Tdarr** each see **both** GPUs (`device_ids ["0","1"]`),
-monitor with `nvidia-smi`, and pin (`["0"]` / `["1"]`) only if they contend. **Open
-decision: shared vs. pinned** (e.g., Ollama→both, Tdarr→GPU1).
+**share both GPUs** without much contention; Wings/Minecraft needs no GPU.
+**DECIDED (2026-06-02): both workloads see BOTH GPUs** (`count: all`); monitor with
+`nvidia-smi` and pin via `device_ids` only if they ever contend.
 
 ---
 
@@ -113,10 +112,12 @@ decrypts on the workstation and ships cleartext to `/opt/Homelab/Thoth/.env` (mo
 - Image `ollama/ollama`; port **11434**; models volume `/opt/Homelab/Thoth/ollama`
   (models are many GB — ensure it lives on a large disk).
 - GPU via the device reservation (capabilities `[gpu]`).
-- Exposure: LAN-only published port to start (`192.168.10.144:11434`). Ollama has
-  **no built-in auth** — keep it off the public tunnel; optionally front
-  `ollama.lab` via Heimdall Caddy later (add bearer/basic-auth there if exposed
-  beyond the LAN). **Open decision: LAN-only vs Caddy-fronted.**
+- **Exposure — DECIDED: Caddy-fronted `ollama.lab`.** Publish `11434` on the LAN,
+  add a Heimdall Caddy block `ollama.lab { reverse_proxy 192.168.10.144:11434 }`
+  (+ DNS `ollama.lab → 192.168.10.4`), optionally with basic-auth. Ollama gotcha:
+  set `OLLAMA_HOST=0.0.0.0` in the container and `OLLAMA_ORIGINS` to allow the proxy
+  host (Ollama does DNS-rebind/origin checks — see [[project_reverse_proxy_localhost_guard]]).
+  Internal only; not on the Cloudflare tunnel.
 
 ### 3b. Tdarr worker/node (hardware transcode — GPU + NFS)
 
@@ -180,12 +181,12 @@ Each phase is independently useful; phase 2 proves the GPU stack.
 
 ## 6. Open decisions / operator inputs
 
-- **Admin username** on Thoth (for key + sudo).
+- **Admin username** on Thoth (for key + sudo). ← STILL BLOCKING step 0.
 - **Driver install path on 26.04** — confirm a supported driver branch on the box.
-- **GPU allocation** — both GPUs shared by Ollama+Tdarr, or pinned.
+- ~~GPU allocation~~ — DECIDED: both GPUs shared (§1).
 - **Akasha NFS exports** for the Tdarr shared cache + media library (blocks 3b).
 - **Pterodactyl panel node** creation to mint the Wings token (blocks 3c).
-- **Ollama exposure** — LAN-only vs Caddy-fronted `ollama.lab` (+ auth).
+- ~~Ollama exposure~~ — DECIDED: Caddy-fronted `ollama.lab` (§3a).
 - **Jellyfin-on-Thoth?** the redesign floats Thoth as a future Jellyfin host — out
   of scope here, but GPU transcode for Jellyfin would reuse this same stack.
 
