@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: caldera
+  namespace: caldera
+  annotations: { metallb.io/loadBalancerIPs: 192.168.10.70 }
+spec:
+  type: LoadBalancer
+  selector: { app: caldera }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
+    - { name: web,  port: 80,   targetPort: 8000 }   # bare http://caldera.lab

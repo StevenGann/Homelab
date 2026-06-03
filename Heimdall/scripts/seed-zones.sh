@@ -79,6 +79,7 @@ RECORDS=(
     "suggestarr.lab|A|192.168.10.64"      # :5000  (content suggestions)
     "lidarr.lab|A|192.168.10.65"          # :8686  (music)
     "navidrome.lab|A|192.168.10.66"       # :4533  (music streaming)
+    "caldera.lab|A|192.168.10.70"         # :8000  (Obsidian vault REST API for AI agents)
 )
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────────────

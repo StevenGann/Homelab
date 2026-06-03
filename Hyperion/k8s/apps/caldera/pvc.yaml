@@ -1,0 +1,18 @@
+# caldera-vault : the git working tree (Obsidian vault clone).
+# caldera-data  : app state outside the vault (search index, embeddings db).
+# Both RWO local-path (single-writer app; replicas:1 + Recreate).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: caldera-vault, namespace: caldera }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: caldera-data, namespace: caldera }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 1Gi } }

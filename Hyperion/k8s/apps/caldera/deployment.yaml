@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caldera
+  namespace: caldera
+  labels: { app: caldera }
+spec:
+  replicas: 1                            # single-writer design — do NOT scale
+  strategy: { type: Recreate }           # RWO local-path; no two pods on the vault
+  selector:
+    matchLabels: { app: caldera }
+  template:
+    metadata:
+      labels: { app: caldera }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      terminationGracePeriodSeconds: 60   # let an in-flight commit/push finish
+      containers:
+        - name: caldera
+          # REQUIRES a multi-arch (linux/arm64) image — Hyperion is Pi 5 arm64.
+          # Caldera's release.yml currently builds amd64-only; pin a digest once
+          # the multi-arch image is published. See docs note in the PR/runbook.
+          image: ghcr.io/stevengann/caldera:edge
+          env:
+            - { name: TZ,                     value: "America/Los_Angeles" }
+            # Bind all interfaces so the Service/probes can reach it (the app
+            # defaults to localhost, which would be unreachable in-cluster).
+            - { name: CALDERA_HOST,           value: "0.0.0.0" }
+            - { name: CALDERA_PORT,           value: "8000" }
+            - { name: CALDERA_SOURCE,         value: "github" }
+            # ── Operator: set your Obsidian vault repo (owner/name) ──────────
+            - { name: CALDERA_GITHUB_REPO,    value: "REPLACE_ME_owner/vault" }
+            - { name: CALDERA_GITHUB_BRANCH,  value: "main" }
+            - { name: CALDERA_VAULT_PATH,     value: "/vault" }
+            - { name: CALDERA_DATA_PATH,      value: "/data" }
+            - { name: CALDERA_READ_ONLY,      value: "false" }
+            - { name: CALDERA_SYNC_INTERVAL,  value: "60" }
+            - { name: CALDERA_COMMIT_DEBOUNCE, value: "10" }
+            - { name: CALDERA_COMMIT_MAX_WAIT, value: "30" }
+          envFrom:
+            - secretRef: { name: caldera-secrets }   # CALDERA_API_KEYS + CALDERA_GITHUB_TOKEN
+          ports:
+            - { name: http, containerPort: 8000 }
+          volumeMounts:
+            - { name: vault, mountPath: /vault }
+            - { name: data,  mountPath: /data }
+          startupProbe:                    # generous: arm64 first boot + initial git clone
+            httpGet: { path: /readyz, port: 8000 }
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /readyz, port: 8000 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }
+      volumes:
+        - { name: vault, persistentVolumeClaim: { claimName: caldera-vault } }
+        - { name: data,  persistentVolumeClaim: { claimName: caldera-data } }
