@@ -90,7 +90,14 @@ routable. Cloudflare presents the public cert; apps use their own Authentik-back
 login. **Do not** put Cloudflare Access in front of Jellyfin/Navidrome (native
 clients can't pass its token). See that stack's README for tunnel-token + DNS steps.
 
-## 5. Homarr ↔ Authentik TLS trust (handled by the public issuer)
+## 5. Enable Homarr OIDC (gated until Authentik is up)
+
+**First, flip the gate.** Homarr ships with `AUTH_PROVIDERS: "credentials"` so the
+pushed manifest is a no-op until the IdP exists. Once Authentik + the tunnel are
+live and `auth.stevengann.com` resolves, edit
+`Hyperion/k8s/apps/media/20-extras/homarr/deployment.yaml` →
+`AUTH_PROVIDERS: "credentials,oidc"`, commit, push (Flux applies it). The
+`AUTH_OIDC_*` vars are already set.
 
 As-built, Homarr's `AUTH_OIDC_ISSUER` is `https://auth.stevengann.com/...` (the
 public Cloudflare hostname). Cloudflare's edge serves a publicly-trusted cert, so

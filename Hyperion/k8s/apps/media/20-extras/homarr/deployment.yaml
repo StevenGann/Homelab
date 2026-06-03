@@ -24,11 +24,18 @@ spec:
             # mirrored from Authentik's blueprint (AUTHENTIK_HOMARR_CLIENT_*).
             # `credentials` is kept first as an admin fallback so an OIDC
             # misconfig can never lock you out of Homarr.
+            # GATED: AUTH_PROVIDERS is "credentials" only until Authentik + the
+            # Cloudflare tunnel are live. Flux applies this immediately on push, so
+            # leaving oidc enabled now would point Homarr at an issuer that doesn't
+            # resolve yet. When Authentik is up and auth.stevengann.com resolves,
+            # flip this to "credentials,oidc" (the AUTH_OIDC_* vars below are already
+            # set and just become active). See docs/runbooks/sso-bring-up.md §5.
+            #
             # Issuer is the PUBLIC Authentik hostname (Cloudflare Tunnel). Its edge
             # cert is publicly trusted, so Homarr validates it with no CA mount —
             # and public users redirect through the same hostname they reach Homarr
             # on. Resolves internally via hairpin (Technitium → Cloudflare → tunnel).
-            - { name: AUTH_PROVIDERS,             value: "credentials,oidc" }
+            - { name: AUTH_PROVIDERS,             value: "credentials" }       # → "credentials,oidc" once Authentik is up
             - { name: AUTH_OIDC_CLIENT_NAME,      value: "Authentik" }
             - { name: AUTH_OIDC_ISSUER,           value: "https://auth.stevengann.com/application/o/homarr/" }
             - { name: AUTH_OIDC_SCOPE_OVERWRITE,  value: "openid email profile" }
