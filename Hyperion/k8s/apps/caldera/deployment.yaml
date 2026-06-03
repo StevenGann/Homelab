@@ -28,9 +28,8 @@ spec:
             - { name: CALDERA_HOST,           value: "0.0.0.0" }
             - { name: CALDERA_PORT,           value: "8000" }
             - { name: CALDERA_SOURCE,         value: "github" }
-            # ── Operator: set your Obsidian vault repo (owner/name) ──────────
-            - { name: CALDERA_GITHUB_REPO,    value: "REPLACE_ME_owner/vault" }
-            - { name: CALDERA_GITHUB_BRANCH,  value: "main" }
+            - { name: CALDERA_GITHUB_REPO,    value: "StevenGann/Obsidian" }   # private vault
+            - { name: CALDERA_GITHUB_BRANCH,  value: "main" }                  # confirm default branch (main vs master)
             - { name: CALDERA_VAULT_PATH,     value: "/vault" }
             - { name: CALDERA_DATA_PATH,      value: "/data" }
             - { name: CALDERA_READ_ONLY,      value: "false" }
