@@ -187,8 +187,14 @@ step_04_nftables() {
         "${HEIMDALL_DIR}/hostconf/nftables.conf" \
         /etc/nftables.conf
 
-    # `nft flush ruleset` first so re-running on an already-configured host is safe.
-    nft flush ruleset
+    # Do NOT `nft flush ruleset` here. A global flush also wipes Docker's
+    # iptables-nft NAT tables, un-publishing the bridge-networked k3s control
+    # plane (:6443) and taking every Hyperion worker NotReady — only
+    # `systemctl restart docker` recovers it (caused a cluster outage 2026-06-03).
+    # The committed nftables.conf does its own table-scoped reset (declare+delete
+    # `table inet heimdall_fw`), so `nft -f` is idempotent and Docker-safe on
+    # re-runs — including a forced re-run of this step. Completes the 89f4bd7 fix
+    # (which patched nftables.conf but left this global flush in place).
     nft -f /etc/nftables.conf
 
     systemctl enable --now nftables.service
