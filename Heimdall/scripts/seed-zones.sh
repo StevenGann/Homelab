@@ -41,6 +41,8 @@ RECORDS=(
     "heimdall.lab|A|192.168.10.4"     # edge host: Caddy, Technitium, Komodo, k3s control plane
     "auth.lab|A|192.168.10.4"         # Authentik SSO (Caddy-fronted; LDAP outpost on :389/:636)
     "akasha.lab|A|192.168.10.247"     # TrueNAS Scale (also hosts Jellyfin :30013)
+    "thoth.lab|A|192.168.10.144"      # GPU compute host (Ollama, Tdarr worker, Wings)
+    "ollama.lab|A|192.168.10.4"       # Ollama on Thoth, fronted by Caddy
     "jellyfin.lab|A|192.168.10.247"   # alias for Akasha; Jellyfin UI is at :30013 (NodePort)
 
     # ─── Hyperion k3s nodes (.101..110, Greek-letter order) ──────────────────

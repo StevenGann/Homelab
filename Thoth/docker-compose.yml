@@ -1,0 +1,71 @@
+# Thoth — GPU compute host Compose stack
+#
+# Consistent with Heimdall's pattern (compose + SOPS-secrets-shipped-by deploy.sh
+# + host bootstrap in scripts/setup.sh). State root: /opt/Homelab/Thoth/ for the
+# config; bulk DATA lives on the ZFS pools (too big for the boot disk):
+#   /tank  (raidz1, 4× HDD) → models           /fast (Samsung SSD) → game servers
+#   Docker data-root → Intel SSD (ext4 @ /var/lib/docker)
+#
+# GPU: 2× RTX 6000 Ada via the NVIDIA Container Toolkit. Per-service device
+# reservations (count: all = both GPUs). Driver 595 / CUDA 13.2 on the host.
+
+services:
+
+  # ─── Ollama (LLM inference — both GPUs) ─────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest          # TODO: pin a digest after first pull
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: "0.0.0.0"             # bind all interfaces (Service/LAN/Caddy reach it)
+      OLLAMA_KEEP_ALIVE: "24h"          # keep models resident between requests
+      # Allow the Caddy front (ollama.lab) + direct LAN past Ollama's origin guard.
+      OLLAMA_ORIGINS: "http://ollama.lab,https://ollama.lab,http://192.168.10.144:11434"
+    ports:
+      - "11434:11434"                   # LAN — Heimdall Caddy proxies ollama.lab here
+    volumes:
+      - /tank/ollama:/root/.ollama       # models on the HDD pool (zfs tank/ollama)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all                 # both RTX 6000 Ada (operator decision)
+              capabilities: [gpu]
+    logging: { driver: journald }
+
+  # ─── Tdarr worker/node (hardware transcode — GPU) ───────────────────────────
+  # STAGED — enable once the Akasha shared-cache + media NFS exports exist (see
+  # docs/design/thoth-plan.md §3b). Connects to the Tdarr SERVER on Hyperion.
+  # tdarr-node:
+  #   image: ghcr.io/haveagitgat/tdarr_node:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     serverIP: "192.168.10.62"
+  #     serverPort: "8266"
+  #     nodeName: "thoth-gpu"
+  #   volumes:
+  #     - /fast/tdarr/configs:/app/configs
+  #     - /fast/tdarr/logs:/app/logs
+  #     - <NFS media library>:/media          # from Akasha
+  #     - <NFS shared transcode cache>:/temp   # from Akasha (EXDEV-safe shared cache)
+  #   deploy:
+  #     resources: { reservations: { devices: [ { driver: nvidia, count: all, capabilities: [gpu, video] } ] } }
+  #   logging: { driver: journald }
+
+  # ─── Pterodactyl Wings (Minecraft — no GPU) ─────────────────────────────────
+  # STAGED — enable after creating the Thoth node in the panel (192.168.10.69) to
+  # mint the token (→ SOPS secret). Runs game-server containers via the docker
+  # socket; game data on the Samsung SSD (/fast). Ports 8080/2022 + game ports.
+  # wings:
+  #   image: ghcr.io/pterodactyl/wings:latest
+  #   restart: unless-stopped
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - /etc/pterodactyl:/etc/pterodactyl
+  #     - /var/lib/pterodactyl:/var/lib/pterodactyl    # -> /fast (SSD)
+  #     - /var/log/pterodactyl:/var/log/pterodactyl
+  #   ports:
+  #     - "8080:8080"      # Wings API
+  #     - "2022:2022"      # SFTP
+  #     - "25565:25565"    # Minecraft (also UCG-forwarded for mc.stevengann.com)
+  #   logging: { driver: journald }

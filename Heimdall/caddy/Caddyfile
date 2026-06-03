@@ -98,6 +98,19 @@ jf.stevengann.com:7443 {
     reverse_proxy 192.168.10.247:30013
 }
 
+# ─── Ollama (on Thoth, GPU host) ──────────────────────────────────────────────────────
+#
+# Reverse-proxies ollama.lab → the Ollama container on Thoth (192.168.10.144:11434).
+# flush_interval -1 disables response buffering so token streaming is immediate.
+# Ollama's OLLAMA_ORIGINS allows http(s)://ollama.lab past its origin guard.
+
+ollama.lab {
+    tls internal
+    reverse_proxy 192.168.10.144:11434 {
+        flush_interval -1
+    }
+}
+
 # ─── Phase 3 routes go below this line ────────────────────────────────────────────────
 #
 # Pattern for HTTP services on the k3s cluster (NodePort fanout across all Pi nodes):

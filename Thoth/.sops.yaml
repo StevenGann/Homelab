@@ -1,0 +1,6 @@
+creation_rules:
+  # Same single homelab age key as Heimdall/Hyperion. Run `cd Thoth && sops -i
+  # secrets/<file>` so the path sops matches is just `secrets/<file>`.
+  # Future Thoth secrets (e.g. the Pterodactyl Wings node token) live under secrets/.
+  - path_regex: (^|/)secrets/.*\.sops(\.yaml|\.env|)$
+    age: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
