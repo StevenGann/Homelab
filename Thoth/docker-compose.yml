@@ -79,10 +79,12 @@ services:
   periphery:
     image: ghcr.io/moghtech/komodo-periphery:2.2.0   # MUST match Heimdall's komodo-core version
     restart: unless-stopped
+    extra_hosts:
+      - "komodo.lab:192.168.10.4"             # so periphery resolves Core (behind Caddy)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /proc:/proc
-      - /opt/Homelab/Thoth/periphery:/etc/komodo
+      - /opt/Homelab/Thoth/periphery:/config   # config + persistent keypair (/config/keys)
     ports:
       - "8120:8120"                            # Komodo Core (Heimdall) dials this
     logging: { driver: journald }

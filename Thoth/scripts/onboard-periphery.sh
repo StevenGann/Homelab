@@ -43,6 +43,8 @@ log "Writing onboarding_key + core_addresses into $PERIPHERY_TOML on Thoth..."
 ssh "$THOTH" "sudo bash -c 'cat > $PERIPHERY_TOML' <<EOF
 onboarding_key = \"$KEY\"
 core_addresses = [\"$CORE_ADDR\"]
+core_tls_insecure_skip_verify = true
+connect_as = \"$SERVER_NAME\"
 EOF
 cd /opt/Homelab/Thoth && docker compose restart periphery"
 log "Periphery restarted. Verify in komodo.lab → Servers (server '$SERVER_NAME' should appear/connect)."
