@@ -1,6 +1,6 @@
 # Homelab — User Guide
 
-*A hand-off reference for trusted users with admin access. Last updated 2026-06-02.*
+*A hand-off reference for trusted users with admin access. Last updated 2026-06-03.*
 
 All services below run on the home network (`192.168.10.0/24`) — open the links
 while connected to the LAN (or through the remote-access method the administrator
@@ -79,6 +79,7 @@ usually never need to touch these. Admin/power-user territory.
 |---|---|---|---|
 | **Hermes** | [hermes.lab](http://hermes.lab) | [192.168.10.52](http://192.168.10.52) | Self-hosted AI agent (DeepSeek-backed). **Login required** (HTTP basic auth — ask the admin). |
 | **Caldera** | [caldera.lab](http://caldera.lab) | [192.168.10.70:8000](http://192.168.10.70:8000) | REST/MCP API that exposes the Obsidian vault to AI agents (read/write notes, search). Not a click-and-use site — needs a **Bearer token** (ask the admin); interactive API docs at `/docs`. |
+| **Ollama** | [ollama.lab](http://ollama.lab) | [192.168.10.144:11434](http://192.168.10.144:11434) | Local LLM inference on the GPU server (Thoth, 2× RTX 6000 Ada). An API for agents/apps (OpenAI-compatible at `/v1`) — pair it with a chat UI. No login; internal only. |
 
 ---
 
@@ -93,6 +94,7 @@ usually never need to touch these. Admin/power-user territory.
 | System | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
 | **TrueNAS (Akasha)** | [akasha.lab](https://akasha.lab) | [192.168.10.247](https://192.168.10.247) | The storage server — all media + app data lives here. |
+| **Thoth** (GPU compute) | [thoth.lab](http://thoth.lab) | [192.168.10.144](http://192.168.10.144) | GPU server (2× RTX 6000 Ada). Runs **Ollama** (LLM); the Tdarr transcode worker + game-server **Wings** are planned. Container host — manage it via **Komodo** (`komodo.lab`), no separate panel of its own. |
 | **DNS / Container manager / Reverse proxy** | on **[heimdall.lab](http://heimdall.lab)** (`192.168.10.4`) | `192.168.10.4` | Technitium (DNS + ad-blocking), Komodo (containers — `komodo.lab` via the reverse proxy), and Caddy (reverse proxy). **Ask the administrator for the admin URLs.** |
 
 ---
