@@ -77,6 +77,27 @@ auth.lab, auth.stevengann.com {
     reverse_proxy 127.0.0.1:9180
 }
 
+# ─── Public Jellyfin (direct, NOT via Cloudflare) ─────────────────────────────────────
+#
+# Operator chose to keep Jellyfin off the Cloudflare tunnel (video / ToS §2.8) and
+# expose it directly. ATTACK-SURFACE ISOLATION is the point of the explicit `:7443`:
+# this listener serves ONLY jf.stevengann.com. The UCG forwards WAN TCP 443 →
+# 192.168.10.4:7443, so a WAN client can reach *only* this block — never the .lab
+# admin UIs or auth.stevengann.com (those live on :443/:80, which are NOT WAN-forwarded).
+# A request to :7443 with any other Host gets nothing.
+#
+# TLS: real public cert via Let's Encrypt TLS-ALPN-01 (validates on external :443 →
+# forwarded to :7443; no DNS plugin / no port 80 needed). The cert won't issue until
+# the port-forward + grey-cloud DNS (jf.stevengann.com → monolith.ddns.net) are live.
+# Optionally add `email <you>` to the global block for LE expiry notices.
+#
+# Reachable publicly = relies entirely on Jellyfin's own (LDAP-backed) login. See
+# docs/runbooks/sso-bring-up.md §8.
+
+jf.stevengann.com:7443 {
+    reverse_proxy 192.168.10.247:30013
+}
+
 # ─── Phase 3 routes go below this line ────────────────────────────────────────────────
 #
 # Pattern for HTTP services on the k3s cluster (NodePort fanout across all Pi nodes):

@@ -139,20 +139,33 @@ One-time, after you've decided to go live (stack + ingress map:
 WAF/hardening (optional): add a Cloudflare rate-limit rule on `auth.stevengann.com`.
 Never put Cloudflare Access in front of `auth`, `jf`, or `music`.
 
-## 8. Game servers — NOT via the tunnel
+## 8. Direct exposure (NOT via the tunnel) — Jellyfin + game servers
 
-Cloudflare's free tunnel is HTTP-only; Minecraft/Space Engineers are raw TCP/UDP.
-Expose them the traditional way (the one path that uses the home IP, scoped to the
-game ports):
+All use a **grey-cloud (DNS-only) record → home IP + a UCG port-forward**. Each is
+reachable from the WAN, so each relies on its own auth.
 
-- In Cloudflare, add `mc.stevengann.com` and `se.stevengann.com` as **CNAME →
-  `monolith.ddns.net`, DNS only (grey-cloud)** — reusing your existing DDNS for the
-  dynamic IP, behind a clean hostname.
-- On the UCG, port-forward to the server's host:port (from its Pterodactyl
-  allocation): **Minecraft TCP 25565**; **Space Engineers UDP 27016** (confirm
-  against the egg). Optionally a Minecraft `SRV` record so players omit the port.
-- To avoid home-IP exposure entirely you'd need paid Cloudflare Spectrum or a VPS
-  relay (e.g. playit.gg) — out of scope.
+**Jellyfin** (kept off the tunnel by choice — heavy video, Cloudflare ToS §2.8):
+
+- DNS: `jf.stevengann.com` → CNAME `monolith.ddns.net`, **DNS only (grey-cloud)**.
+- UCG: port-forward **WAN TCP 443 → `192.168.10.4:7443`**. That `:7443` Caddy block
+  serves **only** `jf.stevengann.com` (attack-surface isolation — the `.lab` admin
+  UIs and `auth` live on `:443`, which is NOT WAN-forwarded, so they stay private).
+- TLS: Caddy auto-issues a real Let's Encrypt cert via TLS-ALPN-01 (validates on
+  external `:443` → `:7443`). The cert won't issue until the port-forward + DNS are
+  live, so set those first; then `./scripts/deploy.sh` (the Caddyfile change restarts
+  Caddy). Verify `https://jf.stevengann.com` from off-network shows a valid cert.
+- Auth is Jellyfin's own LDAP-backed login. If it's ever attacked/DDoS'd, options
+  then: move it behind the tunnel, add fail2ban on Akasha, or a VPS relay.
+
+**Game servers** (raw TCP/UDP — can't use the HTTP tunnel):
+
+- `mc.stevengann.com` / `se.stevengann.com` → CNAME `monolith.ddns.net` (grey-cloud).
+- UCG: **Minecraft TCP 25565**; **Space Engineers UDP 27016** (confirm against the
+  egg) → the server's host:port (Pterodactyl allocation). Optional Minecraft `SRV`
+  record so players omit the port.
+
+To avoid home-IP exposure entirely: paid Cloudflare Spectrum or a VPS relay
+(e.g. playit.gg) — out of scope.
 
 ## Rollback
 

@@ -17,17 +17,20 @@ Full bring-up: [`docs/runbooks/sso-bring-up.md`](../docs/runbooks/sso-bring-up.m
 | Hostname | → Origin | App auth |
 |----------|----------|----------|
 | `auth.stevengann.com` | Caddy `:443` → Authentik | Authentik (the IdP itself) |
-| `jf.stevengann.com` | Akasha `:30013` | Jellyfin (LDAP-backed) |
 | `seerr.stevengann.com` | `192.168.10.54` | Sign in with Jellyfin |
 | `music.stevengann.com` | `192.168.10.66` | Navidrome |
 | `homarr.stevengann.com` | `192.168.10.53` | Authentik OIDC |
 | `cloud.stevengann.com` | *(Nextcloud, when deployed)* | Authentik OIDC |
 
-Everything here is internet-facing, so each app relies on its own (Authentik-backed)
-login. **Never** put Cloudflare Access in front of `jf`/`music` — their native
-clients can't pass an Access token (and Access in front of `auth` would break the
-OIDC token exchange). Add Cloudflare WAF / rate-limiting on `auth` if you want extra
-brute-force protection.
+**`jf.stevengann.com` (Jellyfin) is NOT here** — kept off the tunnel (video / ToS
+§2.8) and exposed directly via a dedicated isolated Caddy listener + UCG
+port-forward. See the runbook §8 and the Caddyfile "Public Jellyfin" block.
+
+Everything on the tunnel is internet-facing, so each app relies on its own
+(Authentik-backed) login. **Never** put Cloudflare Access in front of `music` — its
+native clients can't pass an Access token (and Access in front of `auth` would break
+the OIDC token exchange). Add Cloudflare WAF / rate-limiting on `auth` if you want
+extra brute-force protection.
 
 ## Operator setup (one-time — after DNS is on Cloudflare)
 
@@ -39,22 +42,23 @@ cloudflared tunnel create heimdall            # prints a UUID + writes ~/.cloudf
 cd Heimdall && sops --encrypt --input-type json --output-type json \
     ~/.cloudflared/<UUID>.json > secrets/cloudflared-credentials.sops
 # 3) point the public hostnames at the tunnel (creates the proxied CNAMEs):
-for h in auth jf seerr music homarr; do cloudflared tunnel route dns heimdall $h.stevengann.com; done
+for h in auth seerr music homarr; do cloudflared tunnel route dns heimdall $h.stevengann.com; done
 # 4) deploy:
 ./scripts/deploy.sh
 ```
 
-## Games are NOT here
+## Exposed directly (NOT via this tunnel)
 
-`mc.stevengann.com` (Minecraft) and `se.stevengann.com` (Space Engineers) are raw
-TCP/UDP — Cloudflare's free tunnel is HTTP-only, so they can't use it. They use a
-**grey-cloud (DNS-only) record + a UCG port-forward**:
+These use a **grey-cloud (DNS-only) record + a UCG port-forward** (home IP exposed,
+scoped to the listed port):
 
-- `mc.stevengann.com` → CNAME `monolith.ddns.net` (DNS only) ; UCG forward TCP `25565`
-  → the Minecraft server's host:port (Pterodactyl allocation).
-- `se.stevengann.com` → CNAME `monolith.ddns.net` (DNS only) ; UCG forward UDP `27016`
-  (confirm against the Space Engineers egg) → that server.
+- **`jf.stevengann.com` (Jellyfin)** → CNAME `monolith.ddns.net` (DNS only) ; UCG
+  forward WAN TCP `443` → `192.168.10.4:7443` (the isolated Caddy block, real LE
+  cert → Akasha `:30013`). Kept off the tunnel to avoid Cloudflare ToS §2.8.
+- **`mc.stevengann.com` (Minecraft)** → CNAME `monolith.ddns.net` (DNS only) ; UCG
+  forward TCP `25565` → the Minecraft server's host:port (Pterodactyl allocation).
+- **`se.stevengann.com` (Space Engineers)** → CNAME `monolith.ddns.net` (DNS only) ;
+  UCG forward UDP `27016` (confirm against the egg) → that server.
 
-This is the only path that exposes the home IP, scoped to the game ports. To avoid
-even that, the options are paid Cloudflare Spectrum or a VPS relay (e.g. playit.gg) —
-out of scope here. See the runbook §8.
+To avoid home-IP exposure you'd need paid Cloudflare Spectrum or a VPS relay (e.g.
+playit.gg) — out of scope. See the runbook §8.

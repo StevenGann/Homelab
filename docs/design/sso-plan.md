@@ -181,14 +181,16 @@ Three bands, mapped to what's committed:
 | Host | Transport | → Origin |
 |------|-----------|----------|
 | `auth` | Cloudflare Tunnel | Caddy → Authentik (required for public OIDC) |
-| `jf` | Cloudflare Tunnel | Akasha `:30013` (Jellyfin) |
 | `seerr` | Cloudflare Tunnel | `192.168.10.54` |
 | `music` | Cloudflare Tunnel | `192.168.10.66` (Navidrome) |
 | `homarr` | Cloudflare Tunnel | `192.168.10.53` |
 | `cloud` | Cloudflare Tunnel | Nextcloud (commented until deployed) |
+| `jf` | **DDNS + UCG fwd → isolated Caddy `:7443`** (off-tunnel: video / ToS §2.8) | Akasha `:30013`, real LE cert |
 | `mc` / `se` | **DDNS CNAME + UCG port-forward** (HTTP-only tunnel can't carry games) | Minecraft TCP 25565 / Space Engineers UDP 27016 |
 
-Apex `stevengann.com` + `www` stay on GitHub Pages (blog), grey-cloud.
+Apex `stevengann.com` + `www` stay on GitHub Pages (blog), grey-cloud. Only the WAN
+`:443→:7443` (Jellyfin) and the game ports are forwarded; `.lab` + `auth` are not
+WAN-reachable (tunnel-only / LAN-only).
 
 **✅ Committed IaC (deploys mechanically via `git push` + `deploy.sh`/Flux):**
 - `Heimdall/authentik/` — compose stack (server/worker/postgres/redis/LDAP outpost)

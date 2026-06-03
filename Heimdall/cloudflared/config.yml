@@ -28,9 +28,11 @@ ingress:
       noTLSVerify: true                 # Caddy serves its internal-CA cert to cloudflared
       originServerName: auth.stevengann.com
 
-  # ── Jellyfin (on Akasha NodePort; not behind Caddy) ─────────────────────────
-  - hostname: jf.stevengann.com
-    service: http://192.168.10.247:30013
+  # ── Jellyfin is NOT on the tunnel ───────────────────────────────────────────
+  # Deliberately excluded (operator decision 2026-06-02): heavy video risks
+  # Cloudflare ToS §2.8. jf.stevengann.com is exposed DIRECTLY instead — grey-cloud
+  # DNS + UCG port-forward → a dedicated, isolated Caddy listener (:7443). See the
+  # Caddyfile "Public Jellyfin" block + runbook §8.
 
   # ── Seerr (media requests) ──────────────────────────────────────────────────
   - hostname: seerr.stevengann.com
