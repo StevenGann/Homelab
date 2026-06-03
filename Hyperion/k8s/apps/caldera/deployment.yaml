@@ -21,6 +21,8 @@ spec:
           # Caldera's release.yml currently builds amd64-only; pin a digest once
           # the multi-arch image is published. See docs note in the PR/runbook.
           image: ghcr.io/stevengann/caldera:edge
+          imagePullPolicy: Always   # :edge is a moving tag — repull on every (re)start so
+                                    # CI rebuilds (e.g. the frontmatter-skip fix) actually land
           env:
             - { name: TZ,                     value: "America/Los_Angeles" }
             # Bind all interfaces so the Service/probes can reach it (the app

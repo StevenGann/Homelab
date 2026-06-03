@@ -77,7 +77,7 @@ services:
   # an onboarding key (see the runbook). Persist /etc/komodo so the keypair +
   # onboarding survive restarts.
   periphery:
-    image: ghcr.io/moghtech/komodo-periphery:latest
+    image: ghcr.io/moghtech/komodo-periphery:2.2.0   # MUST match Heimdall's komodo-core version
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
