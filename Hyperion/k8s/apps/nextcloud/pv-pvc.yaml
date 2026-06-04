@@ -15,7 +15,7 @@ spec:
   volumeMode: Filesystem
   claimRef: { namespace: nextcloud, name: nextcloud-data }
   mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
-  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/NextCloud }
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/NextCloud }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
