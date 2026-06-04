@@ -1,0 +1,31 @@
+# NFS PV+PVC for NextCloud data on Akasha
+# Uses the existing Media-Storage/Application-Storage/NextCloud dataset
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-nextcloud-nfs
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  capacity: { storage: 500Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: nextcloud, name: nextcloud-data }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/NextCloud }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-data
+  namespace: nextcloud
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-nextcloud-nfs
+  resources: { requests: { storage: 500Gi } }
