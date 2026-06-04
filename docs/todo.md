@@ -68,6 +68,13 @@ Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after 
 - Minor: `--disable=servicelb` (kill the klipper-vs-MetalLB `svclb-*` cruft);
   migrate `kernelboot`→`kernel` bootloader before nixos-raspberrypi drops it.
 
+**New service configuration needed (deployed 2026-06-04):**
+- [ ] **Listenarr** (.73) — add download client + indexer, point at Akasha audiobooks.
+- [ ] **Musicseerr** (.74) — add Lidarr API key, connect streaming services.
+- [ ] **boxarr** (.75) — add Radarr API key, configure box office preferences.
+- [ ] **Jellystat** (.76) — connect to Jellyfin (192.168.10.54:80, admin/Qazxcv1992!).
+- [ ] **Sortarr** (.77) — connect to Sonarr, Radarr, Jellyfin for library analytics.
+
 (Heimdall `/opt/Homelab` git divergence — RESOLVED 2026-06-01 via
 `git reset --hard origin/main`.)
 
