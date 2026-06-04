@@ -14,3 +14,20 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
+---
+# ClusterIP so in-cluster apps (Caldera) can reach Hermes's webhook receiver
+# (config platforms.webhook → 0.0.0.0:8644) at hermes.hermes.svc.cluster.local:8644.
+# Internal only — the dashboard LB above is the external path.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes
+  namespace: hermes
+spec:
+  type: ClusterIP
+  selector:
+    app: hermes
+  ports:
+    - name: webhook
+      port: 8644
+      targetPort: 8644
