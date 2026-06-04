@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: beszel-agent
+  namespace: hermes
+  labels:
+    app: beszel-agent
+spec:
+  selector:
+    matchLabels:
+      app: beszel-agent
+  template:
+    metadata:
+      labels:
+        app: beszel-agent
+    spec:
+      hostNetwork: true
+      hostPID: true
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: beszel-agent
+          image: henrygd/beszel-agent:latest
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          env:
+            - name: LISTEN
+              value: "45876"
+            - name: KEY
+              value: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGOnyOjAfg3WfakAUTDTyqSRGfiBOgW7cudmaUn0fMgC"
+            - name: TOKEN
+              value: "9d19da65-0cdd-4ca5-9703-c356dd6b790d"
+            - name: HUB_URL
+              value: "http://192.168.10.68:8090"
+          volumeMounts:
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+            - name: root
+              mountPath: /host/root
+              readOnly: true
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+      volumes:
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: root
+          hostPath:
+            path: /
