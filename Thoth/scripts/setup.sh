@@ -46,10 +46,13 @@ log "docker daemon.json..."
 sudo install -d -m 0755 /etc/docker
 sudo install -m 0644 "$(dirname "$0")/../hostconf/docker-daemon.json" /etc/docker/daemon.json
 
-# ─── NVIDIA driver (open 595-server) + nvidia-smi ────────────────────────────
+# ─── NVIDIA driver (open 580 production branch) + nvidia-smi ─────────────────
+# 2026-06-04: Switched from 595-server (data-center branch) to 580 (production
+# branch). The data-center driver broke NVENC/Docker; 580 fixes it and is the
+# correct branch for RTX workstation GPUs.
 log "NVIDIA driver..."
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    nvidia-headless-no-dkms-595-server-open nvidia-utils-595-server || sudo ubuntu-drivers install --gpgpu || true
+    nvidia-headless-no-dkms-580-open nvidia-utils-580 || sudo ubuntu-drivers install --gpgpu || true
 command -v nvidia-smi >/dev/null && nvidia-smi -L || log "WARN: nvidia-smi not ready (reboot may be needed)"
 
 # ─── NVIDIA Container Toolkit + docker runtime ───────────────────────────────

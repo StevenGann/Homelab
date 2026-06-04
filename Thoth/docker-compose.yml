@@ -7,7 +7,7 @@
 #   Docker data-root → Intel SSD (ext4 @ /var/lib/docker)
 #
 # GPU: 2× RTX 6000 Ada via the NVIDIA Container Toolkit. Per-service device
-# reservations (count: all = both GPUs). Driver 595 / CUDA 13.2 on the host.
+# reservations (count: all = both GPUs). Driver 580 / CUDA 13.2 on the host.
 
 services:
 
@@ -90,23 +90,32 @@ services:
     logging: { driver: journald }
 
   # ─── Tdarr worker/node (hardware transcode — GPU) ───────────────────────────
-  # STAGED — enable once the Akasha shared-cache + media NFS exports exist (see
-  # docs/design/thoth-plan.md §3b). Connects to the Tdarr SERVER on Hyperion.
-  # tdarr-node:
-  #   image: ghcr.io/haveagitgat/tdarr_node:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     serverIP: "192.168.10.62"
-  #     serverPort: "8266"
-  #     nodeName: "thoth-gpu"
-  #   volumes:
-  #     - /fast/tdarr/configs:/app/configs
-  #     - /fast/tdarr/logs:/app/logs
-  #     - <NFS media library>:/media          # from Akasha
-  #     - <NFS shared transcode cache>:/temp   # from Akasha (EXDEV-safe shared cache)
-  #   deploy:
-  #     resources: { reservations: { devices: [ { driver: nvidia, count: all, capabilities: [gpu, video] } ] } }
-  #   logging: { driver: journald }
+  # 2026-06-04: Deployed and verified by Guppy. Connects to Tdarr server on
+  # Hyperion (192.168.10.62:8266). NVENC working after driver switch to 580.
+  # Media mounted via NFS from Akasha TrueNAS.
+  tdarr-node:
+    image: haveagitgat/tdarr_node:latest
+    restart: unless-stopped
+    environment:
+      serverIP: "192.168.10.62"
+      serverPort: "8266"
+      nodeName: "thoth-gpu"
+      TZ: "America/Los_Angeles"
+    network_mode: host
+    volumes:
+      - /var/lib/tdarr-node/configs:/app/configs
+      - /var/lib/tdarr-node/logs:/app/logs
+      - /mnt/Media-Storage/Media/Movies:/mnt/Media-Storage/Media/Movies:ro
+      - /mnt/Media-Storage/Media/TV-Shows:/mnt/Media-Storage/Media/TV-Shows:ro
+      - /mnt/Media-Storage/Media/Downloads:/mnt/Media-Storage/Media/Downloads:rw
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    logging: { driver: journald }
 
   # ─── Pterodactyl Wings (Minecraft — no GPU) ─────────────────────────────────
   # STAGED — enable after creating the Thoth node in the panel (192.168.10.69) to
