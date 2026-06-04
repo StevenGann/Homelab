@@ -38,7 +38,7 @@ spec:
             - { name: VPN_TYPE,                  value: "wireguard" }
             - { name: WIREGUARD_PRIVATE_KEY,     value: "yAJTB3uHi/YKLL2ik2489wbI91JZD2E8wnaQ1gGCu38=" }
             - { name: WIREGUARD_ADDRESSES,       value: "10.72.91.121/32" }
-            - { name: SERVER_CITIES,             value: "San Jose" }
+            - { name: SERVER_CITIES,             value: "San Jose CA" }
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" }
             - { name: FIREWALL_INPUT_PORTS,      value: "8085,6881" }
             - { name: UPDATER_PERIOD,            value: "24h" }
