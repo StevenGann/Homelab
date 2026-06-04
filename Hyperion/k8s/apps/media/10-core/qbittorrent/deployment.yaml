@@ -1,11 +1,15 @@
-# qBittorrent behind a gluetun VPN tunnel (PIA / OpenVPN), migrated from Akasha.
+# qBittorrent behind a gluetun VPN tunnel (Mullvad / WireGuard), migrated from Akasha.
 # Containers in a pod share a network namespace, so qBittorrent's traffic routes
-# through gluetun's tun0 with its kill-switch — the k8s-native equivalent of the
+# through gluetun's wg0 with its kill-switch — the k8s-native equivalent of the
 # Akasha `network_mode: service:gluetun`. The NFS download volume is mounted by the
 # kubelet (host-level), so file I/O does NOT traverse the VPN; only torrent + WebUI
 # traffic does. Co-located in `media`, so Sonarr/Radarr reach it as
 # http://qbittorrent.media.svc.cluster.local:8085 with NO remote-path-mapping
 # (everyone mounts media-downloads at /data/downloads).
+#
+# 2026-06-04: Switched from PIA OpenVPN → Mullvad WireGuard.
+# WireGuard avoids the sitnl routing issues that prevented DHT bootstrap and
+# port forwarding through PIA OpenVPN in k8s.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,56 +27,30 @@ spec:
     spec:
       nodeSelector: { topology.kubernetes.io/zone: hyperion }
       containers:
-        # ── VPN tunnel (provides the pod's egress + kill-switch) ────────────
+        # ── VPN tunnel (Mullvad WireGuard) ────────────────────────────────
         - name: gluetun
           image: qmcgaw/gluetun:latest@sha256:10b4895fde4499c2d1d9fbd8e681d040ede0efe8c6cfe5d0c51daf0461836ee8
           securityContext:
             capabilities:
               add: ["NET_ADMIN"]
           env:
-            - { name: VPN_SERVICE_PROVIDER,      value: "private internet access" }
-            - { name: VPN_TYPE,                  value: "openvpn" }
-            - { name: OPENVPN_PROTOCOL,          value: "udp" }
-            - { name: VPN_PORT_FORWARDING,       value: "on" }
-            - { name: SERVER_REGIONS,            value: "CA Toronto" }
+            - { name: VPN_SERVICE_PROVIDER,      value: "mullvad" }
+            - { name: VPN_TYPE,                  value: "wireguard" }
+            - { name: WIREGUARD_PRIVATE_KEY,     value: "yAJTB3uHi/YKLL2ik2489wbI91JZD2E8wnaQ1gGCu38=" }
+            - { name: WIREGUARD_ADDRESSES,       value: "10.72.91.121/32" }
+            - { name: SERVER_CITIES,             value: "San Jose" }
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" }
-            - { name: FIREWALL_INPUT_PORTS,      value: "8085" }
+            - { name: FIREWALL_INPUT_PORTS,      value: "8085,6881" }
             - { name: UPDATER_PERIOD,            value: "24h" }
             - { name: TZ,                        value: "America/Los_Angeles" }
-          envFrom:
-            - secretRef: { name: qbittorrent-vpn }
           volumeMounts:
-            - { name: tun,           mountPath: /dev/net/tun }
             - { name: gluetun-state, mountPath: /gluetun }
-            - { name: gluetun-shared, mountPath: /tmp/gluetun }
           resources:
             requests: { cpu: "50m",  memory: "64Mi" }
             limits:   { cpu: "500m", memory: "256Mi" }
         # ── qBittorrent (shares gluetun's netns) ────────────────────────────
         - name: qbittorrent
           image: lscr.io/linuxserver/qbittorrent:latest@sha256:715d2bfbcf1cd3d734cbbd4fbd599eb7ea0642eaa079a372dd0d343f59516700
-          command:
-            - sh
-            - -c
-            - |
-              # Wait up to 90s for gluetun to obtain a PIA forwarded port.
-              # Fall back to default port 6881 if port forwarding is unavailable.
-              for i in $(seq 1 45); do
-                if [ -f /gluetun-shared/forwarded_port ]; then
-                  PORT=$(cat /gluetun-shared/forwarded_port)
-                  echo "PIA forwarded port: $PORT — patching qBittorrent listen port"
-                  mkdir -p /config/qBittorrent/config
-                  if [ -f /config/qBittorrent/config/qBittorrent.conf ]; then
-                    sed -i "s/^Session\\Port=[0-9]*/Session\\Port=$PORT/" /config/qBittorrent/config/qBittorrent.conf
-                  fi
-                  break
-                fi
-                sleep 2
-              done
-              if [ ! -f /gluetun-shared/forwarded_port ]; then
-                echo "No forwarded port after 90s — using default 6881 (outbound-only mode)"
-              fi
-              exec /init
           env:
             - { name: PUID,            value: "568" }
             - { name: PGID,            value: "568" }
@@ -80,22 +58,17 @@ spec:
             - { name: WEBUI_PORT,      value: "8085" }
             - { name: TORRENTING_PORT, value: "6881" }
           volumeMounts:
-            - { name: config,          mountPath: /config }
-            - { name: downloads,       mountPath: /data/downloads }
-            - { name: gluetun-shared,  mountPath: /gluetun-shared }
+            - { name: config,    mountPath: /config }
+            - { name: downloads, mountPath: /data/downloads }
           readinessProbe:
             tcpSocket: { port: 8085 }
-            initialDelaySeconds: 60
+            initialDelaySeconds: 20
             periodSeconds: 15
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1",    memory: "1Gi" }
       volumes:
-        - name: tun
-          hostPath: { path: /dev/net/tun, type: CharDevice }
         - name: gluetun-state
-          emptyDir: {}
-        - name: gluetun-shared
           emptyDir: {}
         - name: config
           persistentVolumeClaim: { claimName: qbittorrent-config }
