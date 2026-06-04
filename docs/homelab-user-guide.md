@@ -27,7 +27,7 @@ link here as admin access — please don't change settings you don't understand.
 
 | App | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
-| **Jellyfin** | [jellyfin.lab:30013](http://jellyfin.lab:30013) | [192.168.10.247:30013](http://192.168.10.247:30013) | The main media server — stream Movies, TV, and Music. This is what most people use day-to-day. |
+| **Jellyfin** | [jellyfin.lab](http://jellyfin.lab) | [192.168.10.54](http://192.168.10.54) | The main media server — stream Movies, TV, and Music. This is what most people use day-to-day. |
 | **Navidrome** | [navidrome.lab](http://navidrome.lab) | [192.168.10.66:4533](http://192.168.10.66:4533) | Dedicated music streaming (Subsonic-compatible — works with apps like DSub, play:Sub, Symfonium). |
 | **Seerr** | [seerr.lab](http://seerr.lab) | [192.168.10.54:5055](http://192.168.10.54:5055) | **Request** new movies & shows. Search for something, click request, and it gets downloaded and added automatically. The friendliest way to add content. |
 
@@ -116,8 +116,10 @@ You request a movie in  Seerr  ─▶  Radarr/Sonarr/Lidarr  ─▶  Prowlarr (f
                           Jellyfin / Navidrome  ─▶  you watch / listen
 ```
 
-Everything except Jellyfin and the storage runs on **Hyperion**, a 10-node
-Raspberry Pi 5 Kubernetes cluster. If a link is down, check **Uptime Kuma** or
+Everything runs on **Hyperion**, a 10-node
+Raspberry Pi 5 Kubernetes cluster — including Jellyfin since the migration from
+Akasha in June 2026. The storage (TrueNAS / Akasha) provides NFS volumes to the
+cluster. If a link is down, check **Uptime Kuma** or
 ping a platform admin.
 
 ---
@@ -129,5 +131,4 @@ seeded declaratively from `Heimdall/scripts/seed-zones.sh`. Each app's
 LoadBalancer also listens on **port 80** (in addition to its native port) so the
 bare `http://<app>.lab` works without a port suffix — defined per-service in
 `Hyperion/k8s/apps/**/service.yaml`. The native `IP:port` links remain valid and
-are also what the apps use to talk to each other internally. Jellyfin is the
-exception — it's a NodePort on Akasha (TrueNAS), so it always needs `:30013`.
+are also what the apps use to talk to each other internally.
