@@ -167,3 +167,15 @@ spec:
   dependsOn: [ { name: metallb-config } ]
   sourceRef: { kind: GitRepository, name: flux-system }
   decryption: { provider: sops, secretRef: { name: sops-age } }
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: n8n, namespace: flux-system }
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/n8n
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn: [ { name: metallb-config } ]
+  sourceRef: { kind: GitRepository, name: flux-system }

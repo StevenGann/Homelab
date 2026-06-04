@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: n8n, namespace: n8n, labels: { app: n8n } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: n8n } }
+  template:
+    metadata: { labels: { app: n8n } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: n8n
+          image: n8nio/n8n:latest
+          env:
+            - { name: TZ, value: "America/Los_Angeles" }
+            - { name: N8N_HOST, value: "n8n.lab" }
+            - { name: N8N_PORT, value: "5678" }
+            - { name: N8N_PROTOCOL, value: "http" }
+            - { name: NODE_ENV, value: "production" }
+            - { name: N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS, value: "true" }
+          ports:
+            - { name: http, containerPort: 5678 }
+          volumeMounts:
+            - { name: data, mountPath: /home/node/.n8n }
+          startupProbe:    { tcpSocket: { port: 5678 }, failureThreshold: 30, periodSeconds: 5 }
+          readinessProbe:  { httpGet: { path: /healthz, port: 5678 }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: n8n-data } }
