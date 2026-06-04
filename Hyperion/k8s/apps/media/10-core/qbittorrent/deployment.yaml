@@ -34,7 +34,7 @@ spec:
             - { name: VPN_TYPE,                  value: "openvpn" }
             - { name: OPENVPN_PROTOCOL,          value: "udp" }
             - { name: VPN_PORT_FORWARDING,       value: "on" }
-            - { name: SERVER_REGIONS,            value: "US West" }
+            - { name: SERVER_REGIONS,            value: ""
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" }
             - { name: FIREWALL_INPUT_PORTS,      value: "8085" }
             - { name: UPDATER_PERIOD,            value: "24h" }
