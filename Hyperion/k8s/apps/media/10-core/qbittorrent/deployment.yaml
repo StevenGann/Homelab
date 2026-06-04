@@ -34,7 +34,7 @@ spec:
             - { name: VPN_TYPE,                  value: "openvpn" }
             - { name: OPENVPN_PROTOCOL,          value: "udp" }
             - { name: VPN_PORT_FORWARDING,       value: "on" }
-            - { name: SERVER_REGIONS,            value: ""
+            - { name: SERVER_REGIONS,            value: "CA Toronto" }
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" }
             - { name: FIREWALL_INPUT_PORTS,      value: "8085" }
             - { name: UPDATER_PERIOD,            value: "24h" }
@@ -55,14 +55,22 @@ spec:
             - sh
             - -c
             - |
-              # Wait for gluetun to obtain a forwarded port from PIA, then
-              # patch qBittorrent.conf before s6-overlay starts the app.
-              while [ ! -f /gluetun-shared/forwarded_port ]; do sleep 2; done
-              PORT=$(cat /gluetun-shared/forwarded_port)
-              echo "PIA forwarded port: $PORT — patching qBittorrent listen port"
-              mkdir -p /config/qBittorrent/config
-              if [ -f /config/qBittorrent/config/qBittorrent.conf ]; then
-                sed -i "s/^Session\\Port=[0-9]*/Session\\Port=$PORT/" /config/qBittorrent/config/qBittorrent.conf
+              # Wait up to 90s for gluetun to obtain a PIA forwarded port.
+              # Fall back to default port 6881 if port forwarding is unavailable.
+              for i in $(seq 1 45); do
+                if [ -f /gluetun-shared/forwarded_port ]; then
+                  PORT=$(cat /gluetun-shared/forwarded_port)
+                  echo "PIA forwarded port: $PORT — patching qBittorrent listen port"
+                  mkdir -p /config/qBittorrent/config
+                  if [ -f /config/qBittorrent/config/qBittorrent.conf ]; then
+                    sed -i "s/^Session\\Port=[0-9]*/Session\\Port=$PORT/" /config/qBittorrent/config/qBittorrent.conf
+                  fi
+                  break
+                fi
+                sleep 2
+              done
+              if [ ! -f /gluetun-shared/forwarded_port ]; then
+                echo "No forwarded port after 90s — using default 6881 (outbound-only mode)"
               fi
               exec /init
           env:
@@ -77,7 +85,7 @@ spec:
             - { name: gluetun-shared,  mountPath: /gluetun-shared }
           readinessProbe:
             tcpSocket: { port: 8085 }
-            initialDelaySeconds: 25
+            initialDelaySeconds: 60
             periodSeconds: 15
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
