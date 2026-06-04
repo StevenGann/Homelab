@@ -134,3 +134,33 @@ services:
   #     - "2022:2022"      # SFTP
   #     - "25565:25565"    # Minecraft (also UCG-forwarded for mc.stevengann.com)
   #   logging: { driver: journald }
+
+  # ─── Jellyfin (media streaming — GPU transcode) ────────────────────────────
+  # 2026-06-04: Deployed by Guppy for GPU-accelerated streaming test.
+  # Media mounted via NFS from Akasha TrueNAS. GPU transcoding via NVENC.
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: thoth-jellyfin
+    restart: unless-stopped
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: America/Los_Angeles
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+    ports:
+      - '8096:8096'
+    volumes:
+      - /fast/jellyfin/config:/config
+      - /fast/jellyfin/cache:/cache
+      - /mnt/Media-Storage/Media/Movies:/media/movies:ro
+      - /mnt/Media-Storage/Media/TV-Shows:/media/tv:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    logging:
+      driver: journald
