@@ -261,3 +261,5 @@ These are pre-existing TODOs and survive the pivot unchanged.
 | `nvme0n1p3` | ~220 GB | ext4 | `/mnt/node-storage` | Node-local ephemeral storage |
 
 Declarative source of truth: `Hyperion/nixos/disko/nvme-layout.nix`.
+
+**2026-06-04 — n8n deployed:** v2.23.2 on Hyperion k3s at .71. FluxCD-managed. SQLite. First visitor creates admin account.
