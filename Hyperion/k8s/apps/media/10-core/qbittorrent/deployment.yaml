@@ -33,22 +33,38 @@ spec:
             - { name: VPN_SERVICE_PROVIDER,      value: "private internet access" }
             - { name: VPN_TYPE,                  value: "openvpn" }
             - { name: OPENVPN_PROTOCOL,          value: "udp" }
-            - { name: SERVER_REGIONS,            value: "US East,US West" }
-            - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" }  # LAN + cluster reach the WebUI/health
-            - { name: FIREWALL_INPUT_PORTS,      value: "8085" }     # allow inbound to the qBittorrent WebUI
+            - { name: VPN_PORT_FORWARDING,       value: "on" }
+            - { name: SERVER_REGIONS,            value: "US Silicon Valley" }
+            - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" }
+            - { name: FIREWALL_INPUT_PORTS,      value: "8085" }
             - { name: UPDATER_PERIOD,            value: "24h" }
             - { name: TZ,                        value: "America/Los_Angeles" }
           envFrom:
-            - secretRef: { name: qbittorrent-vpn }   # OPENVPN_USER / OPENVPN_PASSWORD (SOPS)
+            - secretRef: { name: qbittorrent-vpn }
           volumeMounts:
             - { name: tun,           mountPath: /dev/net/tun }
             - { name: gluetun-state, mountPath: /gluetun }
+            - { name: gluetun-shared, mountPath: /tmp/gluetun }
           resources:
             requests: { cpu: "50m",  memory: "64Mi" }
             limits:   { cpu: "500m", memory: "256Mi" }
         # ── qBittorrent (shares gluetun's netns) ────────────────────────────
         - name: qbittorrent
           image: lscr.io/linuxserver/qbittorrent:latest@sha256:715d2bfbcf1cd3d734cbbd4fbd599eb7ea0642eaa079a372dd0d343f59516700
+          command:
+            - sh
+            - -c
+            - |
+              # Wait for gluetun to obtain a forwarded port from PIA, then
+              # patch qBittorrent.conf before s6-overlay starts the app.
+              while [ ! -f /gluetun-shared/forwarded_port ]; do sleep 2; done
+              PORT=$(cat /gluetun-shared/forwarded_port)
+              echo "PIA forwarded port: $PORT — patching qBittorrent listen port"
+              mkdir -p /config/qBittorrent/config
+              if [ -f /config/qBittorrent/config/qBittorrent.conf ]; then
+                sed -i "s/^Session\\Port=[0-9]*/Session\\Port=$PORT/" /config/qBittorrent/config/qBittorrent.conf
+              fi
+              exec /init
           env:
             - { name: PUID,            value: "568" }
             - { name: PGID,            value: "568" }
@@ -56,11 +72,12 @@ spec:
             - { name: WEBUI_PORT,      value: "8085" }
             - { name: TORRENTING_PORT, value: "6881" }
           volumeMounts:
-            - { name: config,    mountPath: /config }
-            - { name: downloads, mountPath: /data/downloads }   # same NFS path Sonarr/Radarr see
+            - { name: config,          mountPath: /config }
+            - { name: downloads,       mountPath: /data/downloads }
+            - { name: gluetun-shared,  mountPath: /gluetun-shared }
           readinessProbe:
             tcpSocket: { port: 8085 }
-            initialDelaySeconds: 20
+            initialDelaySeconds: 25
             periodSeconds: 15
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
@@ -69,6 +86,8 @@ spec:
         - name: tun
           hostPath: { path: /dev/net/tun, type: CharDevice }
         - name: gluetun-state
+          emptyDir: {}
+        - name: gluetun-shared
           emptyDir: {}
         - name: config
           persistentVolumeClaim: { claimName: qbittorrent-config }

@@ -9,5 +9,7 @@ spec:
   type: LoadBalancer
   selector: { app: qbittorrent }
   ports:
-    - { name: webui, port: 8085, targetPort: 8085 }
-    - { name: web,   port: 80,   targetPort: 8085 }   # bare http://qbittorrent.lab
+    - { name: webui,     port: 8085, targetPort: 8085 }
+    - { name: web,       port: 80,   targetPort: 8085 }
+    - { name: torrent,   port: 6881, targetPort: 6881, protocol: TCP }
+    - { name: torrent-udp, port: 6881, targetPort: 6881, protocol: UDP }
