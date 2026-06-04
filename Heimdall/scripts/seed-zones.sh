@@ -84,6 +84,11 @@ RECORDS=(
     "lidarr.lab|A|192.168.10.65"          # :8686  (music)
     "navidrome.lab|A|192.168.10.66"       # :4533  (music streaming)
     "caldera.lab|A|192.168.10.70"         # :8000  (Obsidian vault REST API for AI agents)
+    "listenarr.lab|A|192.168.10.73"      # :4545  (audiobook manager)
+    "musicseerr.lab|A|192.168.10.74"     # :8688  (music requests via Lidarr)
+    "boxarr.lab|A|192.168.10.75"         # :8888  (box office → Radarr)
+    "jellystat.lab|A|192.168.10.76"      # :3000  (Jellyfin statistics)
+    "sortarr.lab|A|192.168.10.77"        # :8787  (media library analytics)
 )
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────────────
