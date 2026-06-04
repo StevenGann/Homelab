@@ -58,6 +58,8 @@ Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after 
 - ✅ **SSH + sudo** — Hermes key deployed to all Monolith hosts for sysadmin access.
 
 **Open follow-ups:**
+- **qBittorrent VPN** (2026-06-04): Switched to PIA CA Toronto (OpenVPN). Port forwarding enabled but PIA API gateway unreachable — known k8s+OpenVPN routing issue (`sitnl`). Port 6881 TCP+UDP exposed on the k8s Service. Downloads work outbound-only; full inbound connectivity needs WireGuard migration (`VPN_TYPE=wireguard`).
+- **PDU (APC AP7900)** (2026-06-04): Telnet CLI confirmed working at 192.168.10.180:23 (apc/apc -c). 8 outlets, all ON (~4.3A). Outlet names: 1=Monolith, 2=Compute, 3=Synology. Non-B model (Telnet+HTTP only, no SSH). Bare Telnet for now; targeted control module planned when UPS + 2nd PDU arrive.
 - **Relocate the k3s control plane off Heimdall** (the bridge-networked
   container limitation — breaks metrics-server, needs placement workarounds).
   See `docs/design/adr-0002-containerized-control-plane-networking.md`. Operator
