@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: jellystat-db, namespace: jellystat, labels: { app: jellystat-db } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: jellystat-db } }
+  template:
+    metadata: { labels: { app: jellystat-db } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: postgres
+          image: postgres:18.1
+          env:
+            - { name: POSTGRES_USER, value: "jellystat" }
+            - { name: POSTGRES_PASSWORD, value: "Qazxcv1992!" }
+            - { name: POSTGRES_DB, value: "jellystat" }
+          ports:
+            - { name: postgres, containerPort: 5432 }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql }
+          startupProbe:
+            exec:
+              command: ["pg_isready", "--dbname=jellystat", "--username=jellystat"]
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "--dbname=jellystat", "--username=jellystat"]
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: jellystat-db } }

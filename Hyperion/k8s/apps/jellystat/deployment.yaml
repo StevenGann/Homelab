@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: jellystat, namespace: jellystat, labels: { app: jellystat } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: jellystat } }
+  template:
+    metadata: { labels: { app: jellystat } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: jellystat
+          image: cyfershepard/jellystat:latest
+          env:
+            - { name: POSTGRES_USER, value: "jellystat" }
+            - { name: POSTGRES_PASSWORD, value: "Qazxcv1992!" }
+            - { name: POSTGRES_IP, value: "jellystat-db" }
+            - { name: POSTGRES_PORT, value: "5432" }
+            - { name: JWT_SECRET, value: "jellystat-jwt-secret-change-me" }
+            - { name: TZ, value: "America/Los_Angeles" }
+          ports:
+            - { name: http, containerPort: 3000 }
+          volumeMounts:
+            - { name: backup, mountPath: /app/backend/backup-data }
+          startupProbe:    { tcpSocket: { port: 3000 }, failureThreshold: 30, periodSeconds: 5 }
+          readinessProbe:  { httpGet: { path: /auth/isConfigured, port: 3000 }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+      volumes:
+        - { name: backup, persistentVolumeClaim: { claimName: jellystat-backup } }

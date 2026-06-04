@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: boxarr, namespace: boxarr, labels: { app: boxarr } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: boxarr } }
+  template:
+    metadata: { labels: { app: boxarr } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: boxarr
+          image: ghcr.io/iongpt/boxarr:latest
+          env:
+            - { name: BOXARR_PORT, value: "8888" }
+          ports:
+            - { name: http, containerPort: 8888 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+          startupProbe:    { tcpSocket: { port: 8888 }, failureThreshold: 30, periodSeconds: 5 }
+          readinessProbe:  { httpGet: { path: /api/health, port: 8888 }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+      volumes:
+        - { name: config, persistentVolumeClaim: { claimName: boxarr-config } }

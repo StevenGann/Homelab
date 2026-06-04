@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: boxarr
+  namespace: boxarr
+  annotations: { metallb.io/loadBalancerIPs: 192.168.10.75 }
+spec:
+  type: LoadBalancer
+  selector: { app: boxarr }
+  ports:
+    - { name: http, port: 8888, targetPort: 8888 }
+    - { name: web,  port: 80,   targetPort: 8888 }

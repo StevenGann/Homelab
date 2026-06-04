@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sortarr, namespace: sortarr, labels: { app: sortarr } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: sortarr } }
+  template:
+    metadata: { labels: { app: sortarr } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: sortarr
+          image: ghcr.io/jaredharper1/sortarr:latest
+          ports:
+            - { name: http, containerPort: 8787 }
+          volumeMounts:
+            - { name: config, mountPath: /app/config }
+          startupProbe:    { tcpSocket: { port: 8787 }, failureThreshold: 30, periodSeconds: 5 }
+          readinessProbe:  { httpGet: { path: /, port: 8787 }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+      volumes:
+        - { name: config, persistentVolumeClaim: { claimName: sortarr-config } }

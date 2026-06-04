@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: listenarr
+  namespace: listenarr
+  annotations: { metallb.io/loadBalancerIPs: 192.168.10.73 }
+spec:
+  type: LoadBalancer
+  selector: { app: listenarr }
+  ports:
+    - { name: http, port: 4545, targetPort: 4545 }
+    - { name: web,  port: 80,   targetPort: 4545 }

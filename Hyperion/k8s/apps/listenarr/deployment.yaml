@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: listenarr, namespace: listenarr, labels: { app: listenarr } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: listenarr } }
+  template:
+    metadata: { labels: { app: listenarr } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: listenarr
+          image: ghcr.io/listenarrs/listenarr:canary
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: UMASK, value: "022" }
+            - { name: LISTENARR_LOG_LEVEL, value: "Information" }
+          ports:
+            - { name: http, containerPort: 4545 }
+          volumeMounts:
+            - { name: config, mountPath: /app/config }
+            - { name: audiobooks, mountPath: /audiobooks }
+          startupProbe:    { tcpSocket: { port: 4545 }, failureThreshold: 30, periodSeconds: 5 }
+          readinessProbe:  { httpGet: { path: /, port: 4545 }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+      volumes:
+        - { name: config, persistentVolumeClaim: { claimName: listenarr-config } }
+        - name: audiobooks
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Audiobooks }

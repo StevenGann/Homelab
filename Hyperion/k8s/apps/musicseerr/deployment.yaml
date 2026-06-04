@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: musicseerr, namespace: musicseerr, labels: { app: musicseerr } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: musicseerr } }
+  template:
+    metadata: { labels: { app: musicseerr } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: musicseerr
+          image: ghcr.io/habirabbu/musicseerr:latest
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: PORT, value: "8688" }
+            - { name: TZ, value: "America/Los_Angeles" }
+          ports:
+            - { name: http, containerPort: 8688 }
+          volumeMounts:
+            - { name: config, mountPath: /app/config }
+            - { name: cache, mountPath: /app/cache }
+          startupProbe:    { tcpSocket: { port: 8688 }, failureThreshold: 30, periodSeconds: 5 }
+          readinessProbe:  { httpGet: { path: /health, port: 8688 }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+      volumes:
+        - { name: config, persistentVolumeClaim: { claimName: musicseerr-config } }
+        - { name: cache, persistentVolumeClaim: { claimName: musicseerr-cache } }
