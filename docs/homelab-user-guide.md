@@ -1,6 +1,6 @@
 # Homelab — User Guide
 
-*A hand-off reference for trusted users with admin access. Last updated 2026-06-03.*
+*A hand-off reference for trusted users with admin access. Last updated 2026-06-04.*
 
 All services below run on the home network (`192.168.10.0/24`) — open the links
 while connected to the LAN (or through the remote-access method the administrator
@@ -28,6 +28,7 @@ link here as admin access — please don't change settings you don't understand.
 | App | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
 | **Jellyfin** | [jellyfin.lab](http://jellyfin.lab) | [192.168.10.54](http://192.168.10.54) | The main media server — stream Movies, TV, and Music. This is what most people use day-to-day. |
+| **Jellyfin (Thoth)** | — | [192.168.10.144:8096](http://192.168.10.144:8096) | Parallel GPU-accelerated Jellyfin instance on the GPU server. Dual RTX 6000 Ada for NVENC hardware transcoding. Currently in evaluation alongside the primary instance. |
 | **Navidrome** | [navidrome.lab](http://navidrome.lab) | [192.168.10.66:4533](http://192.168.10.66:4533) | Dedicated music streaming (Subsonic-compatible — works with apps like DSub, play:Sub, Symfonium). |
 | **Seerr** | [seerr.lab](http://seerr.lab) | [192.168.10.54:5055](http://192.168.10.54:5055) | **Request** new movies & shows. Search for something, click request, and it gets downloaded and added automatically. The friendliest way to add content. |
 
@@ -47,7 +48,7 @@ usually never need to touch these. Admin/power-user territory.
 | **Youtarr** | [youtarr.lab](http://youtarr.lab) | [192.168.10.61:3087](http://192.168.10.61:3087) | Archives YouTube channels/videos into the library. |
 | **Prowlarr** | [prowlarr.lab](http://prowlarr.lab) | [192.168.10.55:9696](http://192.168.10.55:9696) | Indexer manager — the search sources the *arr apps use. Central config. |
 | **Trailarr** | [trailarr.lab](http://trailarr.lab) | [192.168.10.63:7889](http://192.168.10.63:7889) | Downloads trailers for the movie/TV library. |
-| **Tdarr** | [tdarr.lab](http://tdarr.lab) | [192.168.10.62:8265](http://192.168.10.62:8265) | Transcoding & library health (re-encodes files; heavy work runs on dedicated machines). |
+| **Tdarr** | [tdarr.lab](http://tdarr.lab) | [192.168.10.62:8266](http://192.168.10.62:8266) | Transcoding & library health (re-encodes files; worker node on Thoth with dual RTX 6000 Ada GPU acceleration). |
 
 ---
 
@@ -96,7 +97,7 @@ usually never need to touch these. Admin/power-user territory.
 | System | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
 | **TrueNAS (Akasha)** | [akasha.lab](https://akasha.lab) | [192.168.10.247](https://192.168.10.247) | The storage server — all media + app data lives here. |
-| **Thoth** (GPU compute) | [thoth.lab](http://thoth.lab) | [192.168.10.144](http://192.168.10.144) | GPU server (2× RTX 6000 Ada). Runs **Ollama** (LLM), **OpenWebUI** (chat), **ComfyUI** (image gen); the Tdarr transcode worker + game-server **Wings** are planned. Container host — manage it via **Komodo** (`komodo.lab`), no separate panel of its own. |
+| **Thoth** (GPU compute) | [thoth.lab](http://thoth.lab) | [192.168.10.144](http://192.168.10.144) | GPU server (2× RTX 6000 Ada, 96 GB VRAM). Runs **Ollama** (LLMs: llama3.2:1b, deepseek-r1:70b), **OpenWebUI** (chat), **ComfyUI** (image gen), **Jellyfin** (parallel GPU-accelerated instance at :8096), and the **Tdarr** transcode worker. Game-server **Wings** planned. Container host — manage it via **Komodo** (`komodo.lab`). |
 | **DNS / Container manager / Reverse proxy** | on **[heimdall.lab](http://heimdall.lab)** (`192.168.10.4`) | `192.168.10.4` | Technitium (DNS + ad-blocking), Komodo (containers — `komodo.lab` via the reverse proxy), and Caddy (reverse proxy). **Ask the administrator for the admin URLs.** |
 
 ---

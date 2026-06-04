@@ -1,6 +1,6 @@
 # Homelab IaC — To Do
 
-## Status (2026-06-01) — CLUSTER OPERATIONAL ✅
+## Status (2026-06-04) — CLUSTER OPERATIONAL ✅ | DEEPSEEK-R1:70b ON THOTH 🧠
 
 **All 10 NixOS Pi-5 workers (`alpha`..`kappa`, .101–.110) + the Heimdall k3s
 control plane are `Ready` (v1.34.5+k3s1).** Flashed via
@@ -39,7 +39,7 @@ Prowlarr→Sonarr/Radarr app-sync (API keys are SOPS-seeded; retrieve via
 Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after a
 ~1-week core soak (lean-core gate).
 
-**Clean deployments off Akasha — status 2026-06-02:**
+**Clean deployments off Akasha — status 2026-06-04:**
 - ✅ **beszel** (.68), **speedtest-tracker** (.67) — DEPLOYED.
 - ✅ **pterodactyl panel** (.69, Panel+MariaDB+Redis, admin user created) — DEPLOYED.
   **Wings** on Thoth + other Docker hosts — operator to set up + connect to the panel.
@@ -47,6 +47,15 @@ Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after 
 - Still on Akasha (candidates): **monolithbot** (arm64 CI ready), **n8n+postgres+qdrant**,
   **crafty-4** (or fold into Pterodactyl). **Cleanup:** stray `k3s-control-plane` stack
   still running on Akasha (live one is on Heimdall); old stopped `qbit-gluetun`.
+
+**Thoth GPU deployments — 2026-06-04:**
+- ✅ **Tdarr worker node** — connected to Hyperion Tdarr server (:8266). NVENC working after
+  driver switch (595 data-center → 580 production). All codecs: h264_nvenc (5.46x), hevc_nvenc, av1_nvenc.
+- ✅ **Jellyfin (GPU)** — containerized at :8096, NVENC hardware transcoding verified.
+  Parallel eval alongside primary Hyperion Jellyfin (.54).
+- ✅ **Ollama models** — deepseek-r1:70b (42 GB, ~19 tok/s) pulled. llama3.2:1b also available.
+- ✅ **Beszel agent** — deployed on Thoth, reporting to hub (.68:8090).
+- ✅ **SSH + sudo** — Hermes key deployed to all Monolith hosts for sysadmin access.
 
 **Open follow-ups:**
 - **Relocate the k3s control plane off Heimdall** (the bridge-networked
