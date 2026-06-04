@@ -31,6 +31,7 @@ link here as admin access — please don't change settings you don't understand.
 | **Jellyfin (Thoth)** | — | [192.168.10.144:8096](http://192.168.10.144:8096) | Parallel GPU-accelerated Jellyfin instance on the GPU server. Dual RTX 6000 Ada for NVENC hardware transcoding. Currently in evaluation alongside the primary instance. |
 | **Navidrome** | [navidrome.lab](http://navidrome.lab) | [192.168.10.66:4533](http://192.168.10.66:4533) | Dedicated music streaming (Subsonic-compatible — works with apps like DSub, play:Sub, Symfonium). |
 | **Seerr** | [seerr.lab](http://seerr.lab) | [192.168.10.54:5055](http://192.168.10.54:5055) | **Request** new movies & shows. Search for something, click request, and it gets downloaded and added automatically. The friendliest way to add content. |
+| **Musicseerr** | [musicseerr.lab](http://musicseerr.lab) | [192.168.10.74](http://192.168.10.74) | Music request & discovery app — like Seerr but for music. Search the MusicBrainz catalogue, request albums through Lidarr. |
 
 ---
 
@@ -49,6 +50,7 @@ usually never need to touch these. Admin/power-user territory.
 | **Prowlarr** | [prowlarr.lab](http://prowlarr.lab) | [192.168.10.55:9696](http://192.168.10.55:9696) | Indexer manager — the search sources the *arr apps use. Central config. |
 | **Trailarr** | [trailarr.lab](http://trailarr.lab) | [192.168.10.63:7889](http://192.168.10.63:7889) | Downloads trailers for the movie/TV library. |
 | **Tdarr** | [tdarr.lab](http://tdarr.lab) | [192.168.10.62:8266](http://192.168.10.62:8266) | Transcoding & library health (re-encodes files; worker node on Thoth with dual RTX 6000 Ada GPU acceleration). |
+| **Listenarr** | — | [192.168.10.73](http://192.168.10.73) | Audiobook manager — like Sonarr but for audiobooks. Searches, downloads, and organizes your audiobook library. |
 
 ---
 
@@ -59,6 +61,7 @@ usually never need to touch these. Admin/power-user territory.
 | **qBittorrent** | [qbittorrent.lab](http://qbittorrent.lab) | [192.168.10.58:8085](http://192.168.10.58:8085) | The download client (runs through a VPN with a kill-switch). The *arr apps drive it automatically — you rarely need to open it. |
 | **Cleanuparr** | [cleanuparr.lab](http://cleanuparr.lab) | [192.168.10.59:11011](http://192.168.10.59:11011) | Housekeeping — clears stalled/failed downloads automatically. |
 | **SuggestArr** | [suggestarr.lab](http://suggestarr.lab) | [192.168.10.64:5000](http://192.168.10.64:5000) | Auto-suggests content based on what's been watched and feeds it to Seerr. |
+| **boxarr** | — | [192.168.10.75](http://192.168.10.75) | Box office tracker — monitors weekly box office charts and auto-adds trending movies to Radarr. |
 
 ---
 
@@ -71,6 +74,8 @@ usually never need to touch these. Admin/power-user territory.
 | **Headlamp** | [headlamp.lab](http://headlamp.lab) | [192.168.10.50](http://192.168.10.50) | Kubernetes dashboard — the cluster everything runs on (deep admin). |
 | **Beszel** | [beszel.lab](http://beszel.lab) | [192.168.10.68:8090](http://192.168.10.68:8090) | Lightweight server/host monitoring (CPU, memory, disk, network). |
 | **Speedtest Tracker** | [speedtest.lab](http://speedtest.lab) | [192.168.10.67](http://192.168.10.67) | Tracks internet speed over time (scheduled speedtests + history graphs). |
+| **Jellystat** | — | [192.168.10.76](http://192.168.10.76) | Jellyfin statistics — view watch history, user activity, library stats. |
+| **Sortarr** | — | [192.168.10.77](http://192.168.10.77) | Media library insights — analyse libraries across Sonarr, Radarr, Jellyfin, Plex. Read-only analytics tool. |
 
 ---
 
