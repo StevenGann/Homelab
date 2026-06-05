@@ -1,29 +1,87 @@
+# Tdarr server DB / configs / logs on Akasha NFS (Application-Storage), NOT
+# node-local. 2026-06-05 storage migration: no Hyperion service keeps persistent
+# data on a node's local NVMe (see docs/storage-audit-2026-06-05.md). The old
+# "DB must NOT run over NFS" note is superseded by the mandate — Tdarr's NeDB
+# store works over NFSv4.1 `hard` mounts with locking. Static PV+PVC follows the
+# akasha-*-nfs convention in media/00-storage/. PVC names unchanged.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-app-media-tdarr-server
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 5Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: tdarr-server }
+  mountOptions: [nfsvers=4.1, hard, noatime]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/tdarr-server }
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: tdarr-server
   namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path        # node-local; Tdarr DB must NOT run over NFS
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-app-media-tdarr-server
   resources: { requests: { storage: 5Gi } }
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-app-media-tdarr-configs
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 1Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: tdarr-configs }
+  mountOptions: [nfsvers=4.1, hard, noatime]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/tdarr-configs }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: tdarr-configs
   namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-app-media-tdarr-configs
   resources: { requests: { storage: 1Gi } }
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-app-media-tdarr-logs
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 1Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: tdarr-logs }
+  mountOptions: [nfsvers=4.1, hard, noatime]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/tdarr-logs }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: tdarr-logs
   namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-app-media-tdarr-logs
   resources: { requests: { storage: 1Gi } }

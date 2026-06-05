@@ -57,7 +57,7 @@ spec:
         - name: logs
           persistentVolumeClaim: { claimName: tdarr-logs }
         - name: temp
-          emptyDir: {}                   # TODO: must become a SHARED NFS export when Thoth worker is added
+          emptyDir: { sizeLimit: 10Gi }  # transcode scratch — capped so a runaway transcode can't fill a node disk (qBittorrent-incident class). TODO: SHARED NFS export when Thoth worker is added
         - name: tv
           persistentVolumeClaim: { claimName: media-tv }
         - name: movies
