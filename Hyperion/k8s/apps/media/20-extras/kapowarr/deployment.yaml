@@ -18,8 +18,8 @@ spec:
         - name: kapowarr
           image: mrcas/kapowarr:latest@sha256:d455797e4f2c5b1a8ccc5ce05c427f1af2179451bb1af195ca3fa8c3e928623b
           env:
-            - { name: PUID, value: "568" }   # image default is root (0) — override to TrueNAS apps
-            - { name: PGID, value: "568" }
+            - { name: PUID, value: "0" }    # root avoids entrypoint chown on /app/temp_downloads (NFS downloads — 125GB+)
+            - { name: PGID, value: "0" }
             - { name: TZ,   value: "America/Los_Angeles" }
           ports:
             - { name: http, containerPort: 5656 }
