@@ -167,12 +167,26 @@ reachable (`nftables` on Heimdall didn't open the port; see
 encrypted; it's owned by `root:root` mode `644` on Heimdall. Use `sudo`
 when reading via SSH.
 
+## Storage: local-path on /mnt/node-storage (interim)
+
+The built-in `local-path` provisioner is the default StorageClass. By default it
+puts dynamic volumes on the 32G root partition; we repoint it at each worker's
+`/mnt/node-storage` (a separate ~200G ext4 partition) to avoid DiskPressure.
+This is a **live ConfigMap patch on the k3s `local-storage` addon**, recorded in
+`manifests/local-path-config.yaml` (which carries the apply command, the
+restart-vs-upgrade durability caveat, and the re-apply-after-k3s-bump note).
+
+Longhorn is the intended successor once the control plane leaves its
+bridge-networked container — see `docs/design/adr-0003-longhorn-deferred.md`.
+
 ## File layout
 
 ```
 Heimdall/k3s-control-plane/
 ├── README.md              ← this file
 ├── docker-compose.yml     ← the k3s-server service spec
+├── manifests/
+│   └── local-path-config.yaml  ← record of the local-path /mnt/node-storage patch
 └── .env.example           ← example env vars
 ```
 

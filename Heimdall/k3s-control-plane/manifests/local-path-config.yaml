@@ -1,0 +1,43 @@
+# local-path-config — record of the customization applied to the k3s built-in
+# local-path-provisioner addon (kube-system).
+#
+# WHY: each Hyperion NixOS worker has a separate ext4 partition mounted at
+# /mnt/node-storage (nvme0n1p3, ~200G — see Hyperion/nixos/disko/nvme-layout.nix).
+# The k3s default puts dynamic local-path volumes on the 32G root partition
+# (/var/lib/rancher/k3s/storage), which risks DiskPressure. We point the
+# provisioner at /mnt/node-storage/local-path instead.
+#
+# THIS FILE IS A RECORD, NOT AUTO-APPLIED. local-storage is a k3s *addon*
+# rendered from the bundled /var/lib/rancher/k3s/server/manifests/local-storage.yaml,
+# which k3s re-extracts on every container start. We do NOT edit that bundled
+# file (k3s overwrites it on boot). Instead we patch the live ConfigMap:
+#
+#   kubectl -n kube-system patch configmap local-path-config --type merge \
+#     -p '{"data":{"config.json":"{\"nodePathMap\":[{\"node\":\"DEFAULT_PATH_FOR_NON_LISTED_NODES\",\"paths\":[\"/mnt/node-storage/local-path\"]}]}"}}'
+#   kubectl -n kube-system rollout restart deploy local-path-provisioner
+#
+# DURABILITY: a plain container restart does NOT revert this — k3s re-extracts a
+# byte-identical local-storage.yaml, the addon's content checksum is unchanged,
+# so the addon controller does not re-apply and our live ConfigMap edit survives.
+# A k3s *version upgrade* ships a new bundled local-storage.yaml (new checksum)
+# and WILL revert this to the root path. After any bump of the k3s image tag in
+# docker-compose.yml, re-apply the patch above (and re-confirm `local-path` is
+# still the default StorageClass).
+#
+# Interim measure — Longhorn is the intended successor once the control plane
+# leaves its bridge-networked container. See docs/design/adr-0003-longhorn-deferred.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-path-config
+  namespace: kube-system
+data:
+  config.json: |-
+    {
+      "nodePathMap":[
+      {
+        "node":"DEFAULT_PATH_FOR_NON_LISTED_NODES",
+        "paths":["/mnt/node-storage/local-path"]
+      }
+      ]
+    }
