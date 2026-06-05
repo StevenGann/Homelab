@@ -41,11 +41,17 @@ data:
     fi
 
     log "Detected forwarded port: $PORT"
-    log "Setting qBittorrent listen_port to $PORT..."
+    # Bind libtorrent to the VPN interface (tun0) — CRITICAL. With "Any interface"
+    # libtorrent sources DHT/peer traffic from eth0 (10.42.x), which policy-routing
+    # sends out eth0 and gluetun's kill-switch drops (OUTPUT only allows -o tun0).
+    # Result: tun0 idle, DHT=0 nodes, "firewalled", external IP N/A. Binding to tun0
+    # forces all torrent traffic through the tunnel. Also clear any stale announce_ip
+    # ("IP reported to trackers") — the ProtonVPN exit changes every reconnect, so a
+    # hardcoded value makes trackers hand peers a wrong address.
+    log "Binding to tun0 and setting listen_port to $PORT..."
     curl -s -X POST "${QBIT_API}/app/setPreferences" \
       -u "$AUTH" \
-      -H "Content-Type: application/x-www-form-urlencoded" \
-      -d "json=%7B%22listen_port%22%3A${PORT}%7D" \
+      --data-urlencode "json={\"listen_port\":${PORT},\"current_network_interface\":\"tun0\",\"announce_ip\":\"\"}" \
       -o /dev/null -w "  HTTP %{http_code}\n"
 
     # Verify it stuck

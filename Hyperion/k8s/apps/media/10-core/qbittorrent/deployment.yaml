@@ -13,6 +13,10 @@
 # Port forwarding: ProtonVPN assigns a random port via NAT-PMP.  A port-sync script
 # (ConfigMap, mounted at /custom-services.d/) reads /tmp/gluetun/forwarded_port and
 # updates qBittorrent's listen_port via API on startup and every 30s thereafter.
+# The same script ALSO binds libtorrent to the VPN interface tun0
+# (current_network_interface). Without that bind, "Any interface" makes libtorrent
+# source DHT/peer traffic from eth0, which routes around the tunnel and gets dropped
+# by gluetun's kill-switch → DHT dead, "firewalled", external IP N/A. (2026-06-04)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
