@@ -1,9 +1,36 @@
+# qBittorrent config on Akasha NFS (Application-Storage), NOT node-local.
+# 2026-06-05: migrated off `local-path` after qBittorrent's save-path was
+# misconfigured into /config and wrote 21.5 GB of downloads onto
+# hyperion-theta's 32 GB NVMe → DiskPressure → node-wide eviction. Config now
+# lives on Akasha so a misbehaving app can never fill a node disk, and the
+# RWX NFS volume lets the pod schedule on any node (the old local-path PV
+# pinned it to one node by node-affinity). Downloads still go to media-downloads
+# (the separate NFS export mounted at /data/downloads) — see deployment.yaml.
+# Static PV+PVC follows the akasha-*-nfs convention in media/00-storage/.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-app-media-qbittorrent-config
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 1Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: qbittorrent-config }
+  mountOptions: [nfsvers=4.1, hard, noatime]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/qbittorrent-config }
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: qbittorrent-config
   namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-app-media-qbittorrent-config
   resources: { requests: { storage: 1Gi } }
