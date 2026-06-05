@@ -169,19 +169,34 @@ Successfully listening on IP. IP: "10.2.0.2". Port: "UTP/<port>"
 | `dht_nodes`            | 0                  | 79 → 84 → climbing   |
 | `last_external_address_v4` | "" (N/A)       | the ProtonVPN exit IP |
 
+### Second subtlety — the bind only takes on a *fresh* session
+
+Setting `current_interface_address` on a **live** session moves the visible
+listen socket onto tun0 (`netstat` shows `10.2.0.2:<port>`) but **DHT stays at
+0**. Only a session that *starts* with the address persisted — with tun0 already
+up — binds everything (listen **and** DHT) to tun0 and recovers. Proven by
+restarting just the process (`pkill -f qbittorrent-nox`, s6 respawns it): DHT
+went 0 → 49 and the external IP appeared within ~25 s, on the same pod, with no
+other change. So the listen socket / `listen_port` looking correct is **not** a
+sufficient health check.
+
 `port-sync.sh` now:
 
 1. Reads tun0's address **live** (`ip -o -4 addr show tun0`) rather than
-   hardcoding it.
-2. Sets **both** `current_network_interface` (name) and
-   `current_interface_address` (the live tun0 IP).
-3. **Verifies** the listen socket actually landed on `tun0`
-   (`netstat -uln` → `<tun0-ip>:<port>`), re-applying on failure — it no longer
-   trusts the `listen_port` confirmation alone (the original gap: `listen_port`
-   stuck while the interface bind silently didn't).
-4. As a last resort, restarts qBittorrent (`pkill -f qbittorrent-nox`, s6
-   respawns it) — with the address persisted in the profile, the fresh libtorrent
-   session binds to tun0 from startup.
+   hardcoding it, and persists **both** `current_network_interface` (name) and
+   `current_interface_address` (the tun0 IP) into the profile.
+2. **Restarts qBittorrent** (`pkill -f qbittorrent-nox`) so the fresh libtorrent
+   session binds the persisted address to tun0 cleanly — unless the running
+   session is already bound (it skips the restart if so).
+3. **Verifies the bind via the external VPN IP** (`last_external_address_v4`
+   non-empty in `/api/v2/transfer/info`) — a *stable* signal that libtorrent is
+   egressing through tun0, unlike `dht_nodes`, which bounces 0/1/13 for a minute
+   or two while DHT bootstraps even on a correct bind. It retries the clean-session
+   restart up to 3× until the VPN IP appears.
+4. Watch loop: a forwarded-port change is applied live (`listen_port` only, no
+   restart); a re-bind is triggered only after `dht_nodes` has been **0 for a
+   sustained ~2 min** (4 consecutive checks) — long enough to rule out bootstrap
+   noise, while a genuinely broken bind sits at 0 forever.
 
 See `port-sync-configmap.yaml`.
 
