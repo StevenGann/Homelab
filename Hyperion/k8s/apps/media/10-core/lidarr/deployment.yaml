@@ -1,52 +1,54 @@
-1|apiVersion: apps/v1
-2|kind: Deployment
-3|metadata:
-4|  name: lidarr
-5|  namespace: media
-6|  labels: { app: lidarr }
-7|spec:
-8|  replicas: 1
-9|  strategy: { type: Recreate }
-10|  selector:
-11|    matchLabels: { app: lidarr }
-12|  template:
-13|    metadata:
-14|      labels: { app: lidarr }
-15|    spec:
-16|      nodeSelector: { topology.kubernetes.io/zone: hyperion }
-17|      containers:
-18|        - name: lidarr
-19|          image: lscr.io/linuxserver/lidarr:latest@sha256:ca2f95634d422fdeccfbff2a42cbe3a4fed1170f7e3546d99d5d5f2c9c9aa03b
-20|          env:
-21|            - { name: PUID, value: "568" }
-22|            - { name: PGID, value: "568" }
-23|            - { name: TZ,   value: "America/Los_Angeles" }
-24|          envFrom:
-25|            - secretRef: { name: lidarr-secret }   # LIDARR__AUTH__APIKEY (SOPS-seeded)
-26|          ports:
-27|            - { name: http, containerPort: 8686 }
-28|          volumeMounts:
-29|            - { name: config,    mountPath: /config }
-30|            - { name: music,     mountPath: /data/media/music }   # Akasha Music (NFS, RWX)
-31|            - { name: downloads, mountPath: /data/downloads }     # Akasha Downloads (NFS, RWX) — copy-import
-32|          startupProbe:
-33|            httpGet: { path: /ping, port: 8686 }
-34|            failureThreshold: 30
-35|            periodSeconds: 10
-36|          readinessProbe:
-37|            httpGet: { path: /ping, port: 8686 }
-38|            periodSeconds: 15
-39|          livenessProbe:
-40|            httpGet: { path: /ping, port: 8686 }
-41|            periodSeconds: 30
-42|          resources:
-43|            requests: { cpu: "100m", memory: "256Mi" }
-44|            limits:   { cpu: "1",    memory: "768Mi" }
-45|      volumes:
-46|        - name: config
-47|          persistentVolumeClaim: { claimName: lidarr-config }
-48|        - name: music
-49|          persistentVolumeClaim: { claimName: media-music }
-50|        - name: downloads
-51|          persistentVolumeClaim: { claimName: media-downloads }
-52|
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lidarr
+  namespace: media
+  labels: { app: lidarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: lidarr }
+  template:
+    metadata:
+      labels: { app: lidarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: lidarr
+          image: lscr.io/linuxserver/lidarr:latest@sha256:ca2f95634d422fdeccfbff2a42cbe3a4fed1170f7e3546d99d5d5f2c9c9aa03b
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: TZ,   value: "America/Los_Angeles" }
+          envFrom:
+            - secretRef: { name: lidarr-secret }   # LIDARR__AUTH__APIKEY (SOPS-seeded)
+          ports:
+            - { name: http, containerPort: 8686 }
+          volumeMounts:
+            - { name: config,    mountPath: /config }
+            - { name: music,     mountPath: /data/media/music }   # Akasha Music (NFS, RWX)
+            - { name: downloads, mountPath: /data/downloads }     # Akasha Downloads (NFS, RWX) — copy-import
+          startupProbe:
+            httpGet: { path: /ping, port: 8686 }
+            failureThreshold: 30
+            periodSeconds: 10
+            timeoutSeconds: 5    # NFS-mounted DB needs >1s
+          readinessProbe:
+            httpGet: { path: /ping, port: 8686 }
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: { path: /ping, port: 8686 }
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "768Mi" }
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: lidarr-config }
+        - name: music
+          persistentVolumeClaim: { claimName: media-music }
+        - name: downloads
+          persistentVolumeClaim: { claimName: media-downloads }
