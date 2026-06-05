@@ -121,4 +121,29 @@
   # is NOT equivalent (it omits the rpcbind/statd services). Live day-2 change,
   # applied via `colmena apply` with no reboot. See docs/design/arr-stack-plan.md §0.5.
   boot.supportedFilesystems = [ "nfs" ];
+
+  # ── Longhorn distributed block storage ──────────────────────────────────────
+  # Longhorn's stable (v1) data engine attaches replicas over iSCSI: the
+  # longhorn-manager pod calls the HOST's iscsiadm via nsenter, and each replica
+  # is exposed as a local iSCSI target the kubelet mounts. Without a running
+  # iscsid + the iscsi_tcp module, volume attach fails ("iscsiadm: not found" /
+  # "failed to login to target"). services.openiscsi provides iscsiadm on PATH,
+  # the iscsid socket, and an initiator IQN. Live day-2 change, no reboot.
+  # See docs/runbooks/longhorn-storage.md.
+  services.openiscsi = {
+    enable = true;
+    # Per-node initiator name. config.networking.hostName is set in
+    # hosts/<hostname>.nix and resolved at build time.
+    name = "iqn.2026-06.lab.homelab:${config.networking.hostName}";
+  };
+
+  # Longhorn stores replica data under defaultDataPath. The 32G root partition
+  # already trips kubelet DiskPressure (shared with /nix/store); the disko layout
+  # carves the NVMe remainder (~200G) into nvme0n1p3 at /mnt/node-storage. Point
+  # Longhorn there (matched by the default-data-path setting in the Longhorn
+  # ConfigMap). tmpfiles guarantees the dir exists before longhorn-manager's
+  # first disk scan. See disko/nvme-layout.nix.
+  systemd.tmpfiles.rules = [
+    "d /mnt/node-storage/longhorn 0755 root root -"
+  ];
 }
