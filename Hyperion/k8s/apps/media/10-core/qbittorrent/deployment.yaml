@@ -1,4 +1,4 @@
-# qBittorrent behind a gluetun VPN tunnel (Mullvad / WireGuard), migrated from Akasha.
+# qBittorrent behind a gluetun VPN tunnel (ProtonVPN / WireGuard), migrated from Akasha.
 # Containers in a pod share a network namespace, so qBittorrent's traffic routes
 # through gluetun's wg0 with its kill-switch — the k8s-native equivalent of the
 # Akasha `network_mode: service:gluetun`. The NFS download volume is mounted by the
@@ -7,9 +7,9 @@
 # http://qbittorrent.media.svc.cluster.local:8085 with NO remote-path-mapping
 # (everyone mounts media-downloads at /data/downloads).
 #
-# 2026-06-04: Switched from PIA OpenVPN → Mullvad WireGuard.
-# WireGuard avoids the sitnl routing issues that prevented DHT bootstrap and
-# port forwarding through PIA OpenVPN in k8s.
+# 2026-06-04: Switched from PIA OpenVPN → Mullvad WireGuard → ProtonVPN WireGuard.
+# Mullvad dropped port forwarding support (May 2023). ProtonVPN supports NAT-PMP
+# port forwarding with WireGuard, enabling full DHT and UDP tracker connectivity.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,11 +34,13 @@ spec:
             capabilities:
               add: ["NET_ADMIN"]
           env:
-            - { name: VPN_SERVICE_PROVIDER,      value: "mullvad" }
+            - { name: VPN_SERVICE_PROVIDER,      value: "protonvpn" }
             - { name: VPN_TYPE,                  value: "wireguard" }
-            - { name: WIREGUARD_PRIVATE_KEY,     value: "yAJTB3uHi/YKLL2ik2489wbI91JZD2E8wnaQ1gGCu38=" }
-            - { name: WIREGUARD_ADDRESSES,       value: "10.72.91.121/32" }
-            - { name: SERVER_CITIES,             value: "San Jose CA" }
+            - { name: WIREGUARD_PRIVATE_KEY,     value: "eC2wRChJENfQ+EQFpOy5HxaOsr+ix2AFCaPHQKO6dF8=" }
+            - { name: WIREGUARD_ADDRESSES,       value: "10.2.0.2/32" }
+            - { name: SERVER_CITIES,             value: "San Jose" }
+            - { name: VPN_PORT_FORWARDING,       value: "on" }
+            - { name: PORT_FORWARD_ONLY,         value: "on" }
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" }
             - { name: FIREWALL_INPUT_PORTS,      value: "8085,6881" }
             - { name: UPDATER_PERIOD,            value: "24h" }
