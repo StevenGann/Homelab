@@ -84,6 +84,8 @@ RECORDS=(
     "lidarr.lab|A|192.168.10.65"          # :8686  (music)
     "navidrome.lab|A|192.168.10.66"       # :4533  (music streaming)
     "caldera.lab|A|192.168.10.70"         # :8000  (Obsidian vault REST API for AI agents)
+    "n8n.lab|A|192.168.10.71"             # :5678  (workflow automation)
+    "nextcloud.lab|A|192.168.10.72"       # :80    (self-hosted cloud storage)
     "listenarr.lab|A|192.168.10.73"      # :4545  (audiobook manager)
     "musicseerr.lab|A|192.168.10.74"     # :8688  (music requests via Lidarr)
     "boxarr.lab|A|192.168.10.75"         # :8888  (box office → Radarr)
