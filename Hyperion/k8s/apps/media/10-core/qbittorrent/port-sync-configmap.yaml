@@ -6,77 +6,143 @@ metadata:
 data:
   port-sync.sh: |
     #!/bin/sh
-    # Wait for gluetun to establish port forwarding, then update qBittorrent.
-    # Runs as a linuxserver.io custom service (loops forever).
+    # Sync gluetun's NAT-PMP forwarded port into qBittorrent AND bind libtorrent to
+    # the VPN tunnel. Runs as a linuxserver.io custom service (loops forever).
     #
-    # gluetun writes the forwarded port to /tmp/gluetun/forwarded_port
-    # Both containers share a /tmp/gluetun emptyDir so qBittorrent can read it.
+    # gluetun writes the forwarded port to /tmp/gluetun/forwarded_port; both
+    # containers share a /tmp/gluetun emptyDir so qBittorrent can read it.
+    #
+    # CRITICAL — root cause of the recurring "DHT dead / firewalled / external IP
+    # N/A" breakage (re-diagnosed 2026-06-04, supersedes the bind-by-name fix):
+    # qBittorrent must bind to the tunnel BY ADDRESS, not by interface name.
+    # Setting only "current_network_interface":"tun0" is silently REJECTED by
+    # libtorrent — its log shows: "The configured network interface is invalid.
+    # Interface: tun0" — whenever tun0 was brought up AFTER qBittorrent started.
+    # gluetun always raises the tunnel a few seconds into pod start, so this is the
+    # normal case. libtorrent then falls back to listening on eth0 (the pod IP);
+    # gluetun's kill-switch (OUTPUT drops everything not -o tun0) silently discards
+    # that traffic -> tun0 idle, DHT=0, "firewalled", external IP N/A.
+    #
+    # Binding by the tun0 ADDRESS ("current_interface_address", e.g. 10.2.0.2) IS
+    # accepted and makes libtorrent listen on tun0 (verified: log then shows
+    # 'Successfully listening on IP. IP: "10.2.0.2"'). We read the address live
+    # from the interface (this config pins WIREGUARD_ADDRESSES=10.2.0.2/32, but
+    # reading it live keeps the script correct if that ever changes) and VERIFY the
+    # listen socket actually landed on it — re-applying, and finally restarting
+    # qBittorrent (the address is persisted in the profile, so a fresh libtorrent
+    # session binds to tun0 from the start) if the API apply alone doesn't take.
 
     PORT_FILE="/tmp/gluetun/forwarded_port"
     QBIT_API="http://localhost:8085/api/v2"
     AUTH="admin:Qazxcv1992!"
-    MAX_WAIT=120   # seconds to wait for initial port file
+    VPN_IFACE="tun0"
+    MAX_WAIT=120          # seconds to wait for the initial port file
     POLL_INTERVAL=5
-    LAST_PORT=""
+    VERIFY_TRIES=6        # API re-applies before forcing a clean qBittorrent restart
+    VERIFY_WAIT=8         # seconds to let libtorrent rebind after an apply
 
     log() { echo "[port-sync] $(date '+%H:%M:%S') $*"; }
 
-    # Wait for gluetun to write the forwarded port
+    # tun0's IPv4 address (empty until gluetun raises the tunnel).
+    vpn_addr() {
+      ip -o -4 addr show "$VPN_IFACE" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1
+    }
+
+    # Is libtorrent's listen socket actually on the VPN address:port?
+    # (netstat — `ss` is absent in this image. Local Address is column 4.)
+    bound_to_vpn() {
+      _a="$1"; _p="$2"
+      [ -n "$_a" ] || return 1
+      netstat -uln 2>/dev/null | awk '{print $4}' | grep -Fxq "${_a}:${_p}"
+    }
+
+    apply_prefs() {
+      _addr="$1"; _port="$2"
+      curl -s -X POST "${QBIT_API}/app/setPreferences" -u "$AUTH" \
+        --data-urlencode "json={\"listen_port\":${_port},\"current_network_interface\":\"${VPN_IFACE}\",\"current_interface_address\":\"${_addr}\",\"announce_ip\":\"\"}" \
+        -o /dev/null -w "  HTTP %{http_code}\n"
+    }
+
+    wait_webui() {
+      _i=0
+      while [ $_i -lt 60 ]; do
+        curl -s -o /dev/null -u "$AUTH" "${QBIT_API}/app/version" && return 0
+        sleep 2; _i=$((_i + 1))
+      done
+      return 1
+    }
+
+    # Apply the port + tun0 address bind and VERIFY the listen socket landed on
+    # tun0. Retries the API a few times, then forces a clean qBittorrent restart
+    # (the address is persisted, so the fresh session binds to tun0 from startup —
+    # the validated recovery). Returns 0 once bound, 1 if it never sticks.
+    sync_and_verify() {
+      _port="$1"
+      _try=0
+      while [ $_try -lt $VERIFY_TRIES ]; do
+        _addr=$(vpn_addr)
+        if [ -z "$_addr" ]; then
+          log "tun0 has no address yet; waiting"
+          sleep $VERIFY_WAIT; _try=$((_try + 1)); continue
+        fi
+        log "Applying listen_port=$_port, bind $VPN_IFACE ($_addr) [try $((_try + 1))/$VERIFY_TRIES]"
+        apply_prefs "$_addr" "$_port"
+        sleep $VERIFY_WAIT
+        if bound_to_vpn "$_addr" "$_port"; then
+          log "Verified: libtorrent listening on ${_addr}:${_port} (tun0)"
+          return 0
+        fi
+        log "Not bound to ${_addr}:${_port} yet — re-applying"
+        _try=$((_try + 1))
+      done
+      log "API apply did not bind after $VERIFY_TRIES tries — forcing clean qBittorrent restart"
+      pkill -f qbittorrent-nox
+      wait_webui || { log "WebUI did not return after restart"; return 1; }
+      _addr=$(vpn_addr)
+      apply_prefs "$_addr" "$_port"
+      sleep $VERIFY_WAIT
+      if bound_to_vpn "$_addr" "$_port"; then
+        log "Verified after restart: libtorrent on ${_addr}:${_port} (tun0)"
+        return 0
+      fi
+      log "WARNING: still not bound to ${_addr}:${_port} after restart"
+      return 1
+    }
+
+    # ── startup: wait for gluetun to write the forwarded port ──────────────────
     waited=0
     while [ ! -f "$PORT_FILE" ] && [ $waited -lt $MAX_WAIT ]; do
-      sleep $POLL_INTERVAL
-      waited=$((waited + POLL_INTERVAL))
+      sleep $POLL_INTERVAL; waited=$((waited + POLL_INTERVAL))
     done
-
     if [ ! -f "$PORT_FILE" ]; then
       log "Timed out after ${MAX_WAIT}s waiting for $PORT_FILE — giving up"
       exit 1
     fi
 
-    # Read the port and update qBittorrent
     PORT=$(cat "$PORT_FILE" | tr -d '[:space:]')
     if [ -z "$PORT" ] || [ "$PORT" -eq 0 ] 2>/dev/null; then
       log "Invalid port '$PORT' in $PORT_FILE"
       exit 1
     fi
-
     log "Detected forwarded port: $PORT"
-    # Bind libtorrent to the VPN interface (tun0) — CRITICAL. With "Any interface"
-    # libtorrent sources DHT/peer traffic from eth0 (10.42.x), which policy-routing
-    # sends out eth0 and gluetun's kill-switch drops (OUTPUT only allows -o tun0).
-    # Result: tun0 idle, DHT=0 nodes, "firewalled", external IP N/A. Binding to tun0
-    # forces all torrent traffic through the tunnel. Also clear any stale announce_ip
-    # ("IP reported to trackers") — the ProtonVPN exit changes every reconnect, so a
-    # hardcoded value makes trackers hand peers a wrong address.
-    log "Binding to tun0 and setting listen_port to $PORT..."
-    curl -s -X POST "${QBIT_API}/app/setPreferences" \
-      -u "$AUTH" \
-      --data-urlencode "json={\"listen_port\":${PORT},\"current_network_interface\":\"tun0\",\"announce_ip\":\"\"}" \
-      -o /dev/null -w "  HTTP %{http_code}\n"
-
-    # Verify it stuck
-    ACTUAL=$(curl -s "${QBIT_API}/app/preferences" -u "$AUTH" | grep -o '"listen_port":[0-9]*' | cut -d: -f2)
-    if [ "$ACTUAL" = "$PORT" ]; then
-      log "listen_port confirmed: $PORT"
-    else
-      log "WARNING: listen_port is $ACTUAL, expected $PORT"
-    fi
-
+    sync_and_verify "$PORT"
     LAST_PORT="$PORT"
 
-    # Watch for port changes (e.g. gluetun re-requests port forwarding)
+    # ── watch loop: re-apply on port change OR if the bind drifts off tun0 ──────
+    # (a gluetun reconnect changes the forwarded port and can reset libtorrent's
+    # listen interface; either way we re-bind to tun0 and re-verify.)
     while true; do
       sleep 30
-      if [ -f "$PORT_FILE" ]; then
-        NEW_PORT=$(cat "$PORT_FILE" | tr -d '[:space:]')
-        if [ -n "$NEW_PORT" ] && [ "$NEW_PORT" != "$LAST_PORT" ] && [ "$NEW_PORT" -gt 0 ] 2>/dev/null; then
-          log "Port changed: $LAST_PORT → $NEW_PORT"
-          curl -s -X POST "${QBIT_API}/app/setPreferences" \
-            -u "$AUTH" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "json=%7B%22listen_port%22%3A${NEW_PORT}%7D" \
-            -o /dev/null -w "  HTTP %{http_code}\n"
-          LAST_PORT="$NEW_PORT"
-        fi
+      [ -f "$PORT_FILE" ] || continue
+      NEW_PORT=$(cat "$PORT_FILE" | tr -d '[:space:]')
+      [ -n "$NEW_PORT" ] && [ "$NEW_PORT" -gt 0 ] 2>/dev/null || continue
+      ADDR=$(vpn_addr)
+      if [ "$NEW_PORT" != "$LAST_PORT" ]; then
+        log "Port changed: $LAST_PORT -> $NEW_PORT"
+        sync_and_verify "$NEW_PORT"
+        LAST_PORT="$NEW_PORT"
+      elif ! bound_to_vpn "$ADDR" "$NEW_PORT"; then
+        log "Listen bind drifted off tun0 (${ADDR}:${NEW_PORT} missing) — re-binding"
+        sync_and_verify "$NEW_PORT"
       fi
     done

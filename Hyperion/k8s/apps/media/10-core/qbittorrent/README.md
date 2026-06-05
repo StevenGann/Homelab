@@ -29,9 +29,11 @@ linuxserver.io custom service (`/custom-services.d/`) and on startup — then ev
 30 s — pushes two things to qBittorrent via its WebUI API:
 
 1. `listen_port` = the current forwarded port.
-2. `current_network_interface = tun0` — binds libtorrent to the VPN interface.
-   It also clears `announce_ip` so qBittorrent doesn't advertise a stale exit IP
-   to trackers.
+2. `current_interface_address = <tun0 IP>` (plus `current_network_interface =
+   tun0`) — binds libtorrent to the VPN tunnel **by address**. Binding by name
+   alone is silently rejected as "invalid" (see the 2026-06-04 follow-up
+   post-mortem below). It also clears `announce_ip` so qBittorrent doesn't
+   advertise a stale exit IP to trackers.
 
 Both settings persist on the config PVC, but the script reapplies them on every
 start so the app is correct even after a PVC reset or a port change.
@@ -108,13 +110,80 @@ Effect was immediate — DHT recovered within seconds:
 |  ~32  |   137     | **connected** | 156.146.54.102  | 4.2 MB/s  |
 | later |   272     | connected   | 156.146.54.102    | ~40 MB/s  |
 
-Binding by interface **name** (`tun0`) — not by address — is robust here:
-gluetun always names the interface `tun0`, and this ProtonVPN config always
-assigns `10.2.0.2` (`WIREGUARD_ADDRESSES=10.2.0.2/32`), so the bind survives
-reconnects and forwarded-port changes.
+> **⚠️ Superseded — see the follow-up below.** Binding by interface **name**
+> (`current_network_interface: tun0`) is **not** reliable: it works only when
+> tun0 already existed at qBittorrent startup. The durable fix binds by
+> **address**.
 
-The bind (plus the stale-`announce_ip` clear) is now baked into `port-sync.sh`
-so it is reapplied on every startup — see `port-sync-configmap.yaml`.
+---
+
+## Follow-up: same symptom recurred after a reset (2026-06-04, later)
+
+After qBittorrent had to be reset, the exact symptom returned: `dht_nodes: 0`,
+`connection_status: firewalled`/`disconnected`, external IP N/A — even though
+`port-sync.sh` set `current_network_interface: tun0` on startup and confirmed
+`listen_port`.
+
+### Why the name-bind silently failed
+
+qBittorrent's own log (`GET /api/v2/log/main`) was the tell:
+
+```
+The configured network interface is invalid. Interface: "tun0"
+Successfully listening on IP. IP: "10.42.10.83". Port: "TCP/<port>"   ← eth0, NOT tun0
+```
+
+`port-sync.sh` set `current_network_interface: tun0` **after** gluetun raised the
+tunnel, but qBittorrent/libtorrent rejected the **name** as "invalid" and fell
+back to listening on **eth0** (the pod IP). Even though qBittorrent's live
+interface list *did* include `tun0` (`/api/v2/app/networkInterfaceList` →
+`[lo, eth0, tun0]`, addr `10.2.0.2`), the name-bind would not take on a session
+configured before tun0 came up. gluetun's kill-switch then dropped the
+eth0-sourced traffic → the original symptom, reproducibly, on every reset.
+
+The first post-mortem's name-bind appeared to work only because that session
+happened to have tun0 present when it was applied — it is **timing-dependent and
+not durable**.
+
+### The durable fix — bind by ADDRESS
+
+Set `current_interface_address` to tun0's IP (not just the interface name):
+
+```jsonc
+// app/setPreferences
+{ "current_network_interface": "tun0",
+  "current_interface_address": "10.2.0.2",   // ← tun0's IP, read live by the script
+  "listen_port": <forwarded>, "announce_ip": "" }
+```
+
+The log immediately flipped to the right interface and DHT recovered:
+
+```
+Successfully listening on IP. IP: "10.2.0.2". Port: "TCP/<port>"   ← tun0 ✓
+Successfully listening on IP. IP: "10.2.0.2". Port: "UTP/<port>"
+```
+
+| signal                 | name-bind (broken) | address-bind (fixed) |
+|------------------------|--------------------|----------------------|
+| listen socket          | eth0 / random port | `10.2.0.2:<forwarded>` |
+| `dht_nodes`            | 0                  | 79 → 84 → climbing   |
+| `last_external_address_v4` | "" (N/A)       | the ProtonVPN exit IP |
+
+`port-sync.sh` now:
+
+1. Reads tun0's address **live** (`ip -o -4 addr show tun0`) rather than
+   hardcoding it.
+2. Sets **both** `current_network_interface` (name) and
+   `current_interface_address` (the live tun0 IP).
+3. **Verifies** the listen socket actually landed on `tun0`
+   (`netstat -uln` → `<tun0-ip>:<port>`), re-applying on failure — it no longer
+   trusts the `listen_port` confirmation alone (the original gap: `listen_port`
+   stuck while the interface bind silently didn't).
+4. As a last resort, restarts qBittorrent (`pkill -f qbittorrent-nox`, s6
+   respawns it) — with the address persisted in the profile, the fresh libtorrent
+   session binds to tun0 from startup.
+
+See `port-sync-configmap.yaml`.
 
 ### Diagnostic recipe (for next time)
 
