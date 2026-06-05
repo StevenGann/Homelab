@@ -42,7 +42,7 @@ spec:
             - { name: VPN_PORT_FORWARDING,       value: "on" }
             - { name: PORT_FORWARD_ONLY,         value: "on" }
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.42.0.0/16,10.43.0.0/16,172.16.0.0/12,192.168.0.0/16" }
-            - { name: FIREWALL_INPUT_PORTS,      value: "8085,58677" }
+            - { name: FIREWALL_INPUT_PORTS,      value: "8085,46969" }
             - { name: UPDATER_PERIOD,            value: "24h" }
             - { name: HEALTH_VPN_DURATION_INITIAL, value: "60s" }
             - { name: TZ,                        value: "America/Los_Angeles" }
@@ -59,7 +59,7 @@ spec:
             - { name: PGID,            value: "568" }
             - { name: TZ,              value: "America/Los_Angeles" }
             - { name: WEBUI_PORT,      value: "8085" }
-            - { name: TORRENTING_PORT, value: "58677" }
+            - { name: TORRENTING_PORT, value: "46969" }
           volumeMounts:
             - { name: config,    mountPath: /config }
             - { name: downloads, mountPath: /data/downloads }
