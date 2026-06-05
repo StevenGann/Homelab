@@ -1,9 +1,31 @@
+# navidrome-data on Akasha NFS (Application-Storage), NOT node-local.
+# 2026-06-05 storage migration: no Hyperion service keeps persistent data
+# on a node's local NVMe (see docs/storage-audit-2026-06-05.md).
+# Static PV+PVC follows the akasha-*-nfs convention in media/00-storage/.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-app-media-navidrome-data
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 2Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: navidrome-data }
+  mountOptions: [nfsvers=4.1, hard, noatime]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/navidrome-data }
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: navidrome-data
   namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-app-media-navidrome-data
   resources: { requests: { storage: 2Gi } }

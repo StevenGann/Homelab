@@ -1,51 +1,52 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: radarr
-  namespace: media
-  labels: { app: radarr }
-spec:
-  replicas: 1
-  strategy: { type: Recreate }
-  selector:
-    matchLabels: { app: radarr }
-  template:
-    metadata:
-      labels: { app: radarr }
-    spec:
-      nodeSelector: { topology.kubernetes.io/zone: hyperion }
-      containers:
-        - name: radarr
-          image: lscr.io/linuxserver/radarr:latest@sha256:c0a4335d4249b46102f64cf6fa27ffc3bddfd9138fac1e4ddf238afd37f02d1f
-          env:
-            - { name: PUID, value: "568" }
-            - { name: PGID, value: "568" }
-            - { name: TZ,   value: "America/Los_Angeles" }
-          envFrom:
-            - secretRef: { name: radarr-secret }   # RADARR__AUTH__APIKEY (SOPS-seeded)
-          ports:
-            - { name: http, containerPort: 7878 }
-          volumeMounts:
-            - { name: config,    mountPath: /config }
-            - { name: movies,    mountPath: /data/media/movies }   # Akasha Movies (NFS, RWX)
-            - { name: downloads, mountPath: /data/downloads }      # Akasha Downloads (NFS, RWX) — copy-import
-          startupProbe:
-            httpGet: { path: /ping, port: 7878 }
-            failureThreshold: 30
-            periodSeconds: 10
-          readinessProbe:
-            httpGet: { path: /ping, port: 7878 }
-            periodSeconds: 15
-          livenessProbe:
-            httpGet: { path: /ping, port: 7878 }
-            periodSeconds: 30
-          resources:
-            requests: { cpu: "100m", memory: "256Mi" }
-            limits:   { cpu: "1",    memory: "768Mi" }
-      volumes:
-        - name: config
-          persistentVolumeClaim: { claimName: radarr-config }
-        - name: movies
-          persistentVolumeClaim: { claimName: media-movies }
-        - name: downloads
-          persistentVolumeClaim: { claimName: media-downloads }
+1|apiVersion: apps/v1
+2|kind: Deployment
+3|metadata:
+4|  name: radarr
+5|  namespace: media
+6|  labels: { app: radarr }
+7|spec:
+8|  replicas: 1
+9|  strategy: { type: Recreate }
+10|  selector:
+11|    matchLabels: { app: radarr }
+12|  template:
+13|    metadata:
+14|      labels: { app: radarr }
+15|    spec:
+16|      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+17|      containers:
+18|        - name: radarr
+19|          image: lscr.io/linuxserver/radarr:latest@sha256:c0a4335d4249b46102f64cf6fa27ffc3bddfd9138fac1e4ddf238afd37f02d1f
+20|          env:
+21|            - { name: PUID, value: "568" }
+22|            - { name: PGID, value: "568" }
+23|            - { name: TZ,   value: "America/Los_Angeles" }
+24|          envFrom:
+25|            - secretRef: { name: radarr-secret }   # RADARR__AUTH__APIKEY (SOPS-seeded)
+26|          ports:
+27|            - { name: http, containerPort: 7878 }
+28|          volumeMounts:
+29|            - { name: config,    mountPath: /config }
+30|            - { name: movies,    mountPath: /data/media/movies }   # Akasha Movies (NFS, RWX)
+31|            - { name: downloads, mountPath: /data/downloads }      # Akasha Downloads (NFS, RWX) — copy-import
+32|          startupProbe:
+33|            httpGet: { path: /ping, port: 7878 }
+34|            failureThreshold: 30
+35|            periodSeconds: 10
+36|          readinessProbe:
+37|            httpGet: { path: /ping, port: 7878 }
+38|            periodSeconds: 15
+39|          livenessProbe:
+40|            httpGet: { path: /ping, port: 7878 }
+41|            periodSeconds: 30
+42|          resources:
+43|            requests: { cpu: "100m", memory: "256Mi" }
+44|            limits:   { cpu: "1",    memory: "768Mi" }
+45|      volumes:
+46|        - name: config
+47|          persistentVolumeClaim: { claimName: radarr-config }
+48|        - name: movies
+49|          persistentVolumeClaim: { claimName: media-movies }
+50|        - name: downloads
+51|          persistentVolumeClaim: { claimName: media-downloads }
+52|

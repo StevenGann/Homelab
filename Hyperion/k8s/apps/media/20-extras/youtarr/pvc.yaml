@@ -1,19 +1,59 @@
+# youtarr-config on Akasha NFS (Application-Storage), NOT node-local.
+# 2026-06-05 storage migration: no Hyperion service keeps persistent data
+# on a node's local NVMe (see docs/storage-audit-2026-06-05.md).
+# Static PV+PVC follows the akasha-*-nfs convention in media/00-storage/.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-app-media-youtarr-config
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 2Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: youtarr-config }
+  mountOptions: [nfsvers=4.1, hard, noatime]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/youtarr-config }
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: youtarr-config
   namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path        # node-local; config/jobs/thumbnail cache
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-app-media-youtarr-config
   resources: { requests: { storage: 2Gi } }
+---
+# youtarr-db (MariaDB) on Akasha NFS — same migration mandate.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-app-media-youtarr-db
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 2Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: media, name: youtarr-db }
+  mountOptions: [nfsvers=4.1, hard, noatime]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/youtarr-db }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: youtarr-db
   namespace: media
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path        # node-local; MariaDB datadir must NOT run over NFS
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-app-media-youtarr-db
   resources: { requests: { storage: 2Gi } }
