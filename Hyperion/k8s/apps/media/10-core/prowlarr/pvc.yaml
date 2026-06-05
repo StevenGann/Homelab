@@ -1,23 +1,14 @@
-# prowlarr-config on Akasha NFS (Application-Storage), NOT node-local.
-# 2026-06-05 storage migration (docs/storage-audit-2026-06-05.md): no Hyperion
-# service keeps persistent data on a node's local NVMe. Prowlarr SQLite. SQLite/embedded
-# DBs work over NFSv4.1 'hard' mounts with locking. Static PV+PVC per the
-# akasha-*-nfs convention in media/00-storage/. PVC name unchanged.
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: akasha-app-media-prowlarr-config
-  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
-spec:
-  capacity: { storage: 1Gi }
-  accessModes: [ReadWriteMany]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  volumeMode: Filesystem
-  claimRef: { namespace: media, name: prowlarr-config }
-  mountOptions: [nfsvers=4.1, hard, noatime]
-  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/prowlarr-config }
+# prowlarr-config on node-local local-path (/mnt/node-storage), NOT NFS.
+# 2026-06-05: Prowlarr's SQLite DB flapped on NFS (file-lock + latency -> 3-10
+# restarts/hr); moved back to node-local local-path, which it tolerates. Interim
+# ahead of Longhorn (docs/design/adr-0003-longhorn-deferred.md).
+#
+# local-path is WaitForFirstConsumer + node-pinned: the PV (and therefore the
+# pod, via node affinity) stays on whichever worker it was first provisioned on.
+# Data was migrated off the Akasha NFS export by
+# Hyperion/k8s/scripts/migrate-config-nfs-to-localpath.sh (the Akasha copy is
+# Retain-preserved as a cold backup). prune:disabled so an accidental git
+# removal can't delete the volume (local-path reclaimPolicy is Delete).
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -26,7 +17,6 @@ metadata:
   namespace: media
   annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteMany]
-  storageClassName: ""
-  volumeName: akasha-app-media-prowlarr-config
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
   resources: { requests: { storage: 1Gi } }
