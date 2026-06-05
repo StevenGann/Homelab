@@ -37,7 +37,6 @@ SERVICES = [
     ("Navidrome",         "http://192.168.10.66",       (200,302,307), "media", "app=navidrome"),
     # New services (separate namespaces)
     ("n8n",               "http://192.168.10.71",       (200,302,307), "n8n", "app=n8n"),
-    ("NextCloud",         "http://192.168.10.72",       (200,302,307), "nextcloud", "app=nextcloud"),
     ("Listenarr",         "http://192.168.10.73",       (200,302,307,401), "listenarr", "app=listenarr"),
     ("Musicseerr",        "http://192.168.10.74",       (200,302,307,401), "musicseerr", "app=musicseerr"),
     ("boxarr",            "http://192.168.10.75:8888",  (200,302,307,401), "boxarr", "app=boxarr"),
