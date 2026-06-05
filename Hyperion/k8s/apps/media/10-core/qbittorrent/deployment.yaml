@@ -24,8 +24,18 @@
 # 2026-06-04 (evening): qBittorrent crash-loops because the default s6 run script
 # doesn't pass --profile. Without it, qBittorrent looks in $HOME/.config/ (which
 # doesn't exist) and exits silently. Fixed by mounting a custom s6 run script
-# (ConfigMap qbittorrent-s6-run) that adds --profile=/config/qBittorrent and
-# extends the readiness window from 1s to 15s.
+# (ConfigMap qbittorrent-s6-run) that adds --profile=/config/qBittorrent.
+# 2026-06-05: ROOT CAUSE of the remaining "pod stuck 1/2, WebUI never binds"
+# was a STALE single-instance lock (lockfile + ipc-socket) left in the config
+# PVC by an unclean shutdown — qbittorrent-nox saw it, assumed another instance
+# was running, and exited 0 silently in a self-perpetuating s6 loop. The s6 run
+# script now clears those locks before launch (see qbittorrent-s6-run). Also
+# VALIDATED that the tun0 libtorrent bind is REQUIRED, not the bug: a raw curl
+# sourced from the pod IP (10.42.x) leaked the real WAN IP out eth0 via policy
+# rule "from <podIP> lookup 200", whereas binding to tun0/10.2.0.2 forces all
+# torrent traffic through the tunnel (verified egress = ProtonVPN exit). No
+# manual iptables MASQUERADE / rule-reorder is needed — gluetun's table 51820
+# (default dev tun0) already routes tun0-sourced traffic correctly.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -7,17 +7,42 @@ data:
   run: |
     #!/usr/bin/with-contenv bash
     # Custom s6 run script for qBittorrent.
-    # Fixes two issues with the image's default:
+    # Fixes three issues with the image's default:
+    #
     # 1. Adds --profile=/config/qBittorrent (without it, qBittorrent looks
-    #    in $HOME/.config/ which doesn't exist → dies silently)
-    # 2. Extends readiness window from 1s to 15s (qBittorrent with NFS PVC
-    #    and VPN binding takes 2-3s to start listening on port 8085)
+    #    in $HOME/.config/ which doesn't exist → dies silently).
+    #
+    # 2. Clears STALE single-instance locks before launch. This was THE cause
+    #    of the silent crash-loop (2026-06-05): on an unclean pod shutdown
+    #    qBittorrent leaves `lockfile` + `ipc-socket` behind in the config PVC.
+    #    On the next start qbittorrent-nox sees them, assumes another instance
+    #    is already running, prints nothing, and exits 0 — so s6 keeps
+    #    restarting it, the WebUI never binds :8085, and the readiness probe
+    #    fails forever (pod stuck 1/2). The lock lives in the PVC, so it
+    #    survives pod restarts and the loop is self-perpetuating. s6 supervises
+    #    exactly one qbittorrent-nox, so there is never a legitimate concurrent
+    #    instance here — removing the locks unconditionally is safe. qBittorrent
+    #    uses BOTH the profile root and <profile>/qBittorrent/config as lock
+    #    locations depending on version, so clear both.
+    #
+    # 3. --confirm-legal-notice so qBittorrent never blocks waiting on the
+    #    interactive "Legal Notice" acknowledgement on a fresh/empty profile.
+    #
+    # Readiness check: poll `nc -z` every 1s for up to 300 tries (~5 min window).
+    # (The previous -w 15000 set a 15s GAP between polls — that delayed
+    # readiness detection, it did not lengthen the window. -w is the inter-poll
+    # delay, -n is the try count; -n 300 -w 1000 matches the lsio default.)
 
-    WEBUI_ADDRESS=$(grep -Po "^WebUI\\Address=\K(.*)" /config/qBittorrent/qBittorrent.conf)
+    rm -f /config/qBittorrent/lockfile \
+          /config/qBittorrent/ipc-socket \
+          /config/qBittorrent/qBittorrent/config/lockfile \
+          /config/qBittorrent/qBittorrent/config/ipc-socket
+
+    WEBUI_ADDRESS=$(grep -Po "^WebUI\\Address=\K(.*)" /config/qBittorrent/qBittorrent/config/qBittorrent.conf 2>/dev/null)
     if [[ -z ${WEBUI_ADDRESS} ]] || [[ ${WEBUI_ADDRESS} == "*" ]]; then
         WEBUI_ADDRESS="localhost"
     fi
 
     exec \
-        s6-notifyoncheck -d -n 300 -w 15000 -c "nc -z ${WEBUI_ADDRESS} ${WEBUI_PORT:-8080}" \
-            s6-setuidgid abc /app/qbittorrent-nox --profile=/config/qBittorrent --webui-port="${WEBUI_PORT:-8080}" ${TORRENTING_PORT+--torrenting-port=${TORRENTING_PORT}}
+        s6-notifyoncheck -d -n 300 -w 1000 -c "nc -z ${WEBUI_ADDRESS} ${WEBUI_PORT:-8080}" \
+            s6-setuidgid abc /app/qbittorrent-nox --confirm-legal-notice --profile=/config/qBittorrent --webui-port="${WEBUI_PORT:-8080}" ${TORRENTING_PORT+--torrenting-port=${TORRENTING_PORT}}
