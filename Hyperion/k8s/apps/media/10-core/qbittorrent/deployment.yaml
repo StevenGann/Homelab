@@ -41,9 +41,10 @@ spec:
             - { name: SERVER_CITIES,             value: "San Jose" }
             - { name: VPN_PORT_FORWARDING,       value: "on" }
             - { name: PORT_FORWARD_ONLY,         value: "on" }
-            - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" }
+            - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.42.0.0/16,10.43.0.0/16,172.16.0.0/12,192.168.0.0/16" }
             - { name: FIREWALL_INPUT_PORTS,      value: "8085,6881" }
             - { name: UPDATER_PERIOD,            value: "24h" }
+            - { name: HEALTH_VPN_DURATION_INITIAL, value: "60s" }
             - { name: TZ,                        value: "America/Los_Angeles" }
           volumeMounts:
             - { name: gluetun-state, mountPath: /gluetun }
