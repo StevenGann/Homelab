@@ -82,6 +82,18 @@
     jq
   ];
 
+  # ── Nix store hygiene ──────────────────────────────────────────────────────
+  # These workers have a 32GB NVMe; /nix/store grows unbounded across Colmena
+  # generations and will trip the kubelet's DiskPressure eviction threshold
+  # (hyperion-theta hit it 2026-06-05 — /nix/store had grown to 27GB; a manual
+  # `nix-collect-garbage -d` freed 20GB). Collect weekly, deleting only
+  # generations older than 7 days so a recent rollback target survives.
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 7d";
+  };
+
   # ── Boot ───────────────────────────────────────────────────────────────────
   # Pi 5 specifics live in hyperion-pi5.nix. Generic kernel-cmdline
   # additions can land here.
