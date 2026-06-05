@@ -17,6 +17,11 @@
 # (current_network_interface). Without that bind, "Any interface" makes libtorrent
 # source DHT/peer traffic from eth0, which routes around the tunnel and gets dropped
 # by gluetun's kill-switch → DHT dead, "firewalled", external IP N/A. (2026-06-04)
+# 2026-06-04 (evening): qBittorrent crash-loops because the default s6 run script
+# doesn't pass --profile. Without it, qBittorrent looks in $HOME/.config/ (which
+# doesn't exist) and exits silently. Fixed by mounting a custom s6 run script
+# (ConfigMap qbittorrent-s6-run) that adds --profile=/config/qBittorrent and
+# extends the readiness window from 1s to 15s.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -72,6 +77,7 @@ spec:
             - { name: downloads,    mountPath: /data/downloads }                # same NFS path Sonarr/Radarr see
             - { name: gluetun-port, mountPath: /tmp/gluetun }                   # shared: reads forwarded_port
             - { name: port-sync,    mountPath: /custom-services.d }             # linuxserver.io: services run in background after app starts
+            - { name: s6-run,      mountPath: /etc/s6-overlay/s6-rc.d/svc-qbittorrent/run, subPath: run }  # override image's broken run script
           readinessProbe:
             tcpSocket: { port: 8085 }
             initialDelaySeconds: 20
@@ -97,3 +103,10 @@ spec:
             items:
               - key: port-sync.sh
                 path: port-sync.sh
+        - name: s6-run
+          configMap:
+            name: qbittorrent-s6-run
+            defaultMode: 0755
+            items:
+              - key: run
+                path: run

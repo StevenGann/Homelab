@@ -7,3 +7,4 @@ resources:
   - deployment.yaml
   - service.yaml
   - port-sync-configmap.yaml
+  - s6-run-configmap.yaml

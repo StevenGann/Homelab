@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qbittorrent-s6-run
+  namespace: media
+data:
+  run: |
+    #!/usr/bin/with-contenv bash
+    # Custom s6 run script for qBittorrent.
+    # Fixes two issues with the image's default:
+    # 1. Adds --profile=/config/qBittorrent (without it, qBittorrent looks
+    #    in $HOME/.config/ which doesn't exist → dies silently)
+    # 2. Extends readiness window from 1s to 15s (qBittorrent with NFS PVC
+    #    and VPN binding takes 2-3s to start listening on port 8085)
+
+    WEBUI_ADDRESS=$(grep -Po "^WebUI\\Address=\K(.*)" /config/qBittorrent/qBittorrent.conf)
+    if [[ -z ${WEBUI_ADDRESS} ]] || [[ ${WEBUI_ADDRESS} == "*" ]]; then
+        WEBUI_ADDRESS="localhost"
+    fi
+
+    exec \
+        s6-notifyoncheck -d -n 300 -w 15000 -c "nc -z ${WEBUI_ADDRESS} ${WEBUI_PORT:-8080}" \
+            s6-setuidgid abc /app/qbittorrent-nox --profile=/config/qBittorrent --webui-port="${WEBUI_PORT:-8080}" ${TORRENTING_PORT+--torrenting-port=${TORRENTING_PORT}}
