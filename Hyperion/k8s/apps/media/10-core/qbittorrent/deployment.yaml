@@ -67,8 +67,7 @@ spec:
             - { name: config,       mountPath: /config }
             - { name: downloads,    mountPath: /data/downloads }                # same NFS path Sonarr/Radarr see
             - { name: gluetun-port, mountPath: /tmp/gluetun }                   # shared: reads forwarded_port
-            - { name: port-sync,    mountPath: /custom-services.d }             # linuxserver.io: services that run forever
-            - { name: port-sync-init, mountPath: /custom-cont-init.d }          # linuxserver.io: runs once at startup
+            - { name: port-sync,    mountPath: /custom-services.d }             # linuxserver.io: services run in background after app starts
           readinessProbe:
             tcpSocket: { port: 8085 }
             initialDelaySeconds: 20
@@ -94,10 +93,3 @@ spec:
             items:
               - key: port-sync.sh
                 path: port-sync.sh
-        - name: port-sync-init
-          configMap:
-            name: qbittorrent-port-sync
-            defaultMode: 0755
-            items:
-              - key: port-sync.sh
-                path: 99-port-sync.sh
