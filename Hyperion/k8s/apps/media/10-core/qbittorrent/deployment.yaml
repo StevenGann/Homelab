@@ -1,6 +1,6 @@
 # qBittorrent behind a gluetun VPN tunnel (ProtonVPN / WireGuard), migrated from Akasha.
 # Containers in a pod share a network namespace, so qBittorrent's traffic routes
-# through gluetun's wg0 with its kill-switch — the k8s-native equivalent of the
+# through gluetun's tun0 with its kill-switch — the k8s-native equivalent of the
 # Akasha `network_mode: service:gluetun`. The NFS download volume is mounted by the
 # kubelet (host-level), so file I/O does NOT traverse the VPN; only torrent + WebUI
 # traffic does. Co-located in `media`, so Sonarr/Radarr reach it as
@@ -10,6 +10,9 @@
 # 2026-06-04: Switched from PIA OpenVPN → Mullvad WireGuard → ProtonVPN WireGuard.
 # Mullvad dropped port forwarding support (May 2023). ProtonVPN supports NAT-PMP
 # port forwarding with WireGuard, enabling full DHT and UDP tracker connectivity.
+# Port forwarding: ProtonVPN assigns a random port via NAT-PMP.  A port-sync script
+# (ConfigMap, mounted at /custom-services.d/) reads /tmp/gluetun/forwarded_port and
+# updates qBittorrent's listen_port via API on startup and every 30s thereafter.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,27 +30,28 @@ spec:
     spec:
       nodeSelector: { topology.kubernetes.io/zone: hyperion }
       containers:
-        # ── VPN tunnel (Mullvad WireGuard) ────────────────────────────────
+        # ── VPN tunnel (provides the pod's egress + kill-switch) ────────────
         - name: gluetun
           image: qmcgaw/gluetun:latest@sha256:10b4895fde4499c2d1d9fbd8e681d040ede0efe8c6cfe5d0c51daf0461836ee8
           securityContext:
             capabilities:
               add: ["NET_ADMIN"]
           env:
-            - { name: VPN_SERVICE_PROVIDER,      value: "protonvpn" }
-            - { name: VPN_TYPE,                  value: "wireguard" }
-            - { name: WIREGUARD_PRIVATE_KEY,     value: "eC2wRChJENfQ+EQFpOy5HxaOsr+ix2AFCaPHQKO6dF8=" }
-            - { name: WIREGUARD_ADDRESSES,       value: "10.2.0.2/32" }
-            - { name: SERVER_CITIES,             value: "San Jose" }
-            - { name: VPN_PORT_FORWARDING,       value: "on" }
-            - { name: PORT_FORWARD_ONLY,         value: "on" }
-            - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.42.0.0/16,10.43.0.0/16,172.16.0.0/12,192.168.0.0/16" }
-            - { name: FIREWALL_INPUT_PORTS,      value: "8085,46969" }
-            - { name: UPDATER_PERIOD,            value: "24h" }
+            - { name: VPN_SERVICE_PROVIDER,       value: "protonvpn" }
+            - { name: VPN_TYPE,                   value: "wireguard" }
+            - { name: WIREGUARD_PRIVATE_KEY,       value: "eC2wRChJENfQ+EQFpOy5HxaOsr+ix2AFCaPHQKO6dF8=" }
+            - { name: WIREGUARD_ADDRESSES,         value: "10.2.0.2/32" }
+            - { name: SERVER_CITIES,               value: "San Jose" }
+            - { name: VPN_PORT_FORWARDING,         value: "on" }
+            - { name: FIREWALL_OUTBOUND_SUBNETS,   value: "10.42.0.0/16,10.43.0.0/16,172.16.0.0/12,192.168.0.0/16" }
+            - { name: FIREWALL_INPUT_PORTS,        value: "8085" }              # qBittorrent WebUI (forwarded port is auto-allowed)
+            - { name: UPDATER_PERIOD,              value: "24h" }
             - { name: HEALTH_VPN_DURATION_INITIAL, value: "60s" }
-            - { name: TZ,                        value: "America/Los_Angeles" }
+            - { name: TZ,                          value: "America/Los_Angeles" }
           volumeMounts:
-            - { name: gluetun-state, mountPath: /gluetun }
+            - { name: tun,             mountPath: /dev/net/tun }
+            - { name: gluetun-state,   mountPath: /gluetun }
+            - { name: gluetun-port,    mountPath: /tmp/gluetun }                # shared: writes forwarded_port here
           resources:
             requests: { cpu: "50m",  memory: "64Mi" }
             limits:   { cpu: "500m", memory: "256Mi" }
@@ -59,10 +63,12 @@ spec:
             - { name: PGID,            value: "568" }
             - { name: TZ,              value: "America/Los_Angeles" }
             - { name: WEBUI_PORT,      value: "8085" }
-            - { name: TORRENTING_PORT, value: "46969" }
           volumeMounts:
-            - { name: config,    mountPath: /config }
-            - { name: downloads, mountPath: /data/downloads }
+            - { name: config,       mountPath: /config }
+            - { name: downloads,    mountPath: /data/downloads }                # same NFS path Sonarr/Radarr see
+            - { name: gluetun-port, mountPath: /tmp/gluetun }                   # shared: reads forwarded_port
+            - { name: port-sync,    mountPath: /custom-services.d }             # linuxserver.io: services that run forever
+            - { name: port-sync-init, mountPath: /custom-cont-init.d }          # linuxserver.io: runs once at startup
           readinessProbe:
             tcpSocket: { port: 8085 }
             initialDelaySeconds: 20
@@ -71,9 +77,27 @@ spec:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1",    memory: "1Gi" }
       volumes:
+        - name: tun
+          hostPath: { path: /dev/net/tun, type: CharDevice }
         - name: gluetun-state
+          emptyDir: {}
+        - name: gluetun-port
           emptyDir: {}
         - name: config
           persistentVolumeClaim: { claimName: qbittorrent-config }
         - name: downloads
           persistentVolumeClaim: { claimName: media-downloads }
+        - name: port-sync
+          configMap:
+            name: qbittorrent-port-sync
+            defaultMode: 0755
+            items:
+              - key: port-sync.sh
+                path: port-sync.sh
+        - name: port-sync-init
+          configMap:
+            name: qbittorrent-port-sync
+            defaultMode: 0755
+            items:
+              - key: port-sync.sh
+                path: 99-port-sync.sh

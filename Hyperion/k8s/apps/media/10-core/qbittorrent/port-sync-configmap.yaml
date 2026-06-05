@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qbittorrent-port-sync
+  namespace: media
+data:
+  port-sync.sh: |
+    #!/bin/sh
+    # Wait for gluetun to establish port forwarding, then update qBittorrent.
+    # Runs as a linuxserver.io custom service (loops forever).
+    #
+    # gluetun writes the forwarded port to /tmp/gluetun/forwarded_port
+    # Both containers share a /tmp/gluetun emptyDir so qBittorrent can read it.
+
+    PORT_FILE="/tmp/gluetun/forwarded_port"
+    QBIT_API="http://localhost:8085/api/v2"
+    AUTH="admin:Qazxcv1992!"
+    MAX_WAIT=120   # seconds to wait for initial port file
+    POLL_INTERVAL=5
+    LAST_PORT=""
+
+    log() { echo "[port-sync] $(date '+%H:%M:%S') $*"; }
+
+    # Wait for gluetun to write the forwarded port
+    waited=0
+    while [ ! -f "$PORT_FILE" ] && [ $waited -lt $MAX_WAIT ]; do
+      sleep $POLL_INTERVAL
+      waited=$((waited + POLL_INTERVAL))
+    done
+
+    if [ ! -f "$PORT_FILE" ]; then
+      log "Timed out after ${MAX_WAIT}s waiting for $PORT_FILE — giving up"
+      exit 1
+    fi
+
+    # Read the port and update qBittorrent
+    PORT=$(cat "$PORT_FILE" | tr -d '[:space:]')
+    if [ -z "$PORT" ] || [ "$PORT" -eq 0 ] 2>/dev/null; then
+      log "Invalid port '$PORT' in $PORT_FILE"
+      exit 1
+    fi
+
+    log "Detected forwarded port: $PORT"
+    log "Setting qBittorrent listen_port to $PORT..."
+    curl -s -X POST "${QBIT_API}/app/setPreferences" \
+      -u "$AUTH" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "json=%7B%22listen_port%22%3A${PORT}%7D" \
+      -o /dev/null -w "  HTTP %{http_code}\n"
+
+    # Verify it stuck
+    ACTUAL=$(curl -s "${QBIT_API}/app/preferences" -u "$AUTH" | grep -o '"listen_port":[0-9]*' | cut -d: -f2)
+    if [ "$ACTUAL" = "$PORT" ]; then
+      log "listen_port confirmed: $PORT"
+    else
+      log "WARNING: listen_port is $ACTUAL, expected $PORT"
+    fi
+
+    LAST_PORT="$PORT"
+
+    # Watch for port changes (e.g. gluetun re-requests port forwarding)
+    while true; do
+      sleep 30
+      if [ -f "$PORT_FILE" ]; then
+        NEW_PORT=$(cat "$PORT_FILE" | tr -d '[:space:]')
+        if [ -n "$NEW_PORT" ] && [ "$NEW_PORT" != "$LAST_PORT" ] && [ "$NEW_PORT" -gt 0 ] 2>/dev/null; then
+          log "Port changed: $LAST_PORT → $NEW_PORT"
+          curl -s -X POST "${QBIT_API}/app/setPreferences" \
+            -u "$AUTH" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "json=%7B%22listen_port%22%3A${NEW_PORT}%7D" \
+            -o /dev/null -w "  HTTP %{http_code}\n"
+          LAST_PORT="$NEW_PORT"
+        fi
+      fi
+    done
