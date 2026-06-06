@@ -33,7 +33,7 @@ data:
     # readiness detection, it did not lengthen the window. -w is the inter-poll
     # delay, -n is the try count; -n 300 -w 1000 matches the lsio default.)
 
-    rm -f /config/qBittorrent/lockfile \
+    s6-setuidgid abc rm -f /config/qBittorrent/lockfile \
           /config/qBittorrent/ipc-socket \
           /config/qBittorrent/qBittorrent/config/lockfile \
           /config/qBittorrent/qBittorrent/config/ipc-socket

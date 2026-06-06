@@ -97,8 +97,8 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 15
           resources:
-            requests: { cpu: "100m", memory: "256Mi" }
-            limits:   { cpu: "1",    memory: "1Gi" }
+            requests: { cpu: "100m", memory: "1Gi" }  # 1Gi request auto-excludes 4GB nodes
+            limits:   { cpu: "1",    memory: "4Gi" }  # 324 torrents OOMKilled at 1Gi; 4Gi headroom for growth
       volumes:
         - name: tun
           hostPath: { path: /dev/net/tun, type: CharDevice }
