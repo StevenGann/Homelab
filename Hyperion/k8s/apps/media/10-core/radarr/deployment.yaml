@@ -30,21 +30,21 @@ spec:
             - { name: movies,    mountPath: /data/media/movies }   # Akasha Movies (NFS, RWX)
             - { name: downloads, mountPath: /data/downloads }      # Akasha Downloads (NFS, RWX) — copy-import
           startupProbe:
-            httpGet: { path: /ping, port: 7878 }
+            tcpSocket: { port: 7878 }
             failureThreshold: 30
             periodSeconds: 10
-            timeoutSeconds: 5    # NFS-mounted DB needs >1s
+            timeoutSeconds: 5    # TCP probe tolerates NFS I/O saturation during startup scan
           readinessProbe:
-            httpGet: { path: /ping, port: 7878 }
+            tcpSocket: { port: 7878 }
             periodSeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 5    # TCP probe — HTTP /ping times out under NFS media scan load
           livenessProbe:
-            httpGet: { path: /ping, port: 7878 }
+            tcpSocket: { port: 7878 }
             periodSeconds: 30
-            timeoutSeconds: 5
+            timeoutSeconds: 5    # TCP probe — avoids OOM+probe death spiral (2026-06-06 fix)
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
-            limits:   { cpu: "1",    memory: "768Mi" }
+            limits:   { cpu: "1",    memory: "1536Mi" }  # 768Mi → OOM during movie scan over NFS
       volumes:
         - name: config
           persistentVolumeClaim: { claimName: radarr-config }
