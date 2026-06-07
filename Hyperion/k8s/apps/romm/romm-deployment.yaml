@@ -32,6 +32,10 @@ spec:
               value: "8bedd00edbd2a635ef483a641014c43b"
             - name: ROMM_AUTH_SECRET_KEY
               value: "3a55e7cefd3e1a894926f6237327db14b702eaa92eedd9a2a12f60c067a6ff62"
+            - name: IGDB_CLIENT_ID
+              value: "0sg29dftcy58wd0c6w7repqv53fbq3"
+            - name: IGDB_CLIENT_SECRET
+              value: "d9ushhv5hk09y4ymbp3c6yc83q3vwh"
             - name: ROMM_PORT
               value: ""
             - name: ROMM_PORT_80_TCP
