@@ -91,6 +91,7 @@ RECORDS=(
     "boxarr.lab|A|192.168.10.75"         # :8888  (box office → Radarr)
     "jellystat.lab|A|192.168.10.76"      # :3000  (Jellyfin statistics)
     "sortarr.lab|A|192.168.10.77"        # :8787  (media library analytics)
+    "romm.lab|A|192.168.10.78"          # :8080  (ROM manager)
 )
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────────────

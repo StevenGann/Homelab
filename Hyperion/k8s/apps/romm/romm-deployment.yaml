@@ -1,0 +1,75 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: romm
+  namespace: romm
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: romm
+  template:
+    metadata:
+      labels:
+        app: romm
+    spec:
+      nodeSelector:
+        topology.kubernetes.io/zone: hyperion
+      containers:
+        - name: romm
+          image: rommapp/romm:4.8.1
+          env:
+            - name: DB_HOST
+              value: romm-db
+            - name: DB_NAME
+              value: romm
+            - name: DB_USER
+              value: romm-user
+            - name: DB_PASSWD
+              value: "8bedd00edbd2a635ef483a641014c43b"
+            - name: ROMM_AUTH_SECRET_KEY
+              value: "3a55e7cefd3e1a894926f6237327db14b702eaa92eedd9a2a12f60c067a6ff62"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: resources
+              mountPath: /romm/resources
+            - name: redis-data
+              mountPath: /redis-data
+            - name: config
+              mountPath: /romm/config
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: resources
+          persistentVolumeClaim:
+            claimName: romm-resources
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: romm-redis
+        - name: config
+          persistentVolumeClaim:
+            claimName: romm-config
