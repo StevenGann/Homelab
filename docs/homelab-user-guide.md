@@ -76,6 +76,7 @@ usually never need to touch these. Admin/power-user territory.
 | **Speedtest Tracker** | [speedtest.lab](http://speedtest.lab) | [192.168.10.67](http://192.168.10.67) | Tracks internet speed over time (scheduled speedtests + history graphs). |
 | **Jellystat** | [jellystat.lab](http://jellystat.lab) | [192.168.10.76](http://192.168.10.76) | Jellyfin statistics — view watch history, user activity, library stats. |
 | **Sortarr** | [sortarr.lab](http://sortarr.lab) | [192.168.10.77](http://192.168.10.77) | Media library insights — analyse libraries across Sonarr, Radarr, Jellyfin, Plex. Read-only analytics tool. |
+| **RomM** | [romm.lab](http://romm.lab) | [192.168.10.78:8080](http://192.168.10.78:8080) | ROM manager — organise and play retro game ROMs. Self-hosted game library with metadata scraping. |
 
 ---
 
