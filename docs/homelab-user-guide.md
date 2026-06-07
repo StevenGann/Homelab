@@ -1,6 +1,6 @@
 # Homelab — User Guide
 
-*A hand-off reference for trusted users with admin access. Last updated 2026-06-04.*
+*A hand-off reference for trusted users with admin access. Last updated 2026-06-07.*
 
 All services below run on the home network (`192.168.10.0/24`) — open the links
 while connected to the LAN (or through the remote-access method the administrator
@@ -49,7 +49,7 @@ usually never need to touch these. Admin/power-user territory.
 | **Youtarr** | [youtarr.lab](http://youtarr.lab) | [192.168.10.61:3087](http://192.168.10.61:3087) | Archives YouTube channels/videos into the library. |
 | **Prowlarr** | [prowlarr.lab](http://prowlarr.lab) | [192.168.10.55:9696](http://192.168.10.55:9696) | Indexer manager — the search sources the *arr apps use. Central config. |
 | **Trailarr** | [trailarr.lab](http://trailarr.lab) | [192.168.10.63:7889](http://192.168.10.63:7889) | Downloads trailers for the movie/TV library. |
-| **Tdarr** | [tdarr.lab](http://tdarr.lab) | [192.168.10.62:8266](http://192.168.10.62:8266) | Transcoding & library health (re-encodes files; worker node on Thoth with dual RTX 6000 Ada GPU acceleration). |
+| **Tdarr** | [tdarr.lab](http://tdarr.lab) | [192.168.10.62:8266](http://192.168.10.62:8266) | Transcoding & library health (re-encodes files; GPU worker nodes on Thoth [2× RTX 6000 Ada] and Epsilon [RTX 4080]). |
 | **Listenarr** | [listenarr.lab](http://listenarr.lab) | [192.168.10.73](http://192.168.10.73) | Audiobook manager — like Sonarr but for audiobooks. Searches, downloads, and organizes your audiobook library. |
 
 ---
@@ -58,7 +58,7 @@ usually never need to touch these. Admin/power-user territory.
 
 | App | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
-| **qBittorrent** | [qbittorrent.lab](http://qbittorrent.lab) | [192.168.10.58:8085](http://192.168.10.58:8085) | The download client — routes through PIA VPN (CA Toronto, OpenVPN) with a kill-switch. Port 6881 TCP+UDP exposed. Port forwarding attempted but not yet working (needs WireGuard migration). The *arr apps drive it automatically — you rarely need to open it. |
+| **qBittorrent** | [qbittorrent.lab](http://qbittorrent.lab) | [192.168.10.58:8085](http://192.168.10.58:8085) | The download client — routes through ProtonVPN (WireGuard, San Jose CA) with NAT-PMP port forwarding and kill-switch. The *arr apps drive it automatically — you rarely need to open it. |
 | **Cleanuparr** | [cleanuparr.lab](http://cleanuparr.lab) | [192.168.10.59:11011](http://192.168.10.59:11011) | Housekeeping — clears stalled/failed downloads automatically. |
 | **SuggestArr** | [suggestarr.lab](http://suggestarr.lab) | [192.168.10.64:5000](http://192.168.10.64:5000) | Auto-suggests content based on what's been watched and feeds it to Seerr. |
 | **boxarr** | [boxarr.lab](http://boxarr.lab) | [192.168.10.75](http://192.168.10.75) | Box office tracker — monitors weekly box office charts and auto-adds trending movies to Radarr. |
@@ -76,7 +76,7 @@ usually never need to touch these. Admin/power-user territory.
 | **Speedtest Tracker** | [speedtest.lab](http://speedtest.lab) | [192.168.10.67](http://192.168.10.67) | Tracks internet speed over time (scheduled speedtests + history graphs). |
 | **Jellystat** | [jellystat.lab](http://jellystat.lab) | [192.168.10.76](http://192.168.10.76) | Jellyfin statistics — view watch history, user activity, library stats. |
 | **Sortarr** | [sortarr.lab](http://sortarr.lab) | [192.168.10.77](http://192.168.10.77) | Media library insights — analyse libraries across Sonarr, Radarr, Jellyfin, Plex. Read-only analytics tool. |
-| **RomM** | [romm.lab](http://romm.lab) | [192.168.10.78:8080](http://192.168.10.78:8080) | ROM manager — organise and play retro game ROMs. Self-hosted game library with metadata scraping. |
+| **RomM** | [romm.lab](http://romm.lab) | [192.168.10.78:8080](http://192.168.10.78:8080) | ROM manager — organise and play retro game ROMs. IGDB metadata integration for box art, screenshots, and game info. Library on Akasha NFS. |
 
 ---
 
@@ -102,8 +102,9 @@ usually never need to touch these. Admin/power-user territory.
 
 | System | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
-| **TrueNAS (Akasha)** | [akasha.lab](https://akasha.lab) | [192.168.10.247](https://192.168.10.247) | The storage server — all media + app data lives here. |
-| **Thoth** (GPU compute) | [thoth.lab](http://thoth.lab) | [192.168.10.144](http://192.168.10.144) | GPU server (2× RTX 6000 Ada, 96 GB VRAM). Runs **Ollama** (LLMs: llama3.2:1b, deepseek-r1:70b), **OpenWebUI** (chat), **ComfyUI** (image gen), **Jellyfin** (parallel GPU-accelerated instance at :8096), and the **Tdarr** transcode worker. Game-server **Wings** planned. Container host — manage it via **Komodo** (`komodo.lab`). |
+| **TrueNAS (Akasha)** | [akasha.lab](https://akasha.lab) | [192.168.10.247](https://192.168.10.247) | The storage server — all media + app data lives here. FTP access enabled on port 21 (`truenas_admin` with admin password) for direct file management; NFS exports accessible from both homelab VLAN (.10.x) and main subnet (.0.x). |
+| **Thoth** (GPU compute) | [thoth.lab](http://thoth.lab) | [192.168.10.144](http://192.168.10.144) | GPU server (2× RTX 6000 Ada, 96 GB VRAM). Runs **Ollama** (LLMs: deepseek-r1:70b, llama3.2:1b), **OpenWebUI** (chat), **ComfyUI** (image gen), **Jellyfin** (GPU-accelerated instance at :8096), and the **Tdarr** transcode worker node. Container host via Docker Compose — manage it via **Komodo** (`komodo.lab`). |
+| **Epsilon** (workstation) | — | `192.168.0.105` | Sydney's Pop!_OS desktop (RTX 4080, 16GB VRAM). Runs a **Tdarr** GPU transcode worker node (Docker Compose, `epsilon-gpu`). NFS-mounted media from Akasha. On the main home subnet — not the homelab VLAN. |
 | **DNS / Container manager / Reverse proxy** | on **[heimdall.lab](http://heimdall.lab)** (`192.168.10.4`) | `192.168.10.4` | Technitium (DNS + ad-blocking), Komodo (containers — `komodo.lab` via the reverse proxy), and Caddy (reverse proxy). **Ask the administrator for the admin URLs.** |
 | **APC PDU** | — (Telnet CLI) | `192.168.10.180:23` | Switched Rack PDU (APC AP7900, 8 outlets). Controls power to Monolith, Compute, Synology and 5 other devices. Admin access via Telnet CLI — not a web service. **No HTTPS/SSH** (non-B hardware). |
 
