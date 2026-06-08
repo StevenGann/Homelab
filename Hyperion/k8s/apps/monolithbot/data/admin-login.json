@@ -1,0 +1,8 @@
+{
+  "initial_admin": {
+    "username": "admin",
+    "password_hash": "$2b$12$xeVLaGOFRbRhhkpHc5Ts8O8ObF3h9vrTI7BmU0I1IY5zW7b9HhPae"
+  },
+  "admins": [],
+  "pending_usernames": []
+}
