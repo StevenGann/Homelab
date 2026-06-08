@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monolithbot
+  namespace: monolithbot
+  labels:
+    app: monolithbot
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: monolithbot
+  template:
+    metadata:
+      labels:
+        app: monolithbot
+    spec:
+      nodeSelector:
+        topology.kubernetes.io/zone: hyperion
+      containers:
+        - name: monolithbot
+          image: ghcr.io/stevengann/monolithbot:latest
+          ports:
+            - name: admin-ui
+              containerPort: 5050
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.json
+              subPath: config.json
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+          env:
+            - name: LOG_DIRECTORY
+              value: "/app/logs"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: TZ
+              value: "America/Los_Angeles"
+          startupProbe:
+            tcpSocket:
+              port: 5050
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 5050
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: config
+          secret:
+            secretName: monolithbot-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: monolithbot-data

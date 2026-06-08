@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: monolithbot
+  namespace: monolithbot
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.10.79
+spec:
+  type: LoadBalancer
+  selector:
+    app: monolithbot
+  ports:
+    - name: admin-ui
+      port: 80
+      targetPort: 5050

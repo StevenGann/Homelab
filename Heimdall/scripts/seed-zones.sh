@@ -92,6 +92,7 @@ RECORDS=(
     "jellystat.lab|A|192.168.10.76"      # :3000  (Jellyfin statistics)
     "sortarr.lab|A|192.168.10.77"        # :8787  (media library analytics)
     "romm.lab|A|192.168.10.78"          # :8080  (ROM manager)
+    "monolithbot.lab|A|192.168.10.79"   # :80    (Discord bot admin UI)
 )
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────────────
