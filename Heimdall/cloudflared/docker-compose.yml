@@ -19,6 +19,7 @@
 services:
   cloudflared:
     image: cloudflare/cloudflared:latest
+    pull_policy: always
     restart: unless-stopped
     command: tunnel --config /etc/cloudflared/config.yml --no-autoupdate run
     volumes:

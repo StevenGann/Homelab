@@ -65,6 +65,7 @@ services:
   # for the immutable :sha-... tag per FINAL.md Tier 3.3.
   ci-deploy:
     image: ghcr.io/stevengann/homelab-ci-deploy:latest
+    pull_policy: always
     restart: unless-stopped
     environment:
       - GITHUB_REPO=StevenGann/Homelab
@@ -87,6 +88,7 @@ services:
   #   :19531 — systemd-journal-gatewayd, /browse UI for the operator
   journal-remote:
     image: ghcr.io/stevengann/homelab-journal-remote:latest
+    pull_policy: always
     restart: unless-stopped
     volumes:
       - /opt/Homelab/Heimdall/hyperion/journal:/var/log/journal/remote

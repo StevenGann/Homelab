@@ -1,6 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: n8n, namespace: n8n, labels: { app: n8n } }
+metadata: { name: n8n, namespace: n8n, labels: { app: n8n, homelab.lab/auto-refresh: "true" } }
 spec:
   replicas: 1
   strategy: { type: Recreate }
@@ -12,6 +12,7 @@ spec:
       containers:
         - name: n8n
           image: n8nio/n8n:latest
+          imagePullPolicy: Always
           env:
             - { name: TZ, value: "America/Los_Angeles" }
             - { name: N8N_HOST, value: "n8n.lab" }

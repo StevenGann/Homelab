@@ -1,0 +1,53 @@
+# Nightly auto-rollout: moving-tag workloads (imagePullPolicy: Always) only pull
+# a fresh image when their pod (re)starts — nothing restarts them on its own, so
+# a rebuilt :latest/:edge/:canary image sits unused until a manual rollout (the
+# Caldera-went-stale problem). This CronJob restarts every Deployment labelled
+# homelab.lab/auto-refresh=true once a day, so they re-pull within 24h.
+#
+# Scope is opt-in by label: only app workloads on moving tags carry the label.
+# Version-pinned databases/infra are deliberately excluded.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: image-refresh
+  namespace: image-refresh
+spec:
+  schedule: "0 9 * * *"            # 09:00 UTC ≈ 02:00 America/Los_Angeles
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 600
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: image-refresher
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+          containers:
+            - name: kubectl
+              # Needs kubectl + a shell (the loop). bitnami/kubectl is multi-arch
+              # (incl. linux/arm64 for the Pi 5 workers). If this image is ever
+              # unavailable, swap for any kubectl image that includes /bin/sh.
+              image: docker.io/bitnami/kubectl:1.34
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  echo "image-refresh: restarting deployments labelled homelab.lab/auto-refresh=true"
+                  kubectl get deployments -A -l homelab.lab/auto-refresh=true \
+                    -o 'jsonpath={range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' \
+                  | while read -r ns name; do
+                      [ -z "$ns" ] && continue
+                      echo "restarting ${ns}/${name}"
+                      kubectl -n "$ns" rollout restart deployment "$name"
+                    done
+                  echo "image-refresh: done"
+              resources:
+                requests: { cpu: "25m", memory: "64Mi" }
+                limits:   { cpu: "200m", memory: "128Mi" }

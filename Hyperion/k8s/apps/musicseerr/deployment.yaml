@@ -1,6 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: musicseerr, namespace: musicseerr, labels: { app: musicseerr } }
+metadata: { name: musicseerr, namespace: musicseerr, labels: { app: musicseerr, homelab.lab/auto-refresh: "true" } }
 spec:
   replicas: 1
   strategy: { type: Recreate }
@@ -12,6 +12,7 @@ spec:
       containers:
         - name: musicseerr
           image: ghcr.io/habirabbu/musicseerr:latest
+          imagePullPolicy: Always
           env:
             - { name: PUID, value: "568" }
             - { name: PGID, value: "568" }

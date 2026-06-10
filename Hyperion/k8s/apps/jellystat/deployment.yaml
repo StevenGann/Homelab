@@ -1,6 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: jellystat, namespace: jellystat, labels: { app: jellystat } }
+metadata: { name: jellystat, namespace: jellystat, labels: { app: jellystat, homelab.lab/auto-refresh: "true" } }
 spec:
   replicas: 1
   strategy: { type: Recreate }
@@ -12,6 +12,7 @@ spec:
       containers:
         - name: jellystat
           image: cyfershepard/jellystat:latest
+          imagePullPolicy: Always
           env:
             - { name: POSTGRES_USER, value: "jellystat" }
             - { name: POSTGRES_PASSWORD, value: "Qazxcv1992!" }

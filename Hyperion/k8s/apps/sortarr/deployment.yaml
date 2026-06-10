@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: sortarr
   namespace: sortarr
-  labels: { app: sortarr }
+  labels: { app: sortarr, homelab.lab/auto-refresh: "true" }
 spec:
   replicas: 1
   strategy: { type: Recreate }

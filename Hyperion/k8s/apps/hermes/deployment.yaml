@@ -5,6 +5,7 @@ metadata:
   namespace: hermes
   labels:
     app: hermes
+    homelab.lab/auto-refresh: "true"
 spec:
   replicas: 1
   strategy:
@@ -36,6 +37,7 @@ spec:
         # ── Hermes gateway + supervised dashboard (s6) ──────────────────────
         - name: hermes
           image: ghcr.io/stevengann/hermes-agent:latest
+          imagePullPolicy: Always
           args: ["gateway", "run"]
           env:
             - { name: HERMES_HOME,            value: "/opt/data" }

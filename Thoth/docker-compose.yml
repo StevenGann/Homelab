@@ -14,6 +14,7 @@ services:
   # ─── Ollama (LLM inference — both GPUs) ─────────────────────────────────────
   ollama:
     image: ollama/ollama:latest          # TODO: pin a digest after first pull
+    pull_policy: always
     restart: unless-stopped
     environment:
       OLLAMA_HOST: "0.0.0.0"             # bind all interfaces (Service/LAN/Caddy reach it)
@@ -36,6 +37,7 @@ services:
   # ─── OpenWebUI (chat UI for Ollama) ─────────────────────────────────────────
   open-webui:
     image: ghcr.io/open-webui/open-webui:latest
+    pull_policy: always
     restart: unless-stopped
     depends_on: [ollama]
     environment:
@@ -54,6 +56,7 @@ services:
   # /tank/comfyui/ComfyUI/models. No native auth; LAN/Caddy only.
   comfyui:
     image: ghcr.io/ai-dock/comfyui:latest-cuda
+    pull_policy: always
     restart: unless-stopped
     environment:
       WORKSPACE: "/workspace"
@@ -95,6 +98,7 @@ services:
   # Media mounted via NFS from Akasha TrueNAS.
   tdarr-node:
     image: haveagitgat/tdarr_node:latest
+    pull_policy: always
     restart: unless-stopped
     environment:
       serverIP: "192.168.10.62"
@@ -140,6 +144,7 @@ services:
   # Media mounted via NFS from Akasha TrueNAS. GPU transcoding via NVENC.
   jellyfin:
     image: lscr.io/linuxserver/jellyfin:latest
+    pull_policy: always
     container_name: thoth-jellyfin
     restart: unless-stopped
     environment:

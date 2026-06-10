@@ -1,6 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: boxarr, namespace: boxarr, labels: { app: boxarr } }
+metadata: { name: boxarr, namespace: boxarr, labels: { app: boxarr, homelab.lab/auto-refresh: "true" } }
 spec:
   replicas: 1
   strategy: { type: Recreate }
@@ -12,6 +12,7 @@ spec:
       containers:
         - name: boxarr
           image: ghcr.io/iongpt/boxarr:latest
+          imagePullPolicy: Always
           env:
             - { name: BOXARR_PORT, value: "8888" }
           ports:

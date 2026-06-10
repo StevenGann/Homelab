@@ -1,6 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: listenarr, namespace: listenarr, labels: { app: listenarr } }
+metadata: { name: listenarr, namespace: listenarr, labels: { app: listenarr, homelab.lab/auto-refresh: "true" } }
 spec:
   replicas: 1
   strategy: { type: Recreate }
@@ -12,6 +12,7 @@ spec:
       containers:
         - name: listenarr
           image: ghcr.io/listenarrs/listenarr:canary
+          imagePullPolicy: Always
           env:
             - { name: PUID, value: "568" }
             - { name: PGID, value: "568" }
