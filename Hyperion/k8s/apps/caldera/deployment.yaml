@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       labels: { app: caldera }
-      annotations: { homelab.lab/restartedAt: "2026-06-11T01:00:00Z" }
+      annotations: { homelab.lab/restartedAt: "2026-06-11T01:15:00Z" }
     spec:
       nodeSelector: { topology.kubernetes.io/zone: hyperion }
       terminationGracePeriodSeconds: 60   # let an in-flight commit/push finish
