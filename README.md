@@ -1,22 +1,86 @@
 # Homelab IaC
 
-Infrastructure as Code for a home Kubernetes cluster. Every host's state is
-defined in this repository and recoverable from scratch.
+Infrastructure as Code for a four-host homelab built around a Raspberry Pi
+Kubernetes cluster. Every host's state is defined in this repository and
+recoverable from scratch.
 
-> **Hyperion runs NixOS (validated 2026-06-01).** Pi 5 workers are flashed to
-> NixOS-on-NVMe and join the Heimdall k3s control plane (`Ready`, v1.34.5+k3s1).
-> Each node is one command — `Hyperion/setup-hyperion-node.sh --name hyperion-<greek>`
-> — from a stock Raspberry-Pi-OS bootstrap SD moved node-to-node. **Authoritative
-> runbook:** `Hyperion/docs/runbooks/turnkey-node-setup.md`. The Debian/Packer
-> path is superseded (in-tree until the 2026-08-15 sunset gate), as is the older
-> NixOS SD-installer + `flash-node.sh` flow.
+> **Status (2026-06): operational.** All 10 Hyperion Pi 5 workers run NixOS and
+> are joined to the Heimdall k3s control plane (`Ready`, v1.34.5+k3s1). **GitOps
+> is live** — FluxCD v2.8.8 (read-only, no token) reconciles `Hyperion/k8s/` and
+> MetalLB v0.14.9 serves the `192.168.10.10–.99` LoadBalancer pool. Roughly 30
+> services are deployed across the cluster (media automation, dashboards, AI
+> agents, game-server management). The full per-service catalog with friendly
+> `*.lab` URLs lives in [`docs/homelab-user-guide.md`](docs/homelab-user-guide.md).
 >
-> **GitOps is live:** FluxCD (read-only, no token) reconciles `Hyperion/k8s/`;
-> MetalLB serves the `192.168.10.10–99` LoadBalancer pool. Running apps:
-> **Headlamp** dashboard (http://192.168.10.50) and **Uptime-Kuma**
-> (http://192.168.10.51). See `Hyperion/k8s/README.md`. Known architectural
-> debt: the k3s control plane runs in a bridge-networked container on Heimdall
-> and is slated to move off it (ADR-0002).
+> The NixOS imaging path is validated and in production (hardware-validated
+> 2026-06-01). The legacy Debian/Packer path remains in-tree only as a fallback
+> until the **2026-08-15 sunset gate**. Authoritative per-node runbook:
+> [`Hyperion/docs/runbooks/turnkey-node-setup.md`](Hyperion/docs/runbooks/turnkey-node-setup.md).
+>
+> **Known architectural debt:** the k3s control plane runs in a bridge-networked
+> container on Heimdall and is slated to move onto a dedicated Pi (breaks
+> metrics-server and forces a placement workaround until then — see
+> [ADR-0002](docs/design/adr-0002-containerized-control-plane-networking.md)).
+
+---
+
+## The Hosts
+
+Each top-level directory maps to one physical host or cluster. The lab uses a
+mythological naming scheme so a host's name no longer encodes its (changeable)
+job.
+
+| Host | Address | OS | Role |
+|------|---------|----|----|
+| **Hyperion** | `.101–.110` | NixOS | 10-node Raspberry Pi 5 k3s cluster. Runs the containerized workloads. |
+| **Heimdall** | `.4` | Ubuntu Server 26.04 | x86 edge host: DNS, reverse proxy, SSO, container manager, k3s control plane, Pi-flashing services. |
+| **Akasha** | `.247` | TrueNAS Scale | Pure-storage server (formerly "Monolith"). Serves NFS to the cluster; hosts the media library. |
+| **Thoth** | `.144` | Ubuntu Server 26.04 | GPU compute host (formerly "Compute"): 2× RTX 6000 Ada. LLM inference, image gen, GPU transcoding. |
+
+A fifth machine, **Epsilon** (`192.168.0.105`, a Pop!_OS workstation with an
+RTX 4080), runs a Tdarr GPU transcode worker on the main home subnet. It is part
+of the transcode fleet but is not otherwise managed from this repo.
+
+### Heimdall (`192.168.10.4`)
+
+The edge-services host. One x86 box that runs, or holds the IaC for:
+
+- **Technitium DNS** — LAN forwarder, ad/malware filtering, and the authoritative `.lab` zone (every service has a `http://<app>.lab` name).
+- **Caddy** — HTTPS reverse proxy + L4 router (`caddy-l4`), with an internal CA for `*.lab`.
+- **Authentik** — single sign-on, in bring-up (see [`Heimdall/authentik/`](Heimdall/authentik/) and [`sso-bring-up.md`](Heimdall/docs/runbooks/sso-bring-up.md)).
+- **cloudflared** — Cloudflare Tunnel IaC for selective public exposure (see [`Heimdall/cloudflared/`](Heimdall/cloudflared/)).
+- **Komodo** — container-management UI (also manages Thoth via a Periphery agent).
+- **k3s control plane** — `rancher/k3s:v1.34.5-k3s1` for the Hyperion cluster (`:6443`).
+- **Hyperion flashing services** — image server (`:50011`), `ci-deploy` GitHub-release poller, and the journal-remote log sink (`:19532` / `:19531`).
+
+Deploy from the workstation with `bash Heimdall/scripts/deploy.sh`. Full manual:
+[`Heimdall/docs/manual/`](Heimdall/docs/manual/README.md).
+
+### Hyperion (`192.168.10.101–.110`)
+
+Ten Raspberry Pi 5s (`hyperion-alpha` … `hyperion-kappa`), each NixOS-on-NVMe,
+joined as k3s workers to the Heimdall control plane. Workloads are reconciled by
+FluxCD from [`Hyperion/k8s/`](Hyperion/k8s/README.md). The hardware build and the
+software bring-up are chronicled in the
+[Homelab blog series](https://stevengann.com). One command images a node end to
+end; see [Provisioning](#provisioning-a-node), below.
+
+### Akasha (`192.168.10.247`)
+
+The TrueNAS Scale storage server, renamed from Monolith and converged on a
+pure-storage role. It exports the media library and download/scratch space to the
+cluster over NFS (`Downloads` / `TV-Shows` / `Movies`, `mapall=apps`/568) and
+currently serves Jellyfin to the LAN. Tracked IaC is limited to the NFS export
+runbook: [`Akasha/docs/runbooks/nfs-media-export.md`](Akasha/docs/runbooks/nfs-media-export.md).
+
+### Thoth (`192.168.10.144`)
+
+The GPU compute host: 2× RTX 6000 Ada (96 GB VRAM total), Ubuntu Server with a
+Docker Compose stack managed via Komodo Periphery. It runs Ollama (LLMs incl.
+`deepseek-r1:70b`), OpenWebUI, ComfyUI, a GPU-accelerated Jellyfin instance, and
+a Tdarr transcode worker. Layout, ZFS pools, and the GPU/driver notes are in
+[`Thoth/README.md`](Thoth/README.md); design rationale in
+[`docs/design/thoth-plan.md`](docs/design/thoth-plan.md).
 
 ---
 
@@ -24,195 +88,172 @@ defined in this repository and recoverable from scratch.
 
 ```
 Homelab/
-├── docs/                        # Project-wide documentation
-│   ├── todo.md                  # Current task list and next steps
-│   ├── design/                  # Architecture planning documents
-│   └── pipeline-runs/           # Decision-record outputs (git-ignored, local only)
+├── docs/
+│   ├── todo.md                       # current operational state + next steps
+│   ├── homelab-user-guide.md         # per-service catalog (friendly *.lab URLs)
+│   ├── storage-audit-2026-06-05.md   # storage inventory
+│   ├── design/                       # ADRs + planning docs
+│   ├── agent-notes/                  # durable Pi/Linux/IaC knowledge
+│   └── pipeline-runs/                # decision-record outputs (gitignored)
 │
-├── Hyperion/                    # Pi 5 k3s worker cluster (10 nodes)
-│   ├── nixos/                   # NixOS configuration (Phase 1 scaffold — see README)
-│   ├── packer/                  # Debian Packer images (sunsetting 2026-08-15)
-│   │   ├── rpi-bootstrap.pkr.hcl
-│   │   ├── rpi-node.pkr.hcl
-│   │   └── files/
-│   ├── ansible/                 # Post-boot config (sunsetting alongside Packer)
-│   ├── k8s/                     # Kubernetes manifests (FluxCD GitOps)
-│   ├── flash-identity-usb.sh    # Formats per-node identity USB (NixOS schema v2)
-│   ├── reimage.sh               # Debian-path: reboots node into Bootstrap SD
-│   ├── watch-flash.sh           # Debian-path: live monitor during flashing
-│   ├── publish-image.sh         # Debian-path: manual build-and-publish
-│   ├── configure-eeprom.sh      # Sets BOOT_ORDER on Pis (KEPT under NixOS too)
-│   └── docs/runbooks/           # Hyperion-specific runbooks
+├── Hyperion/                         # 10-node Pi 5 k3s cluster
+│   ├── nixos/                        # NixOS configs (validated, in production)
+│   ├── k8s/                          # FluxCD GitOps manifests (~30 apps)
+│   ├── setup-hyperion-node.sh        # turnkey one-command per-node install
+│   ├── register-node-key.sh          # per-node SOPS age key registration
+│   ├── inventory.yaml                # node name ↔ IP map
+│   ├── configure-eeprom.sh           # sets Pi BOOT_ORDER (used by both paths)
+│   ├── packer/  ansible/             # legacy Debian path (sunsets 2026-08-15)
+│   └── docs/runbooks/                # Hyperion-specific runbooks
 │
-└── Heimdall/                    # Edge-services + Hyperion flashing + k3s control plane (192.168.10.4)
-    ├── caddy/                   # Reverse proxy / LB / TLS
-    ├── technitium/              # DNS + ad-blocking (composed in root compose)
-    ├── komodo-data/             # Container manager state (composed in root compose)
-    ├── hyperion/                # Flashing services (moved from Akasha 2026-05-21)
-    │   ├── ci-deploy/           # Polls GH Releases, mirrors images
-    │   ├── journal-remote/      # journal-upload sink (:19532) + gatewayd (:19531)
-    │   ├── nginx.conf           # Image server (:50011)
-    │   └── docker-compose.yml
-    ├── k3s-control-plane/       # k3s server (moved from Akasha 2026-05-24)
-    │   ├── docker-compose.yml   # rancher/k3s:v1.34.5-k3s1
-    │   ├── .env.example
-    │   └── README.md            # Initial mint + deploy + token rotation
-    └── docs/
+├── Heimdall/                         # x86 edge host (.4)
+│   ├── caddy/        technitium/     # reverse proxy + DNS
+│   ├── authentik/    cloudflared/    # SSO + Cloudflare tunnel
+│   ├── komodo-data/                  # container-manager state
+│   ├── hyperion/                     # Pi flashing services (image server, ci-deploy, journal sink)
+│   ├── k3s-control-plane/            # rancher/k3s control plane
+│   ├── scripts/                      # deploy.sh, seed-zones.sh, …
+│   └── docs/manual/  docs/runbooks/
+│
+├── Thoth/                            # GPU compute host (.144)
+│   ├── docker-compose.yml            # Ollama, OpenWebUI, ComfyUI, Jellyfin-GPU, Tdarr worker
+│   ├── scripts/      hostconf/
+│   └── (design: docs/design/thoth-plan.md)
+│
+└── Akasha/                           # TrueNAS storage host (.247)
+    └── docs/runbooks/nfs-media-export.md
 ```
 
-Akasha (`192.168.10.247`) is the TrueNAS Scale host, renamed from Monolith on
-2026-05-24 and being renovated to a pure-storage role once Hyperion is
-operational. No tracked code under `Akasha/` — the old broken k3s control
-plane was deleted along with the rename.
-
-Each top-level directory maps to a physical host or cluster. This pattern
-extends as IaC coverage expands.
+This pattern extends as IaC coverage grows — a new host gets its own top-level
+directory.
 
 ---
 
-## Infrastructure Overview
+## Network
 
-```
-Workstation
-  └── Git push → GitHub → CI builds images (Debian Packer + NixOS in parallel during pivot)
-
-Heimdall (192.168.10.4)                          Hyperion Cluster (k3s)
-  ├── caddy (reverse proxy + TLS)                  ├── 10 × Pi 5 worker nodes (192.168.10.101–.110)
-  ├── technitium (DNS + adblock)                   │     ├── NixOS (Phase 1 — scaffold landed)
-  ├── komodo (container manager)                   │     ├── Identity: HYPERION-ID USB (hostname, age key, SSH host keys)
-  ├── hyperion/                                    │     └── Workloads: reconciled by FluxCD from this repo
-  │   ├── nginx :50011 (image server)              │
-  │   ├── ci-deploy (GH Releases poller)           └── Control plane: rancher/k3s container on Heimdall (:6443)
-  │   ├── journal-remote :19532
-  │   └── journal-gatewayd :19531 (HTML browse)
-  └── k3s-control-plane/
-        └── rancher/k3s:v1.34.5-k3s1 (server, :6443)
-
-Akasha (192.168.10.247 — TrueNAS Scale)
-  └── renovating to pure storage; no tracked code here
-```
-
-### Node imaging flow (NixOS — Phase 1 forward)
-
-```
-One-time at assembly (the only hands-on):
-  Flash the live SD installer to a microSD, insert it
-    (CI build .#installerSdImage, or Heimdall /sd-installer/)
-  EEPROM BOOT_ORDER=0xf16 (NVMe → SD installer fallback)
-  Assign a UCG DHCP reservation (.101..110)
-
-Remote install (from the workstation — docs/runbooks/remote-flash-a-node.md):
-  ./register-node-key.sh hyperion-alpha          # once: gen + register keys, commit
-  Power on (blank NVMe) → boots SD installer, SSH-reachable
-  ./flash-node.sh <ip> hyperion-alpha
-  → nixos-anywhere: disko partitions NVMe, builds the closure on the node
-    (--build-on-remote), injects age key + SSH host keys (--extra-files),
-    reboots; kexec SKIPPED (broken on Pi). No NVMe handling, no identity USB.
-  → k3s agent registers with Heimdall control plane (https://192.168.10.4:6443)
-
-Day-2 config changes (no NVMe re-flash):
-  Workstation: cd Hyperion/nixos && colmena apply --on hyperion-alpha
-  → nix-copy-closure to target → nixos-rebuild switch → done
-```
-
-### Node imaging flow (Debian — sunsetting 2026-08-15)
-
-```
-Bootstrap SD inserted (hyperion-bootstrap.service):
-  Check Heimdall for newer Node IMG → update HYPERION-ID USB cache
-  Compare USB cache version vs NVMe version (node-img.ver)
-  If NVMe behind → dd NVMe from USB cache → repartition → reboot
-  Else → reboot into NVMe immediately
-
-NVMe boot (production Debian):
-  apply-identity.service → hostname from HYPERION-ID USB
-  detect-node-storage.service → mount best storage device to /mnt/node-storage
-```
-
-### Network
-
-All infrastructure is on the Homelab VLAN (`192.168.10.0/24`):
+Single VLAN `192.168.10.0/24`; the UCG (`.1`) is the gateway and DHCP server.
+Node IPs are DHCP reservations by MAC, so power-on order does not equal IP order.
 
 | Range | Purpose |
 |-------|---------|
-| `.4` | Heimdall (edge services + Hyperion flashing stack + k3s control plane) |
-| `.10–.99` | MetalLB LoadBalancer pool |
-| `.101–.110` | Hyperion Pi nodes (alpha → kappa) |
-| `.247` | Akasha (TrueNAS Scale; renovating to pure storage) |
+| `.1` | UCG gateway / DHCP server |
+| `.4` | Heimdall (edge services + k3s control plane + Pi-flashing stack) |
+| `.10–.99` | MetalLB LoadBalancer pool (~30 cluster services) |
+| `.101–.110` | Hyperion Pi nodes (`alpha` → `kappa`, Greek-letter order) |
+| `.144` | Thoth (GPU compute host) |
+| `.180` | APC AP7900 PDU (switched, 8 outlets; Telnet CLI on `:23`) |
+| `.247` | Akasha (TrueNAS storage) |
+
+Heimdall ports: k3s API `:6443`, Flannel VXLAN `:8472/udp`, image server `:50011`,
+journal-remote `:19532` (upload sink) and `:19531` (HTML browse), Technitium UI
+`:5380`, Komodo `:9120`.
+
+`*.lab` hostnames are served by Technitium and seeded declaratively from
+`Heimdall/scripts/seed-zones.sh`; each cluster service also listens on port 80 so
+the bare `http://<app>.lab` works. See the
+[user guide](docs/homelab-user-guide.md) for the complete name/IP/port table.
 
 ---
 
-## Provisioning a New Cluster from Scratch
+## Services (GitOps)
 
-See `docs/todo.md` for the current step-by-step checklist.
+Cluster workloads are declared under [`Hyperion/k8s/`](Hyperion/k8s/README.md)
+and reconciled by FluxCD. A representative slice of what's deployed:
 
-**NixOS path (forward, Phase 1+):**
+- **Media automation** — Prowlarr, Sonarr, Radarr, Lidarr, qBittorrent (ProtonVPN/WireGuard), plus Seerr, Cleanuparr, SuggestArr, Kapowarr, Youtarr, Trailarr, Listenarr, Musicseerr, boxarr, Sortarr, and a Tdarr server (with GPU workers on Thoth and Epsilon).
+- **Streaming** — Navidrome; Jellyfin (served from Akasha, with a GPU instance under evaluation on Thoth); Jellystat.
+- **Dashboards & monitoring** — Homarr (home page), Uptime-Kuma, Headlamp (k8s dashboard), Beszel, Speedtest-Tracker.
+- **AI** — Hermes (self-hosted DeepSeek agent), Caldera (Obsidian-vault REST/MCP API); Ollama/OpenWebUI/ComfyUI on Thoth.
+- **Other** — RomM (ROM manager), Pterodactyl (game-server panel), n8n (automation), MonolithBot (Discord bot).
 
-1. **Heimdall** — deploy the hyperion-flashing stack and the **k3s control plane**: `bash Heimdall/scripts/deploy.sh` (see `Heimdall/docs/runbooks/flashing-services.md` + `Heimdall/k3s-control-plane/README.md`).
-2. **Workstation tooling** — install Nix, age, sops, colmena.
-3. **EEPROM** — set boot order on each Pi (`./configure-eeprom.sh --reboot`).
-4. **NixOS pivot** — follow `Hyperion/nixos/README.md` then `Hyperion/docs/runbooks/first-node-bringup-nixos.md`.
-5. **Identity USBs** — flash one per node (`./flash-identity-usb.sh /dev/sdX hyperion-alpha`), then `./register-node-key.sh hyperion-alpha age1...`.
-6. **Cluster deploy** — `colmena apply --on '@hyperion-*' --parallel 4`.
-7. **FluxCD** — bootstrap GitOps.
-
-**Debian path (legacy, until sunset 2026-08-15):**
-
-See `Hyperion/docs/runbooks/build-packer-image.md` and `debug-flashing.md`. The legacy flow remains available for fallback while Phase 1 NixOS validation is in progress.
+The authoritative, always-current list (with URLs and what each is for) is the
+[user guide](docs/homelab-user-guide.md).
 
 ---
 
-## Re-imaging a Node
+## Provisioning a Node
 
-**NixOS:**
-- Day-2 config: `cd Hyperion/nixos && colmena apply --on hyperion-<greek>`
-- Full re-image (e.g. after NVMe replacement): see `Hyperion/docs/runbooks/replace-dead-node.md`
+The validated NixOS flow is one command per node. A node is imaged from a single
+stock Raspberry Pi OS bootstrap SD (SSH enabled), driven entirely over SSH from
+the workstation — the NVMe is a separate disk, so it is installed in place with
+no re-flash dance.
 
-**Debian (legacy):**
 ```bash
-# Insert Bootstrap SD card into the node, then:
-cd ~/GitHub/Homelab/Hyperion
-./reimage.sh hyperion-alpha    # or: ./reimage.sh all
+cd Hyperion
+
+# End-to-end: register keys → Nix on bootstrap → disko-install onto NVMe →
+# set EEPROM boot order (0xf416) → reboot → verify the node reaches Ready.
+# IP auto-resolves from inventory.yaml by name.
+./setup-hyperion-node.sh --name hyperion-alpha
+
+# Then pull the SD, move it to the next Pi, and repeat.
 ```
 
-CI publishes a new image on every push to `main` touching the relevant paths.
+Full walkthrough and the Pi-specific gotchas (dead `kexec`, the memory cgroup,
+the bootloader `mount`-on-PATH trap, EEPROM order) are in
+[`Hyperion/docs/runbooks/turnkey-node-setup.md`](Hyperion/docs/runbooks/turnkey-node-setup.md).
+Repo-wide operator conventions live in [`CLAUDE.md`](CLAUDE.md).
+
+**Day-2 changes** (no re-flash): edit `Hyperion/nixos/`, then
+`colmena apply --on hyperion-<greek>` (or `--on '@hyperion-*' --parallel 4`).
+See [`deploy-via-colmena.md`](Hyperion/docs/runbooks/deploy-via-colmena.md).
+
+**Replace a dead node:** [`replace-dead-node.md`](Hyperion/docs/runbooks/replace-dead-node.md).
+
+> The legacy Debian/Packer path (`Hyperion/packer/`, `ansible/`, `reimage.sh`,
+> `watch-flash.sh`, `publish-image.sh`) is paused and kept only as a fallback
+> until the 2026-08-15 sunset gate. Don't use it for new nodes.
+
+---
+
+## Bringing Up the Cluster from Scratch
+
+1. **Heimdall** — deploy the edge stack, the Pi-flashing services, and the **k3s control plane**: `bash Heimdall/scripts/deploy.sh` (see [`flashing-services.md`](Heimdall/docs/runbooks/flashing-services.md) and [`k3s-control-plane/README.md`](Heimdall/k3s-control-plane/README.md)).
+2. **Workstation tooling** — install Nix, age, sops, and colmena (see [`tooling.md`](Hyperion/docs/runbooks/tooling.md)).
+3. **Image the nodes** — `./setup-hyperion-node.sh --name hyperion-<greek>` for each Pi.
+4. **Bootstrap GitOps** — `kubectl apply -k Hyperion/k8s/flux-system`; Flux then reconciles everything from `origin/main` (see [`Hyperion/k8s/README.md`](Hyperion/k8s/README.md)).
 
 ---
 
 ## Secrets
 
-SOPS + age. Each Pi has its own per-node age private key on its HYPERION-ID USB; the public halves are listed in `Hyperion/.sops.yaml`'s `creation_rules`.
+SOPS + age, with **per-node keys** on the NixOS path. Each Pi has its own age
+private key, generated workstation-side by `register-node-key.sh`, stored
+age-encrypted to the operator under `Hyperion/nixos/node-keys/` (committed), and
+injected onto the node's NVMe at `/var/lib/sops-nix/key.txt` at install time —
+never in git or the Nix store. Cluster Secrets are decrypted by Flux via the
+`sops-age` Secret in `flux-system`.
 
 ```bash
 SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops --decrypt <file>
 SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops --edit <file>
+
+# Add a node: generates its key, adds the pubkey to .sops.yaml, re-encrypts common.yaml
+cd Hyperion && ./register-node-key.sh hyperion-<greek>
 ```
 
-See `Hyperion/docs/runbooks/tooling.md` for the SOPS/age/Nix tooling
-cheat-sheet.
+Flux-decrypted Secrets have a required encryption form (encrypt only
+`data`/`stringData`, no comments) — see the SOPS section of
+[`Hyperion/k8s/README.md`](Hyperion/k8s/README.md). Tooling cheat-sheet:
+[`tooling.md`](Hyperion/docs/runbooks/tooling.md).
 
 ---
 
 ## Reproducibility Checklist
 
-- [ ] Heimdall services (k3s control plane + flashing stack + edge services) restored from `bash Heimdall/scripts/deploy.sh` alone
-- [ ] Dead Hyperion node replaced per `Hyperion/docs/runbooks/replace-dead-node.md` (≤30 min)
-- [ ] Every workload running in the cluster is defined in `Hyperion/k8s/`
-- [ ] All secrets are SOPS-encrypted or stored outside the repo
+- [ ] Heimdall services (k3s control plane + flashing stack + edge services) restored from `bash Heimdall/scripts/deploy.sh` alone.
+- [ ] Thoth GPU stack restored from `bash Thoth/scripts/deploy.sh` (host bootstrap via `Thoth/scripts/setup.sh`).
+- [ ] Dead Hyperion node replaced per [`replace-dead-node.md`](Hyperion/docs/runbooks/replace-dead-node.md).
+- [ ] Every cluster workload defined in `Hyperion/k8s/` and reconciled by Flux.
+- [ ] All secrets SOPS-encrypted or stored outside the repo.
 
 ---
 
-## Pivot status (2026-05-23)
+## Where the Knowledge Lives
 
-The NixOS pivot for Hyperion completed pipeline approval (2 iterations,
-6 YAE / 0 NAY) on 2026-05-23. Phase 1 hard-gate validation on
-hyperion-alpha is the next step before scaling to the other 9 nodes.
-
-See:
-- `Hyperion/nixos/README.md` — scaffold layout
-- `Hyperion/docs/runbooks/first-node-bringup-nixos.md` — Phase 1 walkthrough
-- `Hyperion/docs/runbooks/replace-dead-node.md` — hardware-swap procedure
-- `docs/pipeline-runs/20260523T050133Z-dev-nixos-identity-usb/FINAL.md` — full design rationale (local-only per .gitignore)
-
-The Debian/Packer path sunsets on 2026-08-15 conditional on Phase 1+2
-hard-gate criteria. Until then, both stacks are tracked.
+- **[`docs/todo.md`](docs/todo.md)** — current operational state and the next steps.
+- **[`CLAUDE.md`](CLAUDE.md)** — operator/agent conventions; the authoritative Hyperion architecture notes.
+- **[`docs/design/`](docs/design/)** — ADRs and planning docs (e.g. ADR-0002 control-plane networking, ADR-0003 Longhorn deferred, the Thoth and \*arr-stack plans).
+- **[`docs/agent-notes/`](docs/agent-notes/)** — durable Pi/Linux/IaC facts that survive each planning pipeline.
+- **[`TEAM.md`](TEAM.md)** / **[`PIPELINES.md`](PIPELINES.md)** — the standing agent-team roster and the DEVELOPMENT/DEBUGGING orchestration used to design changes.
+- Per-host docs: [`Heimdall/docs/manual/`](Heimdall/docs/manual/README.md), [`Thoth/README.md`](Thoth/README.md), [`Hyperion/docs/runbooks/`](Hyperion/docs/runbooks/), [`Akasha/docs/runbooks/`](Akasha/docs/runbooks/).

@@ -17,9 +17,9 @@ For working on this repo with the standing agent team, see [`TEAM.md`](TEAM.md) 
 
 `README.md` is the authoritative entry point. `docs/todo.md` tracks operational state. `docs/hyperion-iac-plan.md` and the body of `docs/design/node-image-approach.md` are **archived/obsolete** — do not follow them for current behavior. For current state, **read the code and `Hyperion/docs/runbooks/`**.
 
-## Hyperion architecture — pivot in progress (2026-05-23)
+## Hyperion architecture — NixOS, validated and in production
 
-The single most important thing to know about Hyperion right now: **it is mid-pivot from Debian/Packer to NixOS**. Both stacks coexist in-tree until the 2026-08-15 sunset gate. The decision was approved by a 6-YAE / 0-NAY vote across 2 iterations of the standing-team DEVELOPMENT pipeline (run `20260523T050133Z-dev-nixos-identity-usb/`, FINAL.md lives in the run folder locally per `.gitignore`).
+The single most important thing to know about Hyperion: **it runs NixOS**. The pivot from Debian/Packer to NixOS is complete and hardware-validated — all 10 Pi 5 workers are NixOS-on-NVMe and `Ready` on the k3s control plane (validated 2026-06-01). The legacy Debian/Packer stack still coexists in-tree, but only as a fallback until the 2026-08-15 sunset gate. The pivot was approved by a 6-YAE / 0-NAY vote across 2 iterations of the standing-team DEVELOPMENT pipeline (run `20260523T050133Z-dev-nixos-identity-usb/`, FINAL.md lives in the run folder locally per `.gitignore`).
 
 ### NixOS architecture (the forward path) — HARDWARE-VALIDATED 2026-06-01
 
@@ -214,10 +214,14 @@ Single VLAN `192.168.10.0/24`. UCG (`.1`) is the DHCP server.
 
 | Range | Purpose |
 |-------|---------|
-| `.4` | Heimdall (Caddy, Technitium, Komodo, Hyperion-flashing-stack, k3s control plane) |
-| `.10–.99` | MetalLB LoadBalancer pool |
+| `.4` | Heimdall (Caddy, Technitium, Authentik, cloudflared, Komodo, Hyperion-flashing-stack, k3s control plane) |
+| `.10–.99` | MetalLB LoadBalancer pool (~30 cluster services) |
 | `.101–.110` | Hyperion nodes (alpha → kappa, in Greek-letter order) |
-| `.247` | Akasha (TrueNAS Scale; renovating to pure storage) |
+| `.144` | Thoth (GPU compute host — Ubuntu Server, 2× RTX 6000 Ada; Docker Compose via Komodo Periphery) |
+| `.180` | APC AP7900 PDU (switched, 8 outlets; Telnet CLI on `:23`, no SSH/HTTPS) |
+| `.247` | Akasha (TrueNAS Scale; pure-storage role, NFS exports to the cluster) |
+
+Off-VLAN: **Epsilon** (`192.168.0.105`, Pop!_OS workstation, RTX 4080) runs a Tdarr GPU transcode worker on the main home subnet.
 
 Heimdall ports: k3s API `:6443`, Flannel VXLAN `:8472/udp`, nginx `:50011` (images), journal-remote `:19532` (upload sink), journal-gatewayd `:19531` (HTML browse). Bootstrap status endpoint `:8080` per-Pi (Debian path only).
 
@@ -234,7 +238,7 @@ GitOps: FluxCD (read-only, no token) reconciles `Hyperion/k8s/`; MetalLB serves 
 - **`Hyperion/configure-eeprom.sh`** → re-run against affected nodes; not auto-deployed.
 - **`Heimdall/k3s-control-plane/`** → not auto-deployed. Re-run `bash Heimdall/scripts/deploy.sh` from the workstation (ships both env secrets + restarts the stack). See `Heimdall/k3s-control-plane/README.md`.
 - **`Heimdall/hyperion/`** → same deploy script; see `Heimdall/docs/runbooks/flashing-services.md`.
-- **k8s manifests under `Hyperion/k8s/`** → reconciled by FluxCD (when bootstrapped — currently TODO).
+- **k8s manifests under `Hyperion/k8s/`** → reconciled by FluxCD (live since 2026-06-01; read-only, no token). Push to `origin/main` — Flux reads GitHub, not your working tree.
 
 ## Pipeline-run records (decision history)
 

@@ -9,7 +9,7 @@ Container host for GPU workloads, run **consistent with Heimdall's pattern**
 
 | | |
 |---|---|
-| `docker-compose.yml` | the stack — **Ollama** (live); Tdarr worker + Wings staged (commented). |
+| `docker-compose.yml` | the stack — **Ollama, OpenWebUI, ComfyUI, Jellyfin (GPU), Tdarr worker, Komodo Periphery** (live); **Wings** staged (commented). |
 | `scripts/setup.sh` | host bootstrap (Docker, NVIDIA driver+toolkit, nfs-common, daemon.json; `--provision-storage` for the ZFS pools). |
 | `hostconf/docker-daemon.json` | journald logging + live-restore (nvidia runtime merged in by `nvidia-ctk`). |
 | `.sops.yaml` / `secrets/` | same homelab age key; future secrets (e.g. Wings node token). |

@@ -14,9 +14,20 @@ infrastructure/
   metallb/install/  vendored MetalLB native manifest (v0.14.9): controller, speaker, CRDs
   metallb/config/   IPAddressPool 192.168.10.10–99 + L2Advertisement
 apps/
-  headlamp/         k8s dashboard — LoadBalancer 192.168.10.50
-  uptime-kuma/      status monitor — LoadBalancer 192.168.10.51, persistent local-path PVC
+  headlamp/  uptime-kuma/  hermes/  caldera/   platform: dashboard, status, AI agents
+  media/                                        *arr stack, tiered 00-storage → 10-core → 20-extras
+    00-storage/     Akasha NFS PV/PVC + canary probe Job
+    10-core/        prowlarr, sonarr, radarr, lidarr, qbittorrent (ProtonVPN/WireGuard)
+    20-extras/      seerr, cleanuparr, suggestarr, kapowarr, youtarr, trailarr, homarr, tdarr, navidrome
+  listenarr/  musicseerr/  boxarr/  sortarr/  jellystat/   media-adjacent
+  beszel/  speedtest-tracker/                   monitoring
+  romm/  pterodactyl/  n8n/  monolithbot/        misc workloads
 ```
+
+The list above is a snapshot — `apps/` is the source of truth, and the
+**always-current per-service catalog (URLs, IPs, what each is for) is
+[`docs/homelab-user-guide.md`](../../docs/homelab-user-guide.md).** LoadBalancer
+IPs run from `.50` upward in the `.10–.99` pool.
 
 Reconcile chain: `flux-system` (root) → `clusters/hyperion` → `metallb`
 (install, `wait`) → `metallb-config` (pool, `dependsOn: metallb`); and
@@ -25,11 +36,16 @@ Reconcile chain: `flux-system` (root) → `clusters/hyperion` → `metallb`
 
 ## Running apps
 
+Roughly 30 services are deployed; the full catalog with friendly `*.lab` URLs is
+in [`docs/homelab-user-guide.md`](../../docs/homelab-user-guide.md). A few
+platform services with non-obvious access notes:
+
 | App | URL | Notes |
 |---|---|---|
 | Headlamp (dashboard) | http://192.168.10.50 | token login — `kubectl -n headlamp get secret headlamp-admin -o jsonpath='{.data.token}' \| base64 -d` |
 | Uptime-Kuma | http://192.168.10.51 | persistent SQLite on a local-path PVC (node-local) |
 | Hermes (DeepSeek agent) | http://192.168.10.52 | basic-auth (`admin`); gateway + dashboard, SOPS DeepSeek key — see Hermes section below |
+| Caldera (Obsidian API) | http://192.168.10.70:8000 | REST/MCP API; Bearer-token auth, SOPS-encrypted; OpenAPI at `/docs` |
 
 **All apps must set `nodeSelector: { topology.kubernetes.io/zone: hyperion }`**
 so they schedule on the Pi workers, not the containerized control-plane node
