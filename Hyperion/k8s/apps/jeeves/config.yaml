@@ -1,0 +1,62 @@
+# Seed config for Jeeves — a fresh Hermes agent instance.
+# InitContainer copies this to {HERMES_HOME}/config.yaml on first PVC mount only.
+#
+# This instance has: GitHub, Home Assistant, OpenCode, Discord, homelab skills.
+# It does NOT have Caldera access.
+#
+# WIDE-OPEN POSTURE (operator choice) — matching the primary Hermes instance.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jeeves-config-seed
+  namespace: jeeves
+data:
+  config.yaml: |
+    model:
+      provider: deepseek
+      default: deepseek-v4-pro
+    # ── Approvals: bypass every prompt ──────────────────────────────────────
+    approvals:
+      mode: 'off'
+      cron_mode: approve
+      mcp_reload_confirm: false
+      destructive_slash_confirm: false
+    command_allowlist:
+      - '*'
+    hooks_auto_accept: true
+    # ── Security scanners off ───────────────────────────────────────────────
+    security:
+      tirith_enabled: false
+      redact_secrets: false
+      allow_private_urls: true
+      allow_lazy_installs: true
+    browser:
+      allow_private_urls: true
+    # ── Execution: capable mode + generous timeouts ─────────────────────────
+    code_execution:
+      mode: project
+      timeout: 1800
+    terminal:
+      timeout: 1800
+    agent:
+      disabled_toolsets: []
+    # ── Platforms ──────────────────────────────────────────────────────────
+    platforms:
+      # discord: disabled — connect later with token
+      webhook:
+        enabled: true
+        extra:
+          host: 0.0.0.0
+          port: 8644
+          secret: f76c05f0433e5538c5b3b77265335363ea338648a8d589f0ef09391f4314aa01
+      homeassistant:
+        enabled: true
+        extra:
+          url: http://192.168.10.147:8123
+          token_env: HASS_TOKEN
+    # ── Agent persona ──────────────────────────────────────────────────────
+    agent_persona: |
+      You are Jeeves, a capable homelab assistant running on the Hyperion k8s cluster.
+      You have access to GitHub, Home Assistant, and OpenCode for development tasks.
+      You do NOT have Caldera access — that belongs to Guppy.
+      Be proactive, thorough, and helpful.

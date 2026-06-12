@@ -14,7 +14,7 @@ infrastructure/
   metallb/install/  vendored MetalLB native manifest (v0.14.9): controller, speaker, CRDs
   metallb/config/   IPAddressPool 192.168.10.10–99 + L2Advertisement
 apps/
-  headlamp/  uptime-kuma/  hermes/  caldera/   platform: dashboard, status, AI agents
+  headlamp/  uptime-kuma/  hermes/  jeeves/  caldera/   platform: dashboard, status, AI agents
   media/                                        *arr stack, tiered 00-storage → 10-core → 20-extras
     00-storage/     Akasha NFS PV/PVC + canary probe Job
     10-core/        prowlarr, sonarr, radarr, lidarr, qbittorrent (ProtonVPN/WireGuard)
@@ -44,7 +44,8 @@ platform services with non-obvious access notes:
 |---|---|---|
 | Headlamp (dashboard) | http://192.168.10.50 | token login — `kubectl -n headlamp get secret headlamp-admin -o jsonpath='{.data.token}' \| base64 -d` |
 | Uptime-Kuma | http://192.168.10.51 | persistent SQLite on a local-path PVC (node-local) |
-| Hermes (DeepSeek agent) | http://192.168.10.52 | basic-auth (`admin`); gateway + dashboard, SOPS DeepSeek key — see Hermes section below |
+| Hermes (DeepSeek agent) | http://192.168.10.52 | basic-auth (`admin`); gateway + dashboard, SOPS DeepSeek key. Renamed DNS to `guppi.lab` June 2026. |
+| Jeeves (DeepSeek agent #2) | http://192.168.10.80 | basic-auth (same creds); independent deployment. Discord pending. |
 | Caldera (Obsidian API) | http://192.168.10.70:8000 | REST/MCP API; Bearer-token auth, SOPS-encrypted; OpenAPI at `/docs` |
 
 **All apps must set `nodeSelector: { topology.kubernetes.io/zone: hyperion }`**

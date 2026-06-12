@@ -84,7 +84,8 @@ usually never need to touch these. Admin/power-user territory.
 
 | App | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
-| **Hermes** | [hermes.lab](http://hermes.lab) | [192.168.10.52](http://192.168.10.52) | Self-hosted AI agent (DeepSeek-backed). **Login required** (HTTP basic auth — ask the admin). |
+| **Guppi** (Hermes) | [guppi.lab](http://guppi.lab) | [192.168.10.52](http://192.168.10.52) | Self-hosted AI agent (DeepSeek-backed). The primary agent — interacts via Discord DM. **Login required** (HTTP basic auth — ask the admin). Formerly named Hermes; renamed June 2026. |
+| **Jeeves** | [jeeves.lab](http://jeeves.lab) | [192.168.10.80](http://192.168.10.80) | Second DeepSeek agent instance. Independent deployment — Discord not yet connected. **Login required** (same basic auth as Guppi). |
 | **Caldera** | [caldera.lab](http://caldera.lab) | [192.168.10.70:8000](http://192.168.10.70:8000) | REST/MCP API that exposes the Obsidian vault to AI agents (read/write notes, search). Not a click-and-use site — needs a **Bearer token** (ask the admin); interactive API docs at `/docs`. |
 | **Ollama** | [ollama.lab](http://ollama.lab) | [192.168.10.144:11434](http://192.168.10.144:11434) | Local LLM inference on the GPU server (Thoth, 2× RTX 6000 Ada). An API for agents/apps (OpenAI-compatible at `/v1`) — pair it with a chat UI. No login; internal only. |
 | **OpenWebUI** | [openwebui.lab](http://openwebui.lab) | [192.168.10.144:3000](http://192.168.10.144:3000) | **The friendly chat front-end for Ollama** (ChatGPT-style). The easy way to talk to the local models. **Own login** — the first account created becomes the admin. |

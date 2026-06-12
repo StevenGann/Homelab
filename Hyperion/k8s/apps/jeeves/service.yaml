@@ -1,0 +1,31 @@
+# LB → nginx basic-auth proxy (:8080) → dashboard (pod-loopback :9119).
+apiVersion: v1
+kind: Service
+metadata:
+  name: jeeves-dashboard
+  namespace: jeeves
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.10.80
+spec:
+  type: LoadBalancer
+  selector:
+    app: jeeves
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+# ClusterIP so in-cluster apps can reach Jeeves's webhook receiver
+apiVersion: v1
+kind: Service
+metadata:
+  name: jeeves
+  namespace: jeeves
+spec:
+  type: ClusterIP
+  selector:
+    app: jeeves
+  ports:
+    - name: webhook
+      port: 8644
+      targetPort: 8644

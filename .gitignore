@@ -39,3 +39,5 @@ Heimdall/komodo-data/repos/*
 !Heimdall/komodo-data/repos/.gitkeep
 Heimdall/komodo-data/backups/*
 !Heimdall/komodo-data/backups/.gitkeep
+kubectl
+sops

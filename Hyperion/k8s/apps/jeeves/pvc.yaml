@@ -1,0 +1,15 @@
+# Jeeves HERMES_HOME (/opt/data): config.yaml, auth.json, profiles, session state.
+# local-path (k3s default StorageClass) → node-local on the Pi where it lands.
+# Recreate strategy + nodeSelector keep it pinned. RWO.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jeeves-data
+  namespace: jeeves
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi

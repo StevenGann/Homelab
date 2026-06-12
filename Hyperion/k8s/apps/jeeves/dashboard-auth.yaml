@@ -1,0 +1,11 @@
+# Dashboard basic-auth (same credentials as Hermes for operator convenience).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jeeves-dashboard-auth
+  namespace: jeeves
+type: Opaque
+data:
+  .htpasswd: YWRtaW46JGFwcjEkWkJNLnlOWFckeDhKZ2NBQkMxaHgyUFJnYUlnUFg1Lg==
+  DASHBOARD_USERNAME: YWRtaW4=
+  DASHBOARD_PASSWORD: UWpzbUozMndVbjNDUXhhSUdySw==

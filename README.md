@@ -163,7 +163,7 @@ and reconciled by FluxCD. A representative slice of what's deployed:
 - **Media automation** — Prowlarr, Sonarr, Radarr, Lidarr, qBittorrent (ProtonVPN/WireGuard), plus Seerr, Cleanuparr, SuggestArr, Kapowarr, Youtarr, Trailarr, Listenarr, Musicseerr, boxarr, Sortarr, and a Tdarr server (with GPU workers on Thoth and Epsilon).
 - **Streaming** — Navidrome; Jellyfin (served from Akasha, with a GPU instance under evaluation on Thoth); Jellystat.
 - **Dashboards & monitoring** — Homarr (home page), Uptime-Kuma, Headlamp (k8s dashboard), Beszel, Speedtest-Tracker.
-- **AI** — Hermes (self-hosted DeepSeek agent), Caldera (Obsidian-vault REST/MCP API); Ollama/OpenWebUI/ComfyUI on Thoth.
+- **AI** — Guppi (DeepSeek agent, formerly Hermes), Jeeves (second DeepSeek agent), Caldera (Obsidian-vault REST/MCP API); Ollama/OpenWebUI/ComfyUI on Thoth.
 - **Other** — RomM (ROM manager), Pterodactyl (game-server panel), n8n (automation), MonolithBot (Discord bot).
 
 The authoritative, always-current list (with URLs and what each is for) is the
