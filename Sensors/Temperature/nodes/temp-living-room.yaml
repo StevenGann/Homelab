@@ -1,0 +1,9 @@
+# Example node. Copy this file per physical sensor and change the substitutions.
+# All logic lives in the shared package; this file is intentionally tiny.
+packages:
+  base: !include ../common/dht22-node.yaml
+
+substitutions:
+  node_name: temp-living-room
+  friendly_name: "Living Room"
+  # dht_pin (D5) and update_interval (60s) inherit package defaults unless set here.

@@ -1,0 +1,9 @@
+# ESPHome plaintext secrets — NEVER commit. Only the committed copies are:
+#   - secrets.yaml.example (placeholder keys, no values)
+#   - common/secrets.yaml  (relay only: `<<: !include ../secrets.yaml`)
+#   - secrets.sops.yaml    (encrypted, added once an age key exists)
+/secrets.yaml
+
+# ESPHome build cache / generated artifacts
+.esphome/
+*.bin
