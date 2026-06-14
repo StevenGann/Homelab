@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MQTT Explorer — Homelab</title>
+<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 1.4rem; margin-bottom: 16px; color: #58a6ff; }
+  .status-bar { display: flex; gap: 12px; align-items: center; padding: 10px 14px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 16px; font-size: 0.85rem; }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.connected { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
+  .status-dot.disconnected { background: #f85149; }
+  .status-dot.connecting { background: #d2991d; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .config-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .config-row input { background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 10px; border-radius: 5px; font-size: 0.85rem; width: 200px; }
+  .config-row input:focus { outline: none; border-color: #58a6ff; }
+  .btn { padding: 6px 14px; border: 1px solid #30363d; border-radius: 5px; cursor: pointer; font-size: 0.85rem; background: #21262d; color: #c9d1d9; }
+  .btn:hover { background: #30363d; }
+  .btn.primary { background: #238636; border-color: #238636; color: #fff; }
+  .btn.primary:hover { background: #2ea043; }
+  .btn.danger { background: #da3633; border-color: #da3633; color: #fff; }
+  .btn.danger:hover { background: #f85149; }
+  .panels { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+  .panel { background: #161b22; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
+  .panel-header { padding: 10px 14px; background: #1c2128; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 0.9rem; }
+  .subscribe-row { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid #21262d; }
+  .subscribe-row input { flex: 1; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 5px 8px; border-radius: 4px; font-size: 0.8rem; }
+  .subscribe-row input:focus { outline: none; border-color: #58a6ff; }
+  .sub-list { max-height: 200px; overflow-y: auto; }
+  .sub-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid #21262d; font-size: 0.8rem; font-family: monospace; }
+  .sub-item button { background: none; border: none; color: #f85149; cursor: pointer; font-size: 1rem; padding: 0 4px; }
+  .sub-item button:hover { color: #ff7b72; }
+  .messages { max-height: 500px; overflow-y: auto; }
+  .msg { padding: 6px 14px; border-bottom: 1px solid #21262d; font-size: 0.82rem; }
+  .msg.topic { color: #58a6ff; font-family: monospace; margin-bottom: 2px; }
+  .msg.time { color: #8b949e; font-size: 0.7rem; }
+  .msg.payload { color: #7ee787; font-family: monospace; word-break: break-all; margin-top: 2px; }
+  .publish-row { display: flex; gap: 6px; padding: 10px; border-top: 1px solid #30363d; }
+  .publish-row input { flex: 1; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 5px 8px; border-radius: 4px; font-size: 0.8rem; }
+  .publish-row input:focus { outline: none; border-color: #58a6ff; }
+  .empty { padding: 40px; text-align: center; color: #8b949e; font-size: 0.85rem; }
+  @media (max-width: 768px) { .panels { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔌 MQTT Explorer</h1>
+
+  <div class="status-bar">
+    <div class="status-dot disconnected" id="statusDot"></div>
+    <span id="statusText">Disconnected</span>
+    <span style="margin-left:auto;color:#8b949e;font-size:0.75rem" id="brokerUrl"></span>
+  </div>
+
+  <div class="config-row">
+    <input id="brokerHost" value="mqtt.lab" placeholder="Broker host">
+    <input id="brokerPort" value="9001" placeholder="Port" style="width:80px">
+    <input id="username" value="mosquitto" placeholder="Username" style="width:120px">
+    <input id="password" type="password" value="Qazxcv1992!" placeholder="Password" style="width:130px">
+    <button class="btn primary" id="connectBtn" onclick="toggleConnection()">Connect</button>
+  </div>
+
+  <div class="panels">
+    <!-- Subscribe panel -->
+    <div class="panel">
+      <div class="panel-header">📡 Subscriptions</div>
+      <div class="subscribe-row">
+        <input id="subTopic" placeholder="Topic (e.g. home/#)" onkeydown="if(event.key==='Enter')subscribe()">
+        <button class="btn primary" onclick="subscribe()">Subscribe</button>
+      </div>
+      <div class="sub-list" id="subList">
+        <div class="empty">No subscriptions yet</div>
+      </div>
+    </div>
+
+    <!-- Messages panel -->
+    <div class="panel">
+      <div class="panel-header">📨 Messages <span id="msgCount" style="color:#8b949e;font-weight:normal;font-size:0.8rem"></span></div>
+      <div class="messages" id="messages">
+        <div class="empty">Connect to a broker to see messages</div>
+      </div>
+      <div class="publish-row">
+        <input id="pubTopic" placeholder="Topic" style="width:160px">
+        <input id="pubPayload" placeholder="Payload">
+        <button class="btn" onclick="publish()">Publish</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let client = null;
+let subs = {};
+let msgCount = 0;
+
+function updateStatus(state) {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  const btn = document.getElementById('connectBtn');
+  dot.className = 'status-dot ' + state;
+  text.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+  if (state === 'connected') {
+    btn.textContent = 'Disconnect';
+    btn.className = 'btn danger';
+  } else if (state === 'connecting') {
+    btn.textContent = 'Connecting...';
+    btn.className = 'btn';
+    btn.disabled = true;
+  } else {
+    btn.textContent = 'Connect';
+    btn.className = 'btn primary';
+    btn.disabled = false;
+  }
+}
+
+function toggleConnection() {
+  if (client && client.connected) {
+    client.end();
+    return;
+  }
+  connect();
+}
+
+function connect() {
+  const host = document.getElementById('brokerHost').value;
+  const port = document.getElementById('brokerPort').value;
+  const user = document.getElementById('username').value;
+  const pass = document.getElementById('password').value;
+
+  updateStatus('connecting');
+  document.getElementById('brokerUrl').textContent = `ws://${host}:${port}`;
+
+  client = mqtt.connect(`ws://${host}:${port}/mqtt`, {
+    username: user,
+    password: pass,
+    clientId: 'mqtt-explorer-' + Math.random().toString(16).slice(2, 8),
+    clean: true,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000,
+  });
+
+  client.on('connect', () => {
+    updateStatus('connected');
+    addMessage('system', 'Connected to broker', '');
+    // Re-subscribe existing topics
+    Object.keys(subs).forEach(t => client.subscribe(t));
+  });
+
+  client.on('close', () => {
+    updateStatus('disconnected');
+    addMessage('system', 'Disconnected', '');
+  });
+
+  client.on('error', (err) => {
+    addMessage('system', 'Error: ' + err.message, '');
+  });
+
+  client.on('message', (topic, payload) => {
+    addMessage(topic, payload.toString(), new Date().toLocaleTimeString());
+  });
+}
+
+function subscribe() {
+  const input = document.getElementById('subTopic');
+  const topic = input.value.trim();
+  if (!topic) return;
+  if (!client || !client.connected) return alert('Connect first');
+
+  client.subscribe(topic);
+  subs[topic] = true;
+  input.value = '';
+  renderSubs();
+}
+
+function unsubscribe(topic) {
+  if (!client) return;
+  client.unsubscribe(topic);
+  delete subs[topic];
+  renderSubs();
+}
+
+function renderSubs() {
+  const el = document.getElementById('subList');
+  const topics = Object.keys(subs);
+  if (topics.length === 0) {
+    el.innerHTML = '<div class="empty">No subscriptions yet</div>';
+    return;
+  }
+  el.innerHTML = topics.map(t =>
+    `<div class="sub-item"><span>${t}</span><button onclick="unsubscribe('${t}')" title="Unsubscribe">×</button></div>`
+  ).join('');
+}
+
+function publish() {
+  if (!client || !client.connected) return alert('Connect first');
+  const topic = document.getElementById('pubTopic').value.trim();
+  const payload = document.getElementById('pubPayload').value;
+  if (!topic) return;
+  client.publish(topic, payload, { qos: 0, retain: false });
+  document.getElementById('pubPayload').value = '';
+}
+
+function addMessage(topic, payload, time) {
+  msgCount++;
+  document.getElementById('msgCount').textContent = `(${msgCount})`;
+  const el = document.getElementById('messages');
+  if (el.querySelector('.empty')) el.innerHTML = '';
+
+  const div = document.createElement('div');
+  div.className = 'msg';
+  div.innerHTML = `
+    <div class="msg topic">${topic}</div>
+    <div class="msg payload">${payload}</div>
+    <div class="msg time">${time || ''}</div>
+  `;
+  el.prepend(div);
+
+  // Trim old messages
+  while (el.children.length > 200) el.lastChild.remove();
+}
+
+// Init broker URL display
+document.getElementById('brokerUrl').textContent =
+  `ws://${document.getElementById('brokerHost').value}:${document.getElementById('brokerPort').value}`;
+</script>
+</body>
+</html>

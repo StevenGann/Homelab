@@ -25,6 +25,8 @@ spec:
           ports:
             - name: mqtt
               containerPort: 1883
+            - name: ws
+              containerPort: 9001
           volumeMounts:
             - name: data
               mountPath: /mosquitto/data

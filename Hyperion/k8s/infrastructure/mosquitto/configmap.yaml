@@ -9,6 +9,10 @@ data:
     listener 1883 0.0.0.0
     protocol mqtt
 
+    # WebSocket listener for browser-based clients (MQTT Explorer, etc.)
+    listener 9001 0.0.0.0
+    protocol websockets
+
     # ── Persistence ────────────────────────────────────────
     persistence true
     persistence_location /mosquitto/data/

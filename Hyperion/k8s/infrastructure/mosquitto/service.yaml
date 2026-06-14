@@ -13,3 +13,6 @@ spec:
     - name: mqtt
       port: 1883
       targetPort: 1883
+    - name: ws
+      port: 9001
+      targetPort: 9001
