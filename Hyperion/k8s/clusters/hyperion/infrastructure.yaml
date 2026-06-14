@@ -32,3 +32,20 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mosquitto
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/infrastructure/mosquitto
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: metallb-config     # needs the MetalLB pool for its LoadBalancer IP
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
