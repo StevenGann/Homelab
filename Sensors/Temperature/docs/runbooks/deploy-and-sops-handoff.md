@@ -2,7 +2,10 @@
 
 **Audience:** the agent/operator on the system that **holds the SOPS age key**.
 **Status of the project:** plan APPROVED (5 YAE / 0 NAY, 2026-06-14); all config files
-scaffolded; **secrets are plaintext placeholders** pending SOPS migration (Part B).
+scaffolded. **SOPS migration (Part B) is DONE (2026-06-14):** real secrets are encrypted
+to the committed `secrets.sops.yaml` (age recipient = operator key), the plaintext
+`secrets.yaml` is gitignored and regenerated on demand by `scripts/decrypt-secrets.sh`
+(invoked automatically by `scripts/flash.sh`). Part B below is retained as reference.
 
 This runbook is self-contained. Source of truth for design rationale:
 [`../plan/implementation-plan.md`](../plan/implementation-plan.md); team/process:
@@ -89,9 +92,13 @@ creation_rules:
 ### B2. Encrypt the filled-in plaintext into the committed copy
 ```bash
 cd Sensors/Temperature
-# secrets.yaml must already contain the REAL values (Part A2)
+# secrets.yaml must already contain the REAL values (Part A2).
+# NOTE: sops matches creation_rules against the INPUT path, and the rule targets
+# secrets.sops.yaml — so copy to that name first, then encrypt IN PLACE. Encrypting
+# secrets.yaml directly fails with "no matching creation rules found".
+cp secrets.yaml secrets.sops.yaml
 SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt \
-  sops --encrypt secrets.yaml > secrets.sops.yaml      # COMMIT this file
+  sops --encrypt --in-place secrets.sops.yaml          # COMMIT this file
 ```
 
 ### B3. Add the decrypt helper

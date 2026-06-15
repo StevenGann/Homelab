@@ -6,13 +6,15 @@ cd "$(dirname "$0")/.."
 
 NODE="${1:?usage: ./scripts/flash.sh nodes/<node>.yaml}"
 
-# DEFERRED (once SOPS+age key exists on this workstation):
-#   SOPS_AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}" \
-#     sops --decrypt secrets.sops.yaml > secrets.yaml
-# For now, secrets.yaml is a plaintext placeholder file (gitignored).
+# Regenerate plaintext secrets.yaml from the committed SOPS copy when present.
+# (secrets.yaml is gitignored; secrets.sops.yaml is the committed source of truth.)
+if [ -f secrets.sops.yaml ]; then
+  ./scripts/decrypt-secrets.sh
+fi
 
 if [ ! -f secrets.yaml ]; then
-  echo "ERROR: secrets.yaml missing. Copy secrets.yaml.example -> secrets.yaml and fill it in." >&2
+  echo "ERROR: secrets.yaml missing and no secrets.sops.yaml to decrypt." >&2
+  echo "       Either run ./scripts/decrypt-secrets.sh, or copy secrets.yaml.example -> secrets.yaml." >&2
   exit 1
 fi
 

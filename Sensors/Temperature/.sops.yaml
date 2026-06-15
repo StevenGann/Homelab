@@ -1,0 +1,5 @@
+# SOPS encryption rules for Sensors/Temperature.
+# Only secrets.sops.yaml is encrypted; the plaintext secrets.yaml stays gitignored.
+creation_rules:
+  - path_regex: secrets\.sops\.yaml$
+    age: "age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm"
