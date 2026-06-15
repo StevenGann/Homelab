@@ -160,8 +160,11 @@ services:
   bluemap:
     image: eclipse-temurin:25-jre
     restart: unless-stopped
+    # -r render (incremental after the first run), -u watch for live world changes,
+    # -w webserver. (-w ALONE only serves pre-rendered tiles and never renders, so
+    # it shows a stale map after a world swap — fixed 2026-06-15.)
     command: >
-      java -jar /opt/bluemap/bluemap-5.17-cli.jar -w -c /opt/bluemap/config
+      java -jar /opt/bluemap/bluemap-5.17-cli.jar -r -u -w -c /opt/bluemap/config
     ports:
       - "8100:8100"
     volumes:
