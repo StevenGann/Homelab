@@ -6,78 +6,55 @@ metadata:
 data:
   run: |
     #!/usr/bin/with-contenv bash
-    # Custom s6 run script for qBittorrent.
-    # Fixes four issues with the image's default:
+    # Custom s6 run script for qBittorrent — INSTANCE 2 (self-seeding variant).
     #
-    # 1. Adds --profile=/config/qBittorrent (without it, qBittorrent looks
-    #    in $HOME/.config/ which doesn't exist → dies silently).
+    # This is a superset of instance 1's run script: in addition to the existing
+    # fixes for an EXISTING config PVC, it SELF-SEEDS a brand-new config PVC so a
+    # fresh qbittorrent2 comes up fully working with no manual API poking. The
+    # image's init copies its default conf to /config/qBittorrent/qBittorrent.conf,
+    # but our `--profile=/config/qBittorrent` makes qBittorrent read the DOUBLED
+    # path /config/qBittorrent/qBittorrent/config/qBittorrent.conf — which is absent
+    # on a fresh PVC, so qBittorrent would otherwise generate a conf with a random
+    # temp WebUI password, no tun0 bind (DHT dead), and save_path on the 1Gi config
+    # PVC. We pre-create that conf below.
     #
-    # 2. Clears STALE single-instance locks before launch. This was THE cause
-    #    of the silent crash-loop (2026-06-05): on an unclean pod shutdown
-    #    qBittorrent leaves `lockfile` + `ipc-socket` behind in the config PVC.
-    #    On the next start qbittorrent-nox sees them, assumes another instance
-    #    is already running, prints nothing, and exits 0 — so s6 keeps
-    #    restarting it, the WebUI never binds :8085, and the readiness probe
-    #    fails forever (pod stuck 1/2). The lock lives in the PVC, so it
-    #    survives pod restarts and the loop is self-perpetuating. s6 supervises
-    #    exactly one qbittorrent-nox, so there is never a legitimate concurrent
-    #    instance here — removing the locks unconditionally is safe. qBittorrent
-    #    uses BOTH the profile root and <profile>/qBittorrent/config as lock
-    #    locations depending on version, so clear both.
+    # Original four fixes (retained, see instance 1 for full rationale):
+    #   1. --profile=/config/qBittorrent (else qBittorrent dies silently).
+    #   2. Clear STALE single-instance locks (lockfile + ipc-socket) left by an
+    #      unclean shutdown, which otherwise crash-loop the pod (stuck 1/2).
+    #   3. --confirm-legal-notice so a fresh profile never blocks on the notice.
+    #   4. Pin WebUI to IPv4 (WebUI\Address=0.0.0.0) + bypass localhost auth
+    #      (WebUI\LocalHostAuth=false) so the readiness probe + port-sync work.
     #
-    # 3. --confirm-legal-notice so qBittorrent never blocks waiting on the
-    #    interactive "Legal Notice" acknowledgement on a fresh/empty profile.
+    # Self-seed additions (fresh PVC only):
+    #   5. WebUI password: the image's WEBUI_PASSWORD path is bypassed by this very
+    #      override, so a fresh conf gets a random temp password. We compute the
+    #      qBittorrent PBKDF2-HMAC-SHA512 hash (100k iters, 16B salt, 64B key) from
+    #      $WEBUI_PASSWORD in python3 and write WebUI\Password_PBKDF2 directly.
+    #   6. tun0 libtorrent bind (Session\Interface*/InterfaceAddress): a fresh
+    #      session with these EMPTY binds to eth0 -> gluetun kill-switch drops it ->
+    #      DHT dead / firewalled. We seed them with tun0's live address so the first
+    #      session binds the tunnel cleanly.
+    #   7. Session\DefaultSavePath=/data/downloads (+ temp under it, disabled) so
+    #      downloads land on the shared media-downloads NFS (NOT the 1Gi config PVC)
+    #      and Sonarr/Radarr need NO remote-path-mapping.
     #
-    # 4. Pins the WebUI to IPv4 (WebUI\Address=0.0.0.0). With WebUI\Address unset
-    #    or "*", qBittorrent 5.x binds the WebUI IPv6-only (:::8085); the kubelet
-    #    tcpSocket readiness probe (to the pod's IPv4 IP) and the port-sync
-    #    healthcheck (127.0.0.1) are then refused -> pod stuck 1/2 and port-sync
-    #    pkill-loops it (root cause of the 2026-06-14 outage). Forcing an explicit
-    #    IPv4 bind here makes every start deterministic, including on a fresh PVC.
-    #
-    # Readiness check: poll `nc -z` every 1s for up to 300 tries (~5 min window).
-    # (The previous -w 15000 set a 15s GAP between polls — that delayed
-    # readiness detection, it did not lengthen the window. -w is the inter-poll
-    # delay, -n is the try count; -n 300 -w 1000 matches the lsio default.)
+    # All filesystem writes run as `abc` (s6-setuidgid) because the config PVC is
+    # NFS with root_squash — root can't create/chown there.
 
+    QBT_CONF=/config/qBittorrent/qBittorrent/config/qBittorrent.conf
+
+    # 1/2. Clear stale single-instance locks before launch.
     s6-setuidgid abc rm -f /config/qBittorrent/lockfile \
           /config/qBittorrent/ipc-socket \
           /config/qBittorrent/qBittorrent/config/lockfile \
           /config/qBittorrent/qBittorrent/config/ipc-socket
 
-    # Force the WebUI to bind IPv4 (see item 4 above). Idempotent: drop any
-    # existing WebUI\Address line, then insert 0.0.0.0 ahead of WebUI\Port
-    # (both live in [Preferences]). Runs as abc to preserve conf ownership.
-    QBT_CONF=/config/qBittorrent/qBittorrent/config/qBittorrent.conf
-    if [[ -f ${QBT_CONF} ]] && ! grep -q '^WebUI\\Address=0.0.0.0$' "${QBT_CONF}"; then
-        s6-setuidgid abc sed -i '/^WebUI\\Address=/d' "${QBT_CONF}"
-        s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\Address=0.0.0.0' "${QBT_CONF}"
-    fi
-
-    # 4b. Bypass WebUI auth for localhost so in-pod tooling (port-sync.sh) needs
-    #     NO password. linuxserver custom services do not run with-contenv, so the
-    #     port-sync service had no WEBUI_PASSWORD, sent empty creds, and got
-    #     127.0.0.1 auth-BANNED by qBittorrent (1h) — which returned 403 to ALL
-    #     clients incl. the LB. This removes the credential dependency and the ban
-    #     class entirely. External access (via the MetalLB IP) still requires auth.
-    if [[ -f ${QBT_CONF} ]] && ! grep -q '^WebUI\\LocalHostAuth=false$' "${QBT_CONF}"; then
-        s6-setuidgid abc sed -i '/^WebUI\\LocalHostAuth=/d' "${QBT_CONF}"
-        s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\LocalHostAuth=false' "${QBT_CONF}"
-    fi
-
-    WEBUI_ADDRESS=$(grep -Po "^WebUI\\Address=\K(.*)" /config/qBittorrent/qBittorrent/config/qBittorrent.conf 2>/dev/null)
-    if [[ -z ${WEBUI_ADDRESS} ]] || [[ ${WEBUI_ADDRESS} == "*" ]]; then
-        WEBUI_ADDRESS="localhost"
-    fi
-
-    # 5. Wait for gluetun's VPN interface (tun0) BEFORE launching qBittorrent.
-    #    gluetun and qBittorrent share a network namespace, so tun0 is visible here.
-    #    libtorrent only binds the interface (Session\Interface*=tun0, persisted in
-    #    the config PVC) on a session that STARTS with tun0 already up. Waiting here
-    #    means the first session binds the tunnel cleanly — which removes the need
-    #    for port-sync.sh to pkill/restart qBittorrent ("restart for a clean tun0
-    #    session"). That restart loop was the root cause of recurring readiness
-    #    failures: any transient during boot made it kill qBittorrent forever.
+    # Wait for gluetun's VPN interface (tun0) BEFORE touching the bind / launching.
+    # gluetun and qBittorrent share a network namespace, so tun0 is visible here.
+    # libtorrent only binds the tunnel on a session that STARTS with tun0 up; doing
+    # this here (and seeding InterfaceAddress below) removes any need for port-sync
+    # to ever restart qBittorrent.
     _t=0
     until ip -o -4 addr show tun0 2>/dev/null | grep -q 'inet '; do
         _t=$((_t + 1))
@@ -85,6 +62,53 @@ data:
         echo "[s6-run] waiting for tun0 (gluetun VPN) ..."
         sleep 2
     done
+    TUN_ADDR=$(ip -o -4 addr show tun0 2>/dev/null | grep -oP 'inet \K[0-9.]+' | head -1)
+    [[ -z ${TUN_ADDR} ]] && TUN_ADDR=10.2.0.2   # ProtonVPN WG address is always 10.2.0.2
+
+    if [[ ! -f ${QBT_CONF} ]]; then
+        # ── FRESH PVC: write a fully-seeded conf as abc ─────────────────────────
+        echo "[s6-run] fresh config — seeding qBittorrent.conf (auth, tun0 bind, save path)"
+        PW_LINE=""
+        if [[ -n ${WEBUI_PASSWORD} ]]; then
+            PW_HASH=$(python3 -c 'import os,hashlib,base64,sys; s=os.urandom(16); h=hashlib.pbkdf2_hmac("sha512",sys.argv[1].encode(),s,100000,64); print("@ByteArray("+base64.b64encode(s).decode()+":"+base64.b64encode(h).decode()+")")' "${WEBUI_PASSWORD}")
+            PW_LINE="WebUI\\Password_PBKDF2=\"${PW_HASH}\""
+        fi
+        s6-setuidgid abc mkdir -p "$(dirname "${QBT_CONF}")"
+        {
+          echo '[BitTorrent]'
+          echo 'Session\DefaultSavePath=/data/downloads'
+          echo 'Session\TempPath=/data/downloads/temp'
+          echo 'Session\TempPathEnabled=false'
+          echo 'Session\Interface=tun0'
+          echo 'Session\InterfaceName=tun0'
+          echo "Session\\InterfaceAddress=${TUN_ADDR}"
+          echo ''
+          echo '[Preferences]'
+          echo 'WebUI\Address=0.0.0.0'
+          echo 'WebUI\LocalHostAuth=false'
+          echo "WebUI\\Port=${WEBUI_PORT:-8080}"
+          echo 'WebUI\Username=admin'
+          [[ -n ${PW_LINE} ]] && echo "${PW_LINE}"
+        } | s6-setuidgid abc tee "${QBT_CONF}" >/dev/null
+    else
+        # ── EXISTING PVC: idempotent edits only (don't clobber user changes) ─────
+        # Force IPv4 WebUI bind: drop any WebUI\Address line, insert 0.0.0.0 before
+        # WebUI\Port (both in [Preferences]). Runs as abc to preserve ownership.
+        if ! grep -q '^WebUI\\Address=0.0.0.0$' "${QBT_CONF}"; then
+            s6-setuidgid abc sed -i '/^WebUI\\Address=/d' "${QBT_CONF}"
+            s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\Address=0.0.0.0' "${QBT_CONF}"
+        fi
+        # Bypass WebUI auth for localhost so in-pod tooling (port-sync) needs no creds.
+        if ! grep -q '^WebUI\\LocalHostAuth=false$' "${QBT_CONF}"; then
+            s6-setuidgid abc sed -i '/^WebUI\\LocalHostAuth=/d' "${QBT_CONF}"
+            s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\LocalHostAuth=false' "${QBT_CONF}"
+        fi
+    fi
+
+    WEBUI_ADDRESS=$(grep -Po "^WebUI\\Address=\K(.*)" "${QBT_CONF}" 2>/dev/null)
+    if [[ -z ${WEBUI_ADDRESS} ]] || [[ ${WEBUI_ADDRESS} == "*" ]]; then
+        WEBUI_ADDRESS="localhost"
+    fi
 
     exec \
         s6-notifyoncheck -d -n 300 -w 1000 -c "nc -z ${WEBUI_ADDRESS} ${WEBUI_PORT:-8080}" \
