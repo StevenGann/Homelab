@@ -14,7 +14,8 @@ spec:
           image: postgres:18.1
           env:
             - { name: POSTGRES_USER, value: "jellystat" }
-            - { name: POSTGRES_PASSWORD, value: "Qazxcv1992!" }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: jellystat-secret, key: POSTGRES_PASSWORD } }
             - { name: POSTGRES_DB, value: "jellystat" }
           ports:
             - { name: postgres, containerPort: 5432 }

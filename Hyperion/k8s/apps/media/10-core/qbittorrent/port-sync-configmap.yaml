@@ -40,7 +40,7 @@ data:
 
     PORT_FILE="/tmp/gluetun/forwarded_port"
     QBIT_API="http://localhost:8085/api/v2"
-    AUTH="admin:Qazxcv1992!"
+    AUTH="admin:${WEBUI_PASSWORD}"   # injected via env from the qbittorrent-vpn Secret
     VPN_IFACE="tun0"
     MAX_WAIT=120          # seconds to wait for the initial port file
     POLL_INTERVAL=5
