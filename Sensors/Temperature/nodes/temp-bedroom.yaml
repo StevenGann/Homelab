@@ -1,0 +1,8 @@
+# Per-node config. All logic lives in the shared package.
+packages:
+  base: !include ../common/dht22-node.yaml
+
+substitutions:
+  node_name: temp-bedroom
+  friendly_name: "Bedroom"
+  # dht_pin (D5) and update_interval (60s) inherit package defaults unless set here.
