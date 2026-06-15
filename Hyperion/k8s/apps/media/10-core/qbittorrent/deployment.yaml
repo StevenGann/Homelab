@@ -62,7 +62,8 @@ spec:
           env:
             - { name: VPN_SERVICE_PROVIDER,       value: "protonvpn" }
             - { name: VPN_TYPE,                   value: "wireguard" }
-            - { name: WIREGUARD_PRIVATE_KEY,       value: "eC2wRChJENfQ+EQFpOy5HxaOsr+ix2AFCaPHQKO6dF8=" }
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom: { secretKeyRef: { name: qbittorrent-vpn, key: WIREGUARD_PRIVATE_KEY } }
             - { name: WIREGUARD_ADDRESSES,         value: "10.2.0.2/32" }
             - { name: SERVER_CITIES,               value: "San Jose" }
             - { name: VPN_PORT_FORWARDING,         value: "on" }
@@ -86,6 +87,8 @@ spec:
             - { name: PGID,            value: "568" }
             - { name: TZ,              value: "America/Los_Angeles" }
             - { name: WEBUI_PORT,      value: "8085" }
+            - name: WEBUI_PASSWORD     # consumed by the port-sync.sh ConfigMap script's API auth
+              valueFrom: { secretKeyRef: { name: qbittorrent-vpn, key: WEBUI_PASSWORD } }
           volumeMounts:
             - { name: config,       mountPath: /config }
             - { name: downloads,    mountPath: /data/downloads }                # same NFS path Sonarr/Radarr see

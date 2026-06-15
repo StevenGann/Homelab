@@ -15,10 +15,12 @@ spec:
           imagePullPolicy: Always
           env:
             - { name: POSTGRES_USER, value: "jellystat" }
-            - { name: POSTGRES_PASSWORD, value: "Qazxcv1992!" }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: jellystat-secret, key: POSTGRES_PASSWORD } }
             - { name: POSTGRES_IP, value: "jellystat-db" }
             - { name: POSTGRES_PORT, value: "5432" }
-            - { name: JWT_SECRET, value: "jellystat-jwt-secret-change-me" }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: jellystat-secret, key: JWT_SECRET } }
             - { name: TZ, value: "America/Los_Angeles" }
           ports:
             - { name: http, containerPort: 3000 }
