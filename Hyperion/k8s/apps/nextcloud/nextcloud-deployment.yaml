@@ -32,11 +32,15 @@ spec:
             - { name: config, mountPath: /config }
             - { name: data, mountPath: /data }
           startupProbe:
-            httpGet: { path: /status.php, port: 80 }
+            tcpSocket: { port: 80 }
             failureThreshold: 60
             periodSeconds: 10
           readinessProbe:
-            httpGet: { path: /status.php, port: 80 }
+            httpGet:
+              path: /status.php
+              port: 80
+              httpHeaders:
+                - { name: Host, value: nextcloud.lab }
             periodSeconds: 15
             failureThreshold: 3
           resources:
@@ -44,9 +48,8 @@ spec:
             limits:   { cpu: "2000m", memory: "2Gi" }
       volumes:
         - name: config
-          nfs:
-            server: 192.168.10.247
-            path: /mnt/Media-Storage/NextCloud/config
+          persistentVolumeClaim:
+            claimName: nextcloud-config
         - name: data
           nfs:
             server: 192.168.10.247
