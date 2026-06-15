@@ -105,9 +105,12 @@ data:
       [ -n "$_d" ] && [ "$_d" -gt 0 ] 2>/dev/null
     }
 
+    # 150*2s = ~5 min. qBittorrent's first boot on this node can exceed 2 min
+    # (NFS + arm); the old 60 (~2 min) expired mid-startup, so the restart dance
+    # below kept pkilling it before the WebUI ever bound -> perpetual loop.
     wait_webui() {
       _i=0
-      while [ $_i -lt 60 ]; do
+      while [ $_i -lt 150 ]; do
         curl -s -o /dev/null -u "$AUTH" "${QBIT_API}/app/version" && return 0
         sleep 2; _i=$((_i + 1))
       done
@@ -177,6 +180,14 @@ data:
       log "Invalid port '$PORT' in $PORT_FILE"; exit 1
     fi
     log "Detected forwarded port: $PORT"
+    # Let qBittorrent finish its (slow) first boot and bind the WebUI BEFORE any
+    # tunnel check. Otherwise apply_prefs/wait_tunnel hit an unreachable API
+    # (HTTP 000), the script reads that as "no external IP", and pkills
+    # qBittorrent mid-startup — a self-perpetuating loop that never lets the
+    # WebUI come up (pod stuck 1/2). Once up, the session has usually already
+    # bound tun0 from persisted prefs, so sync_and_verify confirms the tunnel
+    # with no restart.
+    if wait_webui; then log "WebUI is up — proceeding to tunnel sync"; else log "WebUI still not up after ~5min; proceeding anyway"; fi
     sync_and_verify "$PORT"
     LAST_PORT="$PORT"
 

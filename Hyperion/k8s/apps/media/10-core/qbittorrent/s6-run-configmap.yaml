@@ -7,7 +7,7 @@ data:
   run: |
     #!/usr/bin/with-contenv bash
     # Custom s6 run script for qBittorrent.
-    # Fixes three issues with the image's default:
+    # Fixes four issues with the image's default:
     #
     # 1. Adds --profile=/config/qBittorrent (without it, qBittorrent looks
     #    in $HOME/.config/ which doesn't exist → dies silently).
@@ -28,6 +28,13 @@ data:
     # 3. --confirm-legal-notice so qBittorrent never blocks waiting on the
     #    interactive "Legal Notice" acknowledgement on a fresh/empty profile.
     #
+    # 4. Pins the WebUI to IPv4 (WebUI\Address=0.0.0.0). With WebUI\Address unset
+    #    or "*", qBittorrent 5.x binds the WebUI IPv6-only (:::8085); the kubelet
+    #    tcpSocket readiness probe (to the pod's IPv4 IP) and the port-sync
+    #    healthcheck (127.0.0.1) are then refused -> pod stuck 1/2 and port-sync
+    #    pkill-loops it (root cause of the 2026-06-14 outage). Forcing an explicit
+    #    IPv4 bind here makes every start deterministic, including on a fresh PVC.
+    #
     # Readiness check: poll `nc -z` every 1s for up to 300 tries (~5 min window).
     # (The previous -w 15000 set a 15s GAP between polls — that delayed
     # readiness detection, it did not lengthen the window. -w is the inter-poll
@@ -37,6 +44,15 @@ data:
           /config/qBittorrent/ipc-socket \
           /config/qBittorrent/qBittorrent/config/lockfile \
           /config/qBittorrent/qBittorrent/config/ipc-socket
+
+    # Force the WebUI to bind IPv4 (see item 4 above). Idempotent: drop any
+    # existing WebUI\Address line, then insert 0.0.0.0 ahead of WebUI\Port
+    # (both live in [Preferences]). Runs as abc to preserve conf ownership.
+    QBT_CONF=/config/qBittorrent/qBittorrent/config/qBittorrent.conf
+    if [[ -f ${QBT_CONF} ]] && ! grep -q '^WebUI\\Address=0.0.0.0$' "${QBT_CONF}"; then
+        s6-setuidgid abc sed -i '/^WebUI\\Address=/d' "${QBT_CONF}"
+        s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\Address=0.0.0.0' "${QBT_CONF}"
+    fi
 
     WEBUI_ADDRESS=$(grep -Po "^WebUI\\Address=\K(.*)" /config/qBittorrent/qBittorrent/config/qBittorrent.conf 2>/dev/null)
     if [[ -z ${WEBUI_ADDRESS} ]] || [[ ${WEBUI_ADDRESS} == "*" ]]; then
