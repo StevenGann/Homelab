@@ -14,7 +14,6 @@ services:
   # ─── Ollama (LLM inference — both GPUs) ─────────────────────────────────────
   ollama:
     image: ollama/ollama:latest          # TODO: pin a digest after first pull
-    pull_policy: always
     restart: unless-stopped
     environment:
       OLLAMA_HOST: "0.0.0.0"             # bind all interfaces (Service/LAN/Caddy reach it)
@@ -37,7 +36,6 @@ services:
   # ─── OpenWebUI (chat UI for Ollama) ─────────────────────────────────────────
   open-webui:
     image: ghcr.io/open-webui/open-webui:latest
-    pull_policy: always
     restart: unless-stopped
     depends_on: [ollama]
     environment:
@@ -56,7 +54,6 @@ services:
   # /tank/comfyui/ComfyUI/models. No native auth; LAN/Caddy only.
   comfyui:
     image: ghcr.io/ai-dock/comfyui:latest-cuda
-    pull_policy: always
     restart: unless-stopped
     environment:
       WORKSPACE: "/workspace"
@@ -98,7 +95,6 @@ services:
   # Media mounted via NFS from Akasha TrueNAS.
   tdarr-node:
     image: haveagitgat/tdarr_node:latest
-    pull_policy: always
     restart: unless-stopped
     environment:
       serverIP: "192.168.10.62"
@@ -121,51 +117,36 @@ services:
               capabilities: [gpu]
     logging: { driver: journald }
 
-  # ─── Pterodactyl Wings (Minecraft — no GPU) ─────────────────────────────────
-  # STAGED — enable after creating the Thoth node in the panel (192.168.10.69) to
-  # mint the token (→ SOPS secret). Runs game-server containers via the docker
-  # socket; game data on the Samsung SSD (/fast). Ports 8080/2022 + game ports.
-  # wings:
-  #   image: ghcr.io/pterodactyl/wings:latest
-  #   restart: unless-stopped
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #     - /etc/pterodactyl:/etc/pterodactyl
-  #     - /var/lib/pterodactyl:/var/lib/pterodactyl    # -> /fast (SSD)
-  #     - /var/log/pterodactyl:/var/log/pterodactyl
-  #   ports:
-  #     - "8080:8080"      # Wings API
-  #     - "2022:2022"      # SFTP
-  #     - "25565:25565"    # Minecraft (also UCG-forwarded for mc.stevengann.com)
-  #   logging: { driver: journald }
+  # ─── Pterodactyl Wings (Minecraft) — deployed 2026-06-07 ────────
+  wings:
+    image: ghcr.io/pterodactyl/wings:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/pterodactyl:/etc/pterodactyl
+      - /var/lib/pterodactyl:/var/lib/pterodactyl    # -> /fast (SSD)
+      - /var/log/pterodactyl:/var/log/pterodactyl
+      - /run/wings:/run/wings:rw
+    ports:
+      - "8080:8080"      # Wings API
+      - "2022:2022"      # SFTP
+    logging: { driver: journald }
 
   # ─── Jellyfin (media streaming — GPU transcode) ────────────────────────────
   # 2026-06-04: Deployed by Guppy for GPU-accelerated streaming test.
   # Media mounted via NFS from Akasha TrueNAS. GPU transcoding via NVENC.
-  jellyfin:
-    image: lscr.io/linuxserver/jellyfin:latest
-    pull_policy: always
-    container_name: thoth-jellyfin
+  # ─── BlueMap (Minecraft live map renderer) ── 2026-06-08 ──
+  bluemap:
+    image: eclipse-temurin:25-jre
     restart: unless-stopped
-    environment:
-      PUID: 1000
-      PGID: 1000
-      TZ: America/Los_Angeles
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: all
+    command: >
+      java -jar /opt/bluemap/bluemap-5.17-cli.jar -w -c /opt/bluemap/config
     ports:
-      - '8096:8096'
+      - "8100:8100"
     volumes:
-      - /fast/jellyfin/config:/config
-      - /fast/jellyfin/cache:/cache
-      - /mnt/Media-Storage/Media/Movies:/media/movies:ro
-      - /mnt/Media-Storage/Media/TV-Shows:/media/tv:ro
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    logging:
-      driver: journald
+      - /opt/bluemap/config:/opt/bluemap/config
+      - /opt/bluemap/maps:/opt/bluemap/maps
+      - /opt/bluemap/web:/opt/bluemap/web
+      - /var/lib/pterodactyl/3ad8a9e9-2984-4ed3-bc2f-beb5a6279f7c/world:/world:ro
+      - /opt/bluemap/bluemap-5.17-cli.jar:/opt/bluemap/bluemap-5.17-cli.jar:ro
+    logging: { driver: journald }
