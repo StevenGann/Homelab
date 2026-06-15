@@ -29,8 +29,11 @@ data:
     # are limited until the next cycle — DHT/egress still work via the tunnel bind.
 
     PORT_FILE="/tmp/gluetun/forwarded_port"
-    QBIT_API="http://localhost:8085/api/v2"
-    AUTH="admin:${WEBUI_PASSWORD}"          # injected via env from the qbittorrent-vpn Secret
+    QBIT_API="http://127.0.0.1:8085/api/v2"  # localhost: auth bypassed (WebUI\LocalHostAuth=false)
+    # No credentials: qBittorrent bypasses WebUI auth for localhost (set in the s6
+    # run script). linuxserver custom services don't get the container env, so
+    # depending on a password here previously sent empty creds → 127.0.0.1 got
+    # auth-banned → 403 for everyone. Localhost-bypass removes that failure mode.
     MAX_WAIT=120                            # seconds to wait for the initial port file
     POLL_INTERVAL=5
     WEBUI_WAIT=150                          # ×2s = ~5 min for a slow first boot
@@ -41,10 +44,10 @@ data:
     cur_port() { cat "$PORT_FILE" 2>/dev/null | tr -d '[:space:]'; }
     valid_port() { [ -n "$1" ] && [ "$1" -gt 0 ] 2>/dev/null; }
 
-    # Reachable AND authenticated (HTTP 200). curl exits 0 on any HTTP response, so
-    # also check the code so a 403/401 during early boot doesn't count as "ready".
+    # Reachable + serving (HTTP 200) over localhost. curl exits 0 on any HTTP
+    # response, so check the code so a transient during early boot isn't "ready".
     webui_ready() {
-      _c=$(curl -s -o /dev/null -w '%{http_code}' -u "$AUTH" "${QBIT_API}/app/version" 2>/dev/null)
+      _c=$(curl -s -o /dev/null -w '%{http_code}' "${QBIT_API}/app/version" 2>/dev/null)
       [ "$_c" = "200" ]
     }
 
@@ -52,7 +55,7 @@ data:
     # restart. qBittorrent applies a listen-port change live.
     apply_port() {
       _code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${QBIT_API}/app/setPreferences" \
-        -u "$AUTH" --data-urlencode "json={\"listen_port\":${1}}" 2>/dev/null)
+        --data-urlencode "json={\"listen_port\":${1}}" 2>/dev/null)
       [ "$_code" = "200" ]
     }
 

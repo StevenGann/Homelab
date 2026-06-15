@@ -54,6 +54,17 @@ data:
         s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\Address=0.0.0.0' "${QBT_CONF}"
     fi
 
+    # 4b. Bypass WebUI auth for localhost so in-pod tooling (port-sync.sh) needs
+    #     NO password. linuxserver custom services do not run with-contenv, so the
+    #     port-sync service had no WEBUI_PASSWORD, sent empty creds, and got
+    #     127.0.0.1 auth-BANNED by qBittorrent (1h) — which returned 403 to ALL
+    #     clients incl. the LB. This removes the credential dependency and the ban
+    #     class entirely. External access (via the MetalLB IP) still requires auth.
+    if [[ -f ${QBT_CONF} ]] && ! grep -q '^WebUI\\LocalHostAuth=false$' "${QBT_CONF}"; then
+        s6-setuidgid abc sed -i '/^WebUI\\LocalHostAuth=/d' "${QBT_CONF}"
+        s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\LocalHostAuth=false' "${QBT_CONF}"
+    fi
+
     WEBUI_ADDRESS=$(grep -Po "^WebUI\\Address=\K(.*)" /config/qBittorrent/qBittorrent/config/qBittorrent.conf 2>/dev/null)
     if [[ -z ${WEBUI_ADDRESS} ]] || [[ ${WEBUI_ADDRESS} == "*" ]]; then
         WEBUI_ADDRESS="localhost"
