@@ -114,6 +114,7 @@ data:
       if (state === 'connected') {
         btn.textContent = 'Disconnect';
         btn.className = 'btn danger';
+        btn.disabled = false;
       } else if (state === 'connecting') {
         btn.textContent = 'Connecting...';
         btn.className = 'btn';
