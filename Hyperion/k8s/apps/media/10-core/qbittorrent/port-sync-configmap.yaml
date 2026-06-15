@@ -6,217 +6,79 @@ metadata:
 data:
   port-sync.sh: |
     #!/bin/sh
-    # Sync gluetun's NAT-PMP forwarded port into qBittorrent AND bind libtorrent to
-    # the VPN tunnel. Runs as a linuxserver.io custom service (loops forever).
+    # Keep qBittorrent's listen port in sync with gluetun's NAT-PMP forwarded port.
+    # Runs as a linuxserver.io custom service (loops forever).
     #
-    # gluetun writes the forwarded port to /tmp/gluetun/forwarded_port; both
-    # containers share a /tmp/gluetun emptyDir so qBittorrent can read it.
+    # ── DESIGN: NON-DESTRUCTIVE (rewritten 2026-06-15) ─────────────────────────
+    # This script ONLY updates the listen port via the WebUI API. It NEVER restarts
+    # or pkills qBittorrent.
     #
-    # ── Root cause of the recurring "DHT dead / firewalled / external IP N/A"
-    #    breakage (re-diagnosed 2026-06-04; supersedes the earlier bind-by-name fix)
+    # History: the previous version restarted qBittorrent ("pkill -f qbittorrent-nox")
+    # to force a clean libtorrent session bound to tun0. That restart loop was the
+    # root cause of RECURRING outages: qBittorrent's boot is slow and passes through
+    # transient API states (HTTP 000 while starting, occasional 403), and any of
+    # those made the script kill qBittorrent mid-boot → the k8s readiness probe
+    # (tcp :8085) never passed → pod stuck 1/2 forever, re-killing on every cycle.
     #
-    # qBittorrent must bind to the tunnel BY ADDRESS, and the binding only takes on
-    # a libtorrent session that STARTED with the address configured. Two facts,
-    # both verified live:
-    #
-    #   1. Binding by interface NAME only ("current_network_interface":"tun0") is
-    #      silently rejected — qBittorrent's log shows 'The configured network
-    #      interface is invalid. Interface: "tun0"' — whenever tun0 was raised
-    #      (by gluetun) AFTER qBittorrent started, which is the normal case.
-    #      libtorrent then listens on eth0 (the pod IP); gluetun's kill-switch
-    #      (OUTPUT drops everything not -o tun0) discards that traffic -> tun0
-    #      idle, DHT=0, "firewalled", external IP N/A.
-    #
-    #   2. Setting "current_interface_address" (tun0's IP, e.g. 10.2.0.2) on a
-    #      LIVE session moves the visible LISTEN socket onto tun0 but does NOT
-    #      re-bootstrap DHT — it stays at 0. Only a FRESH session (one that reads
-    #      the persisted address at its own startup, with tun0 already up) binds
-    #      everything (listen + DHT) to tun0 and recovers.
-    #
-    # So this script: persists the tun0 address, then RESTARTS qBittorrent so the
-    # fresh session binds cleanly, and verifies recovery by the real symptom
-    # (dht_nodes > 0) — not by the listen_port or the socket alone, both of which
-    # can look correct while DHT is still dead.
+    # The tun0 bind is now handled deterministically OUTSIDE this script:
+    #   * Session\Interface*=tun0 / InterfaceAddress are persisted in the config PVC.
+    #   * The s6 run script (qbittorrent-s6-run) WAITS for tun0 before launching
+    #     qBittorrent, so libtorrent binds the tunnel on its first session.
+    # So no restart is ever needed here, and a transient can no longer take the
+    # app down. Worst case if the forwarded port can't be applied: inbound peers
+    # are limited until the next cycle — DHT/egress still work via the tunnel bind.
 
     PORT_FILE="/tmp/gluetun/forwarded_port"
     QBIT_API="http://localhost:8085/api/v2"
-    AUTH="admin:${WEBUI_PASSWORD}"   # injected via env from the qbittorrent-vpn Secret
-    VPN_IFACE="tun0"
-    MAX_WAIT=120          # seconds to wait for the initial port file
+    AUTH="admin:${WEBUI_PASSWORD}"          # injected via env from the qbittorrent-vpn Secret
+    MAX_WAIT=120                            # seconds to wait for the initial port file
     POLL_INTERVAL=5
-    RESTART_TRIES=3       # clean-session restarts before giving up
-    VERIFY_WAIT=8         # seconds between tun0-address polls
-    HEALTH_POLLS=10       # health checks after an apply/restart (×5s ≈ 50s)
+    WEBUI_WAIT=150                          # ×2s = ~5 min for a slow first boot
+    SYNC_INTERVAL=30                        # steady-state re-check cadence
 
     log() { echo "[port-sync] $(date '+%H:%M:%S') $*"; }
-
-    # tun0's IPv4 address (empty until gluetun raises the tunnel).
-    vpn_addr() {
-      ip -o -4 addr show "$VPN_IFACE" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1
-    }
-
-    # Persist the forwarded port + tun0 bind (name AND address) into the profile.
-    apply_prefs() {
-      _addr="$1"; _port="$2"
-      curl -s -X POST "${QBIT_API}/app/setPreferences" -u "$AUTH" \
-        --data-urlencode "json={\"listen_port\":${_port},\"current_network_interface\":\"${VPN_IFACE}\",\"current_interface_address\":\"${_addr}\",\"announce_ip\":\"\"}" \
-        -o /dev/null -w "  HTTP %{http_code}\n"
-    }
-
-    # Live-set only the listen port (used on a port change; the interface bind is
-    # already healthy on the running session, so don't disturb it).
-    apply_port() {
-      curl -s -X POST "${QBIT_API}/app/setPreferences" -u "$AUTH" \
-        --data-urlencode "json={\"listen_port\":${1}}" -o /dev/null -w "  HTTP %{http_code}\n"
-    }
-
-    dht_nodes() {
-      curl -s -u "$AUTH" "${QBIT_API}/transfer/info" 2>/dev/null \
-        | grep -o '"dht_nodes":[0-9]*' | cut -d: -f2
-    }
-    external_ip() {
-      curl -s -u "$AUTH" "${QBIT_API}/transfer/info" 2>/dev/null \
-        | grep -o '"last_external_address_v4":"[^"]*"' | cut -d'"' -f4
-    }
-
-    # Bind OK = qBittorrent learned its external (VPN) address. This only happens
-    # when libtorrent is actually egressing through tun0, so a non-empty external
-    # IP is a STABLE confirmation that the bind took — unlike dht_nodes, which is
-    # noisy while DHT bootstraps (it bounces 0/1/13 for a minute or two even on a
-    # correct bind). Used to confirm a fresh session after a restart.
-    tunnel_ok() {
-      _e=$(external_ip)
-      [ -n "$_e" ]
-    }
-    wait_tunnel() {
-      _i=0
-      while [ $_i -lt $HEALTH_POLLS ]; do
-        if tunnel_ok; then return 0; fi
-        sleep 5; _i=$((_i + 1))
-      done
-      return 1
-    }
-    # dht_nodes == 0 is the breakage symptom, but a healthy node also reads 0 for
-    # ~1–2 min while bootstrapping. So dht is used only for steady-state drift
-    # detection, and only when SUSTAINED (see the watch loop) — never as the
-    # one-shot post-restart success check.
-    dht_up() {
-      _d=$(dht_nodes)
-      [ -n "$_d" ] && [ "$_d" -gt 0 ] 2>/dev/null
-    }
-
-    # 150*2s = ~5 min. qBittorrent's first boot on this node can exceed 2 min
-    # (NFS + arm); the old 60 (~2 min) expired mid-startup, so the restart dance
-    # below kept pkilling it before the WebUI ever bound -> perpetual loop.
-    wait_webui() {
-      _i=0
-      while [ $_i -lt 150 ]; do
-        curl -s -o /dev/null -u "$AUTH" "${QBIT_API}/app/version" && return 0
-        sleep 2; _i=$((_i + 1))
-      done
-      return 1
-    }
 
     cur_port() { cat "$PORT_FILE" 2>/dev/null | tr -d '[:space:]'; }
     valid_port() { [ -n "$1" ] && [ "$1" -gt 0 ] 2>/dev/null; }
 
-    # Persist the tun0 bind for $port, then ensure a working session — restarting
-    # qBittorrent (for a clean tun0 session) until it learns its external VPN IP.
-    # Returns 0 once the tunnel bind is confirmed.
-    sync_and_verify() {
-      _port="$1"
-      # Wait for tun0 to actually have an address.
-      _w=0
-      while [ -z "$(vpn_addr)" ]; do
-        [ $_w -ge 15 ] && { log "tun0 never got an address — giving up this cycle"; return 1; }
-        log "waiting for tun0 address"; sleep $VERIFY_WAIT; _w=$((_w + 1))
-      done
-      _addr=$(vpn_addr)
-      log "Persisting listen_port=$_port + tun0 bind ($_addr)"
-      apply_prefs "$_addr" "$_port"
-
-      # The running session may already be bound correctly (qBittorrent happened to
-      # start after tun0 came up). If it already knows its VPN IP, nothing to do.
-      if wait_tunnel; then
-        log "Bound: external IP=$(external_ip) on tun0 ($_addr:$_port)"
-        return 0
-      fi
-
-      # Otherwise the session predates tun0; a live apply moved the listen socket
-      # but the session never egressed via the tunnel. Restart for a clean session
-      # that binds the persisted address from startup.
-      _r=0
-      while [ $_r -lt $RESTART_TRIES ]; do
-        log "No external IP yet — restarting qBittorrent for a clean tun0 session [try $((_r + 1))/$RESTART_TRIES]"
-        pkill -f qbittorrent-nox
-        if ! wait_webui; then log "WebUI did not return after restart"; _r=$((_r + 1)); continue; fi
-        # A gluetun reconnect during the restart window could have changed the port.
-        _np=$(cur_port)
-        if valid_port "$_np" && [ "$_np" != "$_port" ]; then
-          log "Forwarded port changed during restart: $_port -> $_np"; _port="$_np"; apply_port "$_np"
-        fi
-        if wait_tunnel; then
-          log "Bound after restart: external IP=$(external_ip) on tun0 ($_addr:$_port)"
-          return 0
-        fi
-        _r=$((_r + 1))
-      done
-      log "WARNING: qBittorrent never learned its VPN IP after $RESTART_TRIES restarts"
-      return 1
+    # Reachable AND authenticated (HTTP 200). curl exits 0 on any HTTP response, so
+    # also check the code so a 403/401 during early boot doesn't count as "ready".
+    webui_ready() {
+      _c=$(curl -s -o /dev/null -w '%{http_code}' -u "$AUTH" "${QBIT_API}/app/version" 2>/dev/null)
+      [ "$_c" = "200" ]
     }
 
-    # ── startup: wait for gluetun to write the forwarded port ──────────────────
+    # Non-destructive: set only the listen port. No interface/session changes, no
+    # restart. qBittorrent applies a listen-port change live.
+    apply_port() {
+      _code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${QBIT_API}/app/setPreferences" \
+        -u "$AUTH" --data-urlencode "json={\"listen_port\":${1}}" 2>/dev/null)
+      [ "$_code" = "200" ]
+    }
+
+    # ── wait for gluetun to publish the forwarded port ─────────────────────────
     waited=0
     while [ ! -f "$PORT_FILE" ] && [ $waited -lt $MAX_WAIT ]; do
       sleep $POLL_INTERVAL; waited=$((waited + POLL_INTERVAL))
     done
-    if [ ! -f "$PORT_FILE" ]; then
-      log "Timed out after ${MAX_WAIT}s waiting for $PORT_FILE — giving up"
-      exit 1
-    fi
+    [ -f "$PORT_FILE" ] || { log "no $PORT_FILE after ${MAX_WAIT}s — exiting (s6 will retry)"; exit 1; }
 
-    PORT=$(cur_port)
-    if ! valid_port "$PORT"; then
-      log "Invalid port '$PORT' in $PORT_FILE"; exit 1
-    fi
-    log "Detected forwarded port: $PORT"
-    # Let qBittorrent finish its (slow) first boot and bind the WebUI BEFORE any
-    # tunnel check. Otherwise apply_prefs/wait_tunnel hit an unreachable API
-    # (HTTP 000), the script reads that as "no external IP", and pkills
-    # qBittorrent mid-startup — a self-perpetuating loop that never lets the
-    # WebUI come up (pod stuck 1/2). Once up, the session has usually already
-    # bound tun0 from persisted prefs, so sync_and_verify confirms the tunnel
-    # with no restart.
-    if wait_webui; then log "WebUI is up — proceeding to tunnel sync"; else log "WebUI still not up after ~5min; proceeding anyway"; fi
-    sync_and_verify "$PORT"
-    LAST_PORT="$PORT"
+    # ── wait for the WebUI to be up + authenticated (never kill it) ─────────────
+    _w=0
+    until webui_ready; do
+      _w=$((_w + 1))
+      [ $_w -ge $WEBUI_WAIT ] && { log "WebUI not ready after ~5min; continuing best-effort"; break; }
+      sleep 2
+    done
+    log "WebUI ready"
 
-    # ── watch loop: re-apply on port change, full re-bind on a SUSTAINED drop ───
-    # dht_nodes is noisy (0 for ~1–2 min while bootstrapping, even on a good bind),
-    # so a re-bind is triggered only after DHT has been 0 for ZERO_STREAK_MAX
-    # consecutive 30 s checks (~2 min) — long enough to rule out bootstrap noise,
-    # while a genuinely broken bind sits at 0 forever.
-    ZERO_STREAK_MAX=4
-    zero_streak=0
+    # ── sync loop: apply on first pass + whenever the forwarded port changes ────
+    LAST=""
     while true; do
-      sleep 30
-      NEW_PORT=$(cur_port)
-      valid_port "$NEW_PORT" || continue
-      if [ "$NEW_PORT" != "$LAST_PORT" ]; then
-        log "Port changed: $LAST_PORT -> $NEW_PORT"
-        apply_port "$NEW_PORT"
-        LAST_PORT="$NEW_PORT"
-        zero_streak=0
-        continue
+      PORT=$(cur_port)
+      if valid_port "$PORT" && [ "$PORT" != "$LAST" ]; then
+        if apply_port "$PORT"; then log "listen_port set to $PORT"; LAST="$PORT"
+        else log "failed to set listen_port=$PORT (will retry next cycle)"; fi
       fi
-      if dht_up; then
-        zero_streak=0
-      else
-        zero_streak=$((zero_streak + 1))
-        if [ $zero_streak -ge $ZERO_STREAK_MAX ]; then
-          log "DHT has been 0 for ~$((ZERO_STREAK_MAX * 30))s — full re-bind"
-          sync_and_verify "$NEW_PORT"
-          zero_streak=0
-        fi
-      fi
+      sleep $SYNC_INTERVAL
     done

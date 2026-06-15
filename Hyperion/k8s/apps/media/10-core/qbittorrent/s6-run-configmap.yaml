@@ -59,6 +59,22 @@ data:
         WEBUI_ADDRESS="localhost"
     fi
 
+    # 5. Wait for gluetun's VPN interface (tun0) BEFORE launching qBittorrent.
+    #    gluetun and qBittorrent share a network namespace, so tun0 is visible here.
+    #    libtorrent only binds the interface (Session\Interface*=tun0, persisted in
+    #    the config PVC) on a session that STARTS with tun0 already up. Waiting here
+    #    means the first session binds the tunnel cleanly — which removes the need
+    #    for port-sync.sh to pkill/restart qBittorrent ("restart for a clean tun0
+    #    session"). That restart loop was the root cause of recurring readiness
+    #    failures: any transient during boot made it kill qBittorrent forever.
+    _t=0
+    until ip -o -4 addr show tun0 2>/dev/null | grep -q 'inet '; do
+        _t=$((_t + 1))
+        if [[ ${_t} -ge 90 ]]; then echo "[s6-run] WARNING: tun0 still down after ~180s; launching anyway"; break; fi
+        echo "[s6-run] waiting for tun0 (gluetun VPN) ..."
+        sleep 2
+    done
+
     exec \
         s6-notifyoncheck -d -n 300 -w 1000 -c "nc -z ${WEBUI_ADDRESS} ${WEBUI_PORT:-8080}" \
             s6-setuidgid abc /app/qbittorrent-nox --confirm-legal-notice --profile=/config/qBittorrent --webui-port="${WEBUI_PORT:-8080}" ${TORRENTING_PORT+--torrenting-port=${TORRENTING_PORT}}
