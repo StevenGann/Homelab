@@ -5,4 +5,5 @@ packages:
 substitutions:
   node_name: temp-master-bedroom
   friendly_name: "Master Bedroom"
+  location: master-bedroom
   # dht_pin (D5) and update_interval (60s) inherit package defaults unless set here.

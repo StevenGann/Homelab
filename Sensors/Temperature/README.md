@@ -69,10 +69,14 @@ esphome config nodes/temp-living-room.yaml
 - **Home Assistant:** auto-discovered via mDNS (Settings → Devices & Services →
   ESPHome) or add by `<node_name>.local`; supply `api_encryption_key`. Entities get
   `state_class: measurement` → long-term statistics.
-- **MQTT:** state at `sensors/temperature/<node_name>/sensor/<slug>/state`; retained
-  `…/status` = `online`/`offline` (LWT). MQTT discovery is **off** (HA uses the API),
-  so non-HA consumers read the topics directly and **must gate on `status == online`**
-  to avoid stale retained values.
+- **MQTT:** state at `sensors/<location>/temperature` and `sensors/<location>/humidity`
+  (e.g. `sensors/garage/temperature`); retained `sensors/<location>/status` =
+  `online`/`offline` (LWT). `<location>` is the per-node `location` substitution.
+  MQTT discovery is **off** (HA uses the API), so non-HA consumers read the topics
+  directly and **must gate on `status == online`** to avoid stale retained values.
+  (ESPHome retains state by default, so a subscriber gets the last value immediately;
+  it refreshes every `update_interval`/60s. A retained value can be stale if a node
+  died — that's exactly what the `status` gate is for.)
 
 ## Adding a node
 

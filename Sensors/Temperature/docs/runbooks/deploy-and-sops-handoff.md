@@ -57,9 +57,10 @@ MQTT connected → first **non-NaN** reading.
 - **Home Assistant:** auto-discovered (Settings → Devices & Services → ESPHome) or
   add by `temp-living-room.local`; paste `api_encryption_key`. Entities:
   `Living Room Temperature` / `Humidity`, with long-term statistics.
-- **MQTT:** `mosquitto_sub -t 'sensors/temperature/#' -v` → state topics + retained
-  `…/status=online`. **Non-HA consumers MUST gate on `status == online`** (avoids
-  trusting a stale retained value when a node dies).
+- **MQTT:** `mosquitto_sub -t 'sensors/#' -v` → `sensors/<location>/temperature`,
+  `sensors/<location>/humidity`, and retained `sensors/<location>/status=online`.
+  **Non-HA consumers MUST gate on `status == online`** (avoids trusting a stale
+  retained value when a node dies).
 
 ### A5. Day-2
 - **Updates are OTA:** re-run `./scripts/flash.sh nodes/<node>.yaml`, pick the network

@@ -5,4 +5,5 @@ packages:
 substitutions:
   node_name: temp-laboratory
   friendly_name: "Laboratory"
+  location: laboratory
   # dht_pin (D5) and update_interval (60s) inherit package defaults unless set here.

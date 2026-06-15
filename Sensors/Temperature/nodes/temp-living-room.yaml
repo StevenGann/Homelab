@@ -6,4 +6,5 @@ packages:
 substitutions:
   node_name: temp-living-room
   friendly_name: "Living Room"
+  location: living-room
   # dht_pin (D5) and update_interval (60s) inherit package defaults unless set here.

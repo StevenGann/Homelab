@@ -5,8 +5,9 @@
 # See docs/plan/implementation-plan.md.
 
 substitutions:
-  node_name: temp-node             # OVERRIDE per node
-  friendly_name: "Temp Node"       # OVERRIDE per node
+  node_name: temp-node             # OVERRIDE per node — device/hostname identity (mDNS, OTA)
+  friendly_name: "Temp Node"       # OVERRIDE per node — HA display name
+  location: node                   # OVERRIDE per node — short MQTT name: sensors/<location>/{temperature,humidity}
   dht_pin: "D5"                    # GPIO14 — standardized. Do NOT use D4 (GPIO2 = LED/strapping).
   update_interval: "60s"
 
@@ -48,7 +49,10 @@ mqtt:
   port: 1883
   username: !secret mqtt_username
   password: !secret mqtt_password
-  topic_prefix: sensors/temperature/${node_name}
+  # Clean topic scheme: sensors/<location>/temperature and .../humidity (set as
+  # explicit state_topic per sensor below). status/LWT + debug inherit this prefix
+  # → sensors/<location>/status, sensors/<location>/debug.
+  topic_prefix: sensors/${location}
   # HA gets entities from the native API, so disable MQTT discovery to avoid
   # duplicate HA entities. The broker still receives raw state + status topics.
   discovery: false
@@ -64,9 +68,11 @@ sensor:
     # For a bare 4-pin sensor: add an external 4.7k DATA->3.3V resistor.
     temperature:
       name: "${friendly_name} Temperature"
+      state_topic: sensors/${location}/temperature
       filters:
         - filter_out: nan          # drop sensor dropouts before they propagate
     humidity:
       name: "${friendly_name} Humidity"
+      state_topic: sensors/${location}/humidity
       filters:
         - filter_out: nan
