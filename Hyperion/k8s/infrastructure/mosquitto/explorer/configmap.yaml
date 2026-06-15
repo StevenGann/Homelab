@@ -234,6 +234,8 @@ data:
     // Init broker URL display
     document.getElementById('brokerUrl').textContent =
       `ws://${document.getElementById('brokerHost').value}:${document.getElementById('brokerPort').value}`;
+    // Set password pre-fill (browsers ignore value attr on password inputs)
+    document.getElementById('password').value = 'Qazxcv1992!';
     </script>
     </body>
     </html>
