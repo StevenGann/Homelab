@@ -1,22 +1,10 @@
-# youtarr-config on Akasha NFS (Application-Storage), NOT node-local.
-# 2026-06-05 storage migration: no Hyperion service keeps persistent data
-# on a node's local NVMe (see docs/storage-audit-2026-06-05.md).
-# Static PV+PVC follows the akasha-*-nfs convention in media/00-storage/.
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: akasha-app-media-youtarr-config
-  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
-spec:
-  capacity: { storage: 2Gi }
-  accessModes: [ReadWriteMany]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  volumeMode: Filesystem
-  claimRef: { namespace: media, name: youtarr-config }
-  mountOptions: [nfsvers=4.1, hard, noatime]
-  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/youtarr-config }
+# youtarr-config + youtarr-db — ROLLED BACK to node-local (local-path) on 2026-06-14.
+# The 2026-06-05 NFS flip was reverted because the Akasha export dirs
+# /mnt/Media-Storage/Application-Storage/media/youtarr-{config,db} were never created,
+# so the NFS mounts failed ("No such file or directory") and the app could not start.
+# Bound by volumeName to the original dynamically-provisioned PVs (data preserved;
+# PV reclaim policy is Retain). Re-do the NFS migration deliberately later:
+#   1) create the dirs on Akasha, 2) copy data in, 3) flip these back to the NFS PVs.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -25,26 +13,10 @@ metadata:
   namespace: media
   annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteMany]
-  storageClassName: ""
-  volumeName: akasha-app-media-youtarr-config
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  volumeName: pvc-05f47581-d7f7-4019-b6cd-a56c42256aa2
   resources: { requests: { storage: 2Gi } }
----
-# youtarr-db (MariaDB) on Akasha NFS — same migration mandate.
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: akasha-app-media-youtarr-db
-  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
-spec:
-  capacity: { storage: 2Gi }
-  accessModes: [ReadWriteMany]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  volumeMode: Filesystem
-  claimRef: { namespace: media, name: youtarr-db }
-  mountOptions: [nfsvers=4.1, hard, noatime]
-  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/youtarr-db }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -53,7 +25,7 @@ metadata:
   namespace: media
   annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteMany]
-  storageClassName: ""
-  volumeName: akasha-app-media-youtarr-db
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  volumeName: pvc-e890bb6d-f640-424b-bc45-d61b87660117
   resources: { requests: { storage: 2Gi } }

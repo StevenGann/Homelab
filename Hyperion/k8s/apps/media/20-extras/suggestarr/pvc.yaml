@@ -1,22 +1,10 @@
-# suggestarr-config on Akasha NFS (Application-Storage), NOT node-local.
-# 2026-06-05 storage migration: no Hyperion service keeps persistent data
-# on a node's local NVMe (see docs/storage-audit-2026-06-05.md).
-# Static PV+PVC follows the akasha-*-nfs convention in media/00-storage/.
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: akasha-app-media-suggestarr-config
-  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
-spec:
-  capacity: { storage: 1Gi }
-  accessModes: [ReadWriteMany]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  volumeMode: Filesystem
-  claimRef: { namespace: media, name: suggestarr-config }
-  mountOptions: [nfsvers=4.1, hard, noatime]
-  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/suggestarr-config }
+# suggestarr-config — ROLLED BACK to node-local (local-path) on 2026-06-14.
+# The 2026-06-05 NFS flip was reverted because the Akasha export dir
+# /mnt/Media-Storage/Application-Storage/media/suggestarr-config was never created,
+# so the NFS mount failed ("No such file or directory") and the app could not start.
+# Bound by volumeName to the original dynamically-provisioned PV (data preserved;
+# PV reclaim policy is Retain). Re-do the NFS migration deliberately later:
+#   1) create the dir on Akasha, 2) copy data in, 3) flip this back to the NFS PV.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -25,7 +13,7 @@ metadata:
   namespace: media
   annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteMany]
-  storageClassName: ""
-  volumeName: akasha-app-media-suggestarr-config
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  volumeName: pvc-74d6d860-97d2-476d-98a3-906137df2c84
   resources: { requests: { storage: 1Gi } }
