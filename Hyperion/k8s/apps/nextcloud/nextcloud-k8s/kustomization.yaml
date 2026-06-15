@@ -1,9 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - namespace.yaml
-  - mariadb-secret.yaml
-  - mariadb-service.yaml
-  - mariadb-statefulset.yaml
-  - nextcloud-service.yaml
-  - nextcloud-deployment.yaml
