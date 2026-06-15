@@ -1,4 +1,5 @@
-# Application workloads. Each app gets a Flux Kustomization here.
+Done
+lication workloads. Each app gets a Flux Kustomization here.
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -205,6 +206,24 @@ spec:
   prune: true
   wait: true
   timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: nextcloud
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/nextcloud
+  prune: true
+  wait: true
+  timeout: 10m
+  dependsOn:
+    - name: metallb-config
   sourceRef:
     kind: GitRepository
     name: flux-system

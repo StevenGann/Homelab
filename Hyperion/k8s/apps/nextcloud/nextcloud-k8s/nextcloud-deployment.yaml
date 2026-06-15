@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+  labels: { app: nextcloud }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: nextcloud }
+  template:
+    metadata:
+      labels: { app: nextcloud }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        - name: nextcloud
+          image: lscr.io/linuxserver/nextcloud:latest
+          imagePullPolicy: Always
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: TZ, value: "America/Los_Angeles" }
+            - { name: MYSQL_HOST, value: "mariadb.nextcloud.svc.cluster.local" }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: mariadb, key: MYSQL_USER } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: mariadb, key: MYSQL_PASSWORD } } }
+            - { name: MYSQL_DATABASE, valueFrom: { secretKeyRef: { name: mariadb, key: MYSQL_DATABASE } } }
+          ports:
+            - { name: http, containerPort: 80 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: data, mountPath: /data }
+          startupProbe:
+            httpGet: { path: /status.php, port: 80 }
+            failureThreshold: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /status.php, port: 80 }
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "2000m", memory: "2Gi" }
+      volumes:
+        - name: config
+          nfs:
+            server: 192.168.10.247
+            path: /mnt/Media-Storage/NextCloud/config
+        - name: data
+          nfs:
+            server: 192.168.10.247
+            path: /mnt/Media-Storage/NextCloud/data
