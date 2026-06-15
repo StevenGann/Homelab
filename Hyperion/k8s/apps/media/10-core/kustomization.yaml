@@ -8,3 +8,4 @@ resources:
   - radarr
   - lidarr
   - qbittorrent
+  - qbittorrent2        # EXPERIMENT: 2nd instance (own VPN exit + forwarded port) to test multi-instance throughput

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent2
+  namespace: media
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.10.83
+spec:
+  type: LoadBalancer
+  selector: { app: qbittorrent2 }
+  ports:
+    - { name: webui,     port: 8085, targetPort: 8085 }
+    - { name: web,       port: 80,   targetPort: 8085 }
+    - { name: torrent,   port: 6881, targetPort: 6881, protocol: TCP }
+    - { name: torrent-udp, port: 6881, targetPort: 6881, protocol: UDP }
