@@ -12,6 +12,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 THOTH_HOST="${THOTH_HOST:-owner@192.168.10.144}"
 ENV_SOPS="${REPO_ROOT}/Thoth/secrets/env.sops.env"
 ENV_REMOTE="/opt/Homelab/Thoth/.env"
+WINGS_CFG_SOPS="${REPO_ROOT}/Thoth/secrets/wings-config.sops.yaml"
 COMPOSE="${REPO_ROOT}/Thoth/docker-compose.yml"
 COMPOSE_REMOTE="/opt/Homelab/Thoth/docker-compose.yml"
 
@@ -35,6 +36,20 @@ if [ "$DO_SECRETS" -eq 1 ]; then
     log "Shipping .env (decrypted)..."
     sops --decrypt "$ENV_SOPS" | ssh "$THOTH_HOST" "tee $ENV_REMOTE >/dev/null && chmod 600 $ENV_REMOTE" \
         || die "failed to ship .env"
+
+    # Pterodactyl Wings node config (token + allowed_origins). SEED ONLY IF ABSENT:
+    # Wings owns /etc/pterodactyl/config.yml at runtime (rewrites it on panel config
+    # pushes), so we plant it on a fresh host but never clobber a live file.
+    if [ -f "$WINGS_CFG_SOPS" ]; then
+        if ssh "$THOTH_HOST" 'sudo test -f /etc/pterodactyl/config.yml'; then
+            log "Wings config.yml already present on host — leaving Wings-managed file as-is."
+        else
+            log "Seeding Wings config.yml (fresh host)..."
+            sops --decrypt "$WINGS_CFG_SOPS" | ssh "$THOTH_HOST" \
+                'sudo install -d -m 0750 /etc/pterodactyl && sudo tee /etc/pterodactyl/config.yml >/dev/null && sudo chmod 0600 /etc/pterodactyl/config.yml' \
+                || die "failed to seed Wings config.yml"
+        fi
+    fi
 fi
 
 log "Shipping compose..."

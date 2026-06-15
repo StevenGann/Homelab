@@ -14,6 +14,7 @@ services:
   # ─── Ollama (LLM inference — both GPUs) ─────────────────────────────────────
   ollama:
     image: ollama/ollama:latest          # TODO: pin a digest after first pull
+    pull_policy: always
     restart: unless-stopped
     environment:
       OLLAMA_HOST: "0.0.0.0"             # bind all interfaces (Service/LAN/Caddy reach it)
@@ -36,6 +37,7 @@ services:
   # ─── OpenWebUI (chat UI for Ollama) ─────────────────────────────────────────
   open-webui:
     image: ghcr.io/open-webui/open-webui:latest
+    pull_policy: always
     restart: unless-stopped
     depends_on: [ollama]
     environment:
@@ -54,6 +56,7 @@ services:
   # /tank/comfyui/ComfyUI/models. No native auth; LAN/Caddy only.
   comfyui:
     image: ghcr.io/ai-dock/comfyui:latest-cuda
+    pull_policy: always
     restart: unless-stopped
     environment:
       WORKSPACE: "/workspace"
@@ -95,6 +98,7 @@ services:
   # Media mounted via NFS from Akasha TrueNAS.
   tdarr-node:
     image: haveagitgat/tdarr_node:latest
+    pull_policy: always
     restart: unless-stopped
     environment:
       serverIP: "192.168.10.62"
@@ -117,9 +121,24 @@ services:
               capabilities: [gpu]
     logging: { driver: journald }
 
-  # ─── Pterodactyl Wings (Minecraft) — deployed 2026-06-07 ────────
+  # ─── Pterodactyl Wings (Minecraft game-server daemon) — deployed 2026-06-07 ──
+  # Runs game-server containers via the docker socket; game data on /fast (SSD).
+  # config.yml (node token + allowed_origins) is shipped by scripts/deploy.sh from
+  # secrets/wings-config.sops.yaml — SEEDED IF ABSENT only (Wings owns it at
+  # runtime; deploy never clobbers a live file).
+  #
+  # PIN to the 1.11.x line to match Panel v1.11.11. Wings 1.12+ changed websocket
+  # JWT handling so the panel's `*` permission no longer grants `websocket.connect`
+  # → the in-browser console breaks with "jwt: missing connect permission". The
+  # `:latest` tag silently pulled 1.12.3 and broke it (diagnosed + pinned
+  # 2026-06-15). If you upgrade, bump the Panel and Wings together.
+  #
+  # allowed_origins MUST include every hostname the panel is loaded as (the browser
+  # connects DIRECTLY to ws://<this host>:8080) — currently http://pterodactyl.lab.
+  # The MC game port (25565) is published by the per-server container Wings creates,
+  # not by this container.
   wings:
-    image: ghcr.io/pterodactyl/wings:latest
+    image: ghcr.io/pterodactyl/wings:v1.11.13@sha256:98a5b9622cd152c43f1795fbc443934a25828cb1b3f7b5979cd5efb58175e869
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -128,14 +147,16 @@ services:
       - /var/log/pterodactyl:/var/log/pterodactyl
       - /run/wings:/run/wings:rw
     ports:
-      - "8080:8080"      # Wings API
+      - "8080:8080"      # Wings API + console websocket (browser connects directly)
       - "2022:2022"      # SFTP
     logging: { driver: journald }
 
-  # ─── Jellyfin (media streaming — GPU transcode) ────────────────────────────
-  # 2026-06-04: Deployed by Guppy for GPU-accelerated streaming test.
-  # Media mounted via NFS from Akasha TrueNAS. GPU transcoding via NVENC.
-  # ─── BlueMap (Minecraft live map renderer) ── 2026-06-08 ──
+  # ─── BlueMap (Minecraft live web map) — deployed 2026-06-08 ─────────────────
+  # Renders the Wings-managed MC world (read-only) to a 3D web map on :8100.
+  # CLI jar runs under a JRE; world path is the server's data dir under
+  # /var/lib/pterodactyl/<server-uuid>/world.
+  # (The Jellyfin GPU-transcode test that previously lived here was
+  # decommissioned 2026-06-15.)
   bluemap:
     image: eclipse-temurin:25-jre
     restart: unless-stopped
