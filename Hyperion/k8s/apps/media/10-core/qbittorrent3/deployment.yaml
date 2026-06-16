@@ -1,0 +1,112 @@
+# qBittorrent instance #3 behind its OWN gluetun VPN tunnel (ProtonVPN / WireGuard).
+# EXPERIMENT (2026-06-15): a third, independent qBittorrent+gluetun pod running
+# alongside qbittorrent (#1, .58) and qbittorrent2 (#2, .83) to test whether
+# splitting torrents across instances — each with its own VPN exit + its own
+# NAT-PMP forwarded port — improves overall torrenting throughput.
+#
+# What differs from instance #1 (everything else is identical by design):
+#   * name/labels:        qbittorrent3 (own Deployment/Service/PVC/ConfigMaps/Secret)
+#   * VPN server city:    Los Angeles  (#1 = San Jose, #2 = Seattle) → distinct exit + port
+#   * WireGuard key:      its OWN ProtonVPN config (qbittorrent3-vpn secret). Reusing
+#                         another instance's key would thrash the handshake — WireGuard
+#                         allows one active session per key.
+#   * MetalLB IP:         192.168.10.84 (#1 = .58, #2 = .83)
+#   * config PVC:         qbittorrent3-config on its own Akasha NFS path
+#   * downloads:          SHARED media-downloads (RWX) — same as instance #1, so the
+#                         *arr apps see all completed files in one place. Run
+#                         DIFFERENT torrents on each instance (do not double-add).
+#
+# See instance #1's deployment.yaml for the full rationale on every gluetun/s6/
+# port-sync design choice (tun0 address-bind, lockfile clears, localhost auth bypass,
+# IPv4 WebUI bind, non-destructive port-sync). This instance carries verbatim copies.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent3
+  namespace: media
+  labels: { app: qbittorrent3 }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: qbittorrent3 }
+  template:
+    metadata:
+      labels: { app: qbittorrent3 }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      containers:
+        # ── VPN tunnel (provides the pod's egress + kill-switch) ────────────
+        - name: gluetun
+          image: qmcgaw/gluetun:latest@sha256:10b4895fde4499c2d1d9fbd8e681d040ede0efe8c6cfe5d0c51daf0461836ee8
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          env:
+            - { name: VPN_SERVICE_PROVIDER,       value: "protonvpn" }
+            - { name: VPN_TYPE,                   value: "wireguard" }
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom: { secretKeyRef: { name: qbittorrent3-vpn, key: WIREGUARD_PRIVATE_KEY } }
+            - { name: WIREGUARD_ADDRESSES,         value: "10.2.0.2/32" }
+            - { name: SERVER_CITIES,               value: "Los Angeles" }            # instance #1 uses San Jose
+            - { name: VPN_PORT_FORWARDING,         value: "on" }
+            - { name: FIREWALL_OUTBOUND_SUBNETS,   value: "10.42.0.0/16,10.43.0.0/16,172.16.0.0/12,192.168.0.0/16" }
+            - { name: FIREWALL_INPUT_PORTS,        value: "8085" }              # qBittorrent WebUI (forwarded port is auto-allowed)
+            - { name: UPDATER_PERIOD,              value: "24h" }
+            - { name: HEALTH_VPN_DURATION_INITIAL, value: "60s" }
+            - { name: TZ,                          value: "America/Los_Angeles" }
+          volumeMounts:
+            - { name: tun,             mountPath: /dev/net/tun }
+            - { name: gluetun-state,   mountPath: /gluetun }
+            - { name: gluetun-port,    mountPath: /tmp/gluetun }                # shared: writes forwarded_port here
+          resources:
+            requests: { cpu: "50m",  memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+        # ── qBittorrent (shares gluetun's netns) ────────────────────────────
+        - name: qbittorrent
+          image: lscr.io/linuxserver/qbittorrent:latest@sha256:715d2bfbcf1cd3d734cbbd4fbd599eb7ea0642eaa079a372dd0d343f59516700
+          env:
+            - { name: PUID,            value: "568" }
+            - { name: PGID,            value: "568" }
+            - { name: TZ,              value: "America/Los_Angeles" }
+            - { name: WEBUI_PORT,      value: "8085" }
+            - name: WEBUI_PASSWORD     # consumed by the port-sync.sh ConfigMap script's API auth
+              valueFrom: { secretKeyRef: { name: qbittorrent3-vpn, key: WEBUI_PASSWORD } }
+          volumeMounts:
+            - { name: config,       mountPath: /config }
+            - { name: downloads,    mountPath: /data/downloads }                # same NFS path Sonarr/Radarr see
+            - { name: gluetun-port, mountPath: /tmp/gluetun }                   # shared: reads forwarded_port
+            - { name: port-sync,    mountPath: /custom-services.d }             # linuxserver.io: services run in background after app starts
+            - { name: s6-run,      mountPath: /etc/s6-overlay/s6-rc.d/svc-qbittorrent/run, subPath: run }  # override image's broken run script
+          readinessProbe:
+            tcpSocket: { port: 8085 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "1Gi" }  # 1Gi request auto-excludes 4GB nodes
+            limits:   { cpu: "1",    memory: "4Gi" }  # 324 torrents OOMKilled at 1Gi; 4Gi headroom for growth
+      volumes:
+        - name: tun
+          hostPath: { path: /dev/net/tun, type: CharDevice }
+        - name: gluetun-state
+          emptyDir: {}
+        - name: gluetun-port
+          emptyDir: {}
+        - name: config
+          persistentVolumeClaim: { claimName: qbittorrent3-config }
+        - name: downloads
+          persistentVolumeClaim: { claimName: media-downloads }
+        - name: port-sync
+          configMap:
+            name: qbittorrent3-port-sync
+            defaultMode: 0755
+            items:
+              - key: port-sync.sh
+                path: port-sync.sh
+        - name: s6-run
+          configMap:
+            name: qbittorrent3-s6-run
+            defaultMode: 0755
+            items:
+              - key: run
+                path: run

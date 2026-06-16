@@ -77,6 +77,7 @@ RECORDS=(
     "radarr.lab|A|192.168.10.57"          # :7878  (movies)
     "qbittorrent.lab|A|192.168.10.58"     # :8085  (downloads)
     "qbittorrent-b.lab|A|192.168.10.83"   # :8085  (downloads — 2nd qbittorrent+gluetun instance, Seattle VPN)
+    "qbittorrent-c.lab|A|192.168.10.84"   # :8085  (downloads — 3rd qbittorrent+gluetun instance, Los Angeles VPN)
     "cleanuparr.lab|A|192.168.10.59"      # :11011 (download cleanup)
     "kapowarr.lab|A|192.168.10.60"        # :5656  (comics/manga)
     "youtarr.lab|A|192.168.10.61"         # :3087  (youtube archival)
