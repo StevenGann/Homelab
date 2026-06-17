@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-caldera
+  namespace: agent-caldera
+  labels:
+    app: agent-caldera
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: agent-caldera
+  template:
+    metadata:
+      labels:
+        app: agent-caldera
+    spec:
+      nodeSelector:
+        topology.kubernetes.io/zone: hyperion
+      containers:
+        - name: caldera
+          image: ghcr.io/stevengann/caldera:edge
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+            - name: CALDERA_HOST
+              value: "0.0.0.0"
+            - name: CALDERA_PORT
+              value: "8000"
+            - name: CALDERA_SOURCE
+              value: github
+            - name: CALDERA_GITHUB_REPO
+              value: StevenGann/Agents-Notebook
+            - name: CALDERA_GITHUB_BRANCH
+              value: main
+            - name: CALDERA_VAULT_PATH
+              value: /vault/Agents Notebook
+            - name: CALDERA_DATA_PATH
+              value: /data
+            - name: CALDERA_READ_ONLY
+              value: "false"
+            - name: CALDERA_SYNC_INTERVAL
+              value: "60"
+            - name: CALDERA_COMMIT_DEBOUNCE
+              value: "10"
+            - name: CALDERA_COMMIT_MAX_WAIT
+              value: "30"
+            - name: CALDERA_WEBHOOK_URL
+              value: http://hermes.hermes.svc.cluster.local:8644/webhooks/caldera-hook
+          envFrom:
+            - secretRef:
+                name: agent-caldera-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /vault
+              name: vault
+            - mountPath: /data
+              name: data
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            periodSeconds: 30
+            timeoutSeconds: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            periodSeconds: 15
+            timeoutSeconds: 1
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 60
+      volumes:
+        - name: vault
+          persistentVolumeClaim:
+            claimName: agent-caldera-vault
+        - name: data
+          persistentVolumeClaim:
+            claimName: agent-caldera-data
