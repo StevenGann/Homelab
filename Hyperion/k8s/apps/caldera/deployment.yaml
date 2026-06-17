@@ -43,6 +43,10 @@ spec:
             # URL is the Hermes webhook endpoint; secret must be added to
             # caldera-secrets as CALDERA_WEBHOOK_SECRET (SOPS-encrypted).
             - { name: CALDERA_WEBHOOK_URL,     value: "http://hermes.hermes.svc.cluster.local:8644/webhooks/caldera-hook" }
+            # Multi-target webhook fan-out via CALDERA_WEBHOOK_TARGETS JSON array.
+            # Each entry is [url, secret] — added alongside the primary URL above.
+            # Currently fans out to Jeeves agent for dual-agent notifications.
+            - { name: CALDERA_WEBHOOK_TARGETS, value: "[[\"http://10.42.8.200:8644/webhooks/caldera-hook\",\"6AQalt5cyzTcdvemPbr0ctz2vjfMRbqAIqzwZn22MB0\"]]" }
             # CALDERA_WEBHOOK_SECRET is loaded from caldera-secrets (envFrom below)
           envFrom:
             - secretRef: { name: caldera-secrets }   # CALDERA_API_KEYS + CALDERA_GITHUB_TOKEN
