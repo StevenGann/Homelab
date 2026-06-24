@@ -28,12 +28,15 @@ data:
     # 3. --confirm-legal-notice so qBittorrent never blocks waiting on the
     #    interactive "Legal Notice" acknowledgement on a fresh/empty profile.
     #
-    # 4. Pins the WebUI to IPv4 (WebUI\Address=0.0.0.0). With WebUI\Address unset
-    #    or "*", qBittorrent 5.x binds the WebUI IPv6-only (:::8085); the kubelet
-    #    tcpSocket readiness probe (to the pod's IPv4 IP) and the port-sync
-    #    healthcheck (127.0.0.1) are then refused -> pod stuck 1/2 and port-sync
-    #    pkill-loops it (root cause of the 2026-06-14 outage). Forcing an explicit
-    #    IPv4 bind here makes every start deterministic, including on a fresh PVC.
+    # 4. Pins the WebUI to IPv4 (WebUI\Address=0.0.0.0) and adds
+    #    WebUI\LocalHostAuth=false + AuthSubnetWhitelist so httpGet probes
+    #    from the kubelet and cluster services can call the API without auth.
+    #    With WebUI\Address unset or "*", qBittorrent 5.x binds the WebUI
+    #    IPv6-only (:::8085); the kubelet httpGet readiness probe (to the
+    #    pod's IPv4 IP) and the port-sync healthcheck (127.0.0.1) are then
+    #    refused -> pod stuck 1/2 and port-sync pkill-loops it (root cause of
+    #    the 2026-06-14 outage). Forcing an explicit IPv4 bind here makes
+    #    every start deterministic, including on a fresh PVC.
     #
     # Readiness check: poll `nc -z` every 1s for up to 300 tries (~5 min window).
     # (The previous -w 15000 set a 15s GAP between polls — that delayed
@@ -49,9 +52,23 @@ data:
     # existing WebUI\Address line, then insert 0.0.0.0 ahead of WebUI\Port
     # (both live in [Preferences]). Runs as abc to preserve conf ownership.
     QBT_CONF=/config/qBittorrent/qBittorrent/config/qBittorrent.conf
-    if [[ -f ${QBT_CONF} ]] && ! grep -q '^WebUI\\Address=0.0.0.0$' "${QBT_CONF}"; then
-        s6-setuidgid abc sed -i '/^WebUI\\Address=/d' "${QBT_CONF}"
-        s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\Address=0.0.0.0' "${QBT_CONF}"
+    if [[ -f ${QBT_CONF} ]]; then
+        # Force IPv4 WebUI bind (see item 4 above). Idempotent: drop any
+        # existing WebUI\Address line, then insert 0.0.0.0 ahead of WebUI\Port.
+        if ! grep -q '^WebUI\\Address=0.0.0.0$' "${QBT_CONF}"; then
+            s6-setuidgid abc sed -i '/^WebUI\\Address=/d' "${QBT_CONF}"
+            s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\Address=0.0.0.0' "${QBT_CONF}"
+        fi
+        # Allow kubelet httpGet probes + cluster services to call the API
+        # without auth (needed since readiness/liveness/startup probes now
+        # use httpGet on /api/v2/app/version instead of tcpSocket).
+        if ! grep -q '^WebUI\\LocalHostAuth=false$' "${QBT_CONF}"; then
+            s6-setuidgid abc sed -i '/^WebUI\\LocalHostAuth=/d' "${QBT_CONF}"
+            s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\LocalHostAuth=false' "${QBT_CONF}"
+        fi
+        if ! grep -q '^WebUI\\AuthSubnetWhitelist=' "${QBT_CONF}"; then
+            s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\AuthSubnetWhitelist=127.0.0.1,10.42.0.0/16,10.43.0.0/16,192.168.10.0/24' "${QBT_CONF}"
+        fi
     fi
 
     # 4b. Bypass WebUI auth for localhost so in-pod tooling (port-sync.sh) needs

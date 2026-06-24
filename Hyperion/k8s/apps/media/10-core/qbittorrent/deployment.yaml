@@ -96,9 +96,29 @@ spec:
             - { name: port-sync,    mountPath: /custom-services.d }             # linuxserver.io: services run in background after app starts
             - { name: s6-run,      mountPath: /etc/s6-overlay/s6-rc.d/svc-qbittorrent/run, subPath: run }  # override image's broken run script
           readinessProbe:
-            tcpSocket: { port: 8085 }
+            httpGet:
+              path: /api/v2/app/version
+              port: 8085
             initialDelaySeconds: 20
             periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/v2/app/version
+              port: 8085
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /api/v2/app/version
+              port: 8085
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           resources:
             requests: { cpu: "100m", memory: "1Gi" }  # 1Gi request auto-excludes 4GB nodes
             limits:   { cpu: "1",    memory: "4Gi" }  # 324 torrents OOMKilled at 1Gi; 4Gi headroom for growth
