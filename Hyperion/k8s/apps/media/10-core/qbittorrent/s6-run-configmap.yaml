@@ -85,6 +85,9 @@ data:
         s6-setuidgid abc sed -i '/^WebUI\\LocalHostAuth=/d' "${QBT_CONF}"
         s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\LocalHostAuth=false' "${QBT_CONF}"
     fi
+    if ! grep -q '^WebUI\\AuthSubnetWhitelistEnabled=' "${QBT_CONF}"; then
+        s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\AuthSubnetWhitelistEnabled=true' "${QBT_CONF}"
+    fi
     if ! grep -q '^WebUI\\AuthSubnetWhitelist=' "${QBT_CONF}"; then
         s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\AuthSubnetWhitelist=127.0.0.1,10.42.0.0/16,10.43.0.0/16,192.168.10.0/24' "${QBT_CONF}"
     fi
