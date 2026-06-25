@@ -1,0 +1,13 @@
+# komga-config — H2 database + cached covers on local-path (/mnt/node-storage).
+# NOT on NFS — Java/H2 over NFS has locking issues, and root_squash chown
+# traps apply (same failure mode as navidrome 2026-06-14). UID 568 (apps)
+# securityContext matches the NFS mapall_user on Akasha for /comics access.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: komga-config
+  namespace: media
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 2Gi } }

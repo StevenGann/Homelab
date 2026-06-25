@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: komga
+  namespace: media
+  labels: { app: komga }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO local-path config pins to a node
+  selector:
+    matchLabels: { app: komga }
+  template:
+    metadata:
+      labels: { app: komga }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext:
+        runAsUser: 568                  # apps UID — matches Akasha NFS mapall_user
+        runAsGroup: 568
+        fsGroup: 568
+      containers:
+        - name: komga
+          image: gotson/komga:latest
+          env:
+            - { name: TZ, value: "America/Los_Angeles" }
+            - { name: KOMGA_LIBRARIES_SCAN_CRON, value: "0 */6 * * *" }  # scan every 6h
+            - { name: KOMGA_LIBRARIES_SCAN_STARTUP, value: "true" }
+            - { name: KOMGA_REMEMBER_ME_KEY, valueFrom: { secretKeyRef: { name: komga-secret, key: remember-me-key, optional: true } } }
+            - { name: KOMGA_SERVER_PORT, value: "25600" }
+            # JAVA_TOOL_OPTIONS limits heap to stay within the 1Gi memory limit
+            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx768m" }
+          ports:
+            - { name: http, containerPort: 25600 }
+          volumeMounts:
+            - { name: config,  mountPath: /config }                # H2 DB + covers — local-path
+            - { name: comics,  mountPath: /comics, readOnly: true }  # Akasha Comics (NFS, read-only)
+          startupProbe:                  # generous for first-boot DB init + library scan
+            tcpSocket: { port: 25600 }
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket: { port: 25600 }
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket: { port: 25600 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: komga-config }
+        - name: comics
+          persistentVolumeClaim: { claimName: media-comics }
