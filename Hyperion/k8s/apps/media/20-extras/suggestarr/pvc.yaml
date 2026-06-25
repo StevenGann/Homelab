@@ -4,7 +4,12 @@
 # so the NFS mount failed ("No such file or directory") and the app could not start.
 # Bound by volumeName to the original dynamically-provisioned PV (data preserved;
 # PV reclaim policy is Retain). Re-do the NFS migration deliberately later:
-#   1) create the dir on Akasha, 2) copy data in, 3) flip this back to the NFS PV.
+#   1) create the dir on Akasha, 2) copy data in AS THE SAME UID THE APP RUNS AS
+#      (root, since suggestarr has no PUID/securityContext — BUT root maps to
+#       65534 on Application-Storage's root_squash export, see ADR-0003),
+#   3) flip this back to the NFS PV.
+# WARNING: root_squash chown trap (same failure mode as cleanuparr 2026-06-24):
+#   if the container runs as non-root later, it cannot chown files owned by 65534.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

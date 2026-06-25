@@ -75,6 +75,13 @@ data:
     done
     log "WebUI ready"
 
+    # ── fix AuthSubnetWhitelist via API (QSettings adds spaces on save, which
+    #    may break subnet parsing — the API sets the correct format in-memory)
+    _code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${QBIT_API}/app/setPreferences" \
+      --data-urlencode 'json={"auth_subnet_whitelist":"127.0.0.1,10.42.0.0/16,10.43.0.0/16,192.168.10.0/24"}' 2>/dev/null)
+    if [ "$_code" = "200" ]; then log "AuthSubnetWhitelist set via API"
+    else log "AuthSubnetWhitelist API returned $_code (non-fatal)"; fi
+
     # ── sync loop: apply on first pass + whenever the forwarded port changes ────
     LAST=""
     while true; do

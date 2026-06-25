@@ -14,9 +14,23 @@ spec:
       labels: { app: cleanuparr }
     spec:
       nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsUser: 568
+        runAsGroup: 568
+        fsGroup: 568
       containers:
         - name: cleanuparr
           image: ghcr.io/cleanuparr/cleanuparr:2.3.3@sha256:d20efe405d4144e87736c25123cd22992fa4a76c9d80d7467ca5313b92107e4a
+          command:
+            - /bin/bash
+            - -c
+            - |
+              umask 022
+              # 2026-06-24: pod securityContext sets uid/gid=568 directly — no more
+              # root + gosu dance. The gosu transition left stale NFS credentials
+              # that caused "chown: Operation not permitted" on root_squash'd NFS.
+              exec ./Cleanuparr
           env:
             - { name: PUID, value: "568" }
             - { name: PGID, value: "568" }
@@ -30,15 +44,23 @@ spec:
             httpGet: { path: /health, port: 11011 }
             failureThreshold: 30
             periodSeconds: 10
+            timeoutSeconds: 15              # .NET app — default 1s masks threadpool/GC stalls
           readinessProbe:
             httpGet: { path: /health/ready, port: 11011 }
             periodSeconds: 15
+            timeoutSeconds: 15              # /health/ready checks downstream services (e.g. qbittorrent);
+                                           # 5s was too tight — generated 4045 "context deadline
+                                           # exceeded" events in 9d even when downstream was healthy
+            failureThreshold: 5             # 75s before NotReady (5×15s); survive transient HttpClient stalls
           livenessProbe:
             httpGet: { path: /health, port: 11011 }
             periodSeconds: 30
+            timeoutSeconds: 10              # /health is lightweight (no downstream checks);
+                                           # .NET GC pauses can exceed 5s on arm64
+            failureThreshold: 5             # 150s before restart; give .NET time to self-recover
           resources:
             requests: { cpu: "50m",  memory: "128Mi" }
-            limits:   { cpu: "500m", memory: "512Mi" }
+            limits:   { cpu: "500m", memory: "768Mi" }  # 512Mi too tight during GC/threadpool recovery
       volumes:
         - name: config
           persistentVolumeClaim: { claimName: cleanuparr-config }

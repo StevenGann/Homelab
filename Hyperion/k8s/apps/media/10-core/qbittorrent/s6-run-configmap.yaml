@@ -29,14 +29,17 @@ data:
     #    interactive "Legal Notice" acknowledgement on a fresh/empty profile.
     #
     # 4. Pins the WebUI to IPv4 (WebUI\Address=0.0.0.0) and adds
-    #    WebUI\LocalHostAuth=false + AuthSubnetWhitelist so httpGet probes
-    #    from the kubelet and cluster services can call the API without auth.
+    #    WebUI\LocalHostAuth=false + AuthSubnetWhitelist so port-sync.sh
+    #    (localhost) and cluster services can call the API without auth.
     #    With WebUI\Address unset or "*", qBittorrent 5.x binds the WebUI
-    #    IPv6-only (:::8085); the kubelet httpGet readiness probe (to the
+    #    IPv6-only (:::8085); the kubelet tcpSocket readiness probe (to the
     #    pod's IPv4 IP) and the port-sync healthcheck (127.0.0.1) are then
     #    refused -> pod stuck 1/2 and port-sync pkill-loops it (root cause of
     #    the 2026-06-14 outage). Forcing an explicit IPv4 bind here makes
     #    every start deterministic, including on a fresh PVC.
+    #    (2026-06-24: k8s probes switched back to httpGet now that AuthSubnetWhitelist
+    #    covers the kubelet's node-IP probes — the tcpSocket probes were blind to the
+    #    HTTP accept-loop hang caused by near-ceiling memory / GC thrash.)
     #
     # Readiness check: poll `nc -z` every 1s for up to 300 tries (~5 min window).
     # (The previous -w 15000 set a 15s GAP between polls — that delayed
@@ -51,35 +54,39 @@ data:
     # Force the WebUI to bind IPv4 (see item 4 above). Idempotent: drop any
     # existing WebUI\Address line, then insert 0.0.0.0 ahead of WebUI\Port
     # (both live in [Preferences]). Runs as abc to preserve conf ownership.
+    #
+    # First-boot / empty-config handling: create the config directory + a minimal
+    # [Preferences] section if the file doesn't exist yet. This ensures the auth
+    # bypass is in place BEFORE qBittorrent starts, closing the window where the
+    # WebUI comes up with auth enabled and port-sync.sh + k8s probes get 403.
+    # (The LSIO init writes a fuller conf later; our [Preferences] lines merge
+    # cleanly because qBittorrent uses QSettings which tolerates duplicate
+    # sections — the last value wins.)
     QBT_CONF=/config/qBittorrent/qBittorrent/config/qBittorrent.conf
-    if [[ -f ${QBT_CONF} ]]; then
-        # Force IPv4 WebUI bind (see item 4 above). Idempotent: drop any
-        # existing WebUI\Address line, then insert 0.0.0.0 ahead of WebUI\Port.
-        if ! grep -q '^WebUI\\Address=0.0.0.0$' "${QBT_CONF}"; then
-            s6-setuidgid abc sed -i '/^WebUI\\Address=/d' "${QBT_CONF}"
-            s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\Address=0.0.0.0' "${QBT_CONF}"
-        fi
-        # Allow kubelet httpGet probes + cluster services to call the API
-        # without auth (needed since readiness/liveness/startup probes now
-        # use httpGet on /api/v2/app/version instead of tcpSocket).
-        if ! grep -q '^WebUI\\LocalHostAuth=false$' "${QBT_CONF}"; then
-            s6-setuidgid abc sed -i '/^WebUI\\LocalHostAuth=/d' "${QBT_CONF}"
-            s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\LocalHostAuth=false' "${QBT_CONF}"
-        fi
-        if ! grep -q '^WebUI\\AuthSubnetWhitelist=' "${QBT_CONF}"; then
-            s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\AuthSubnetWhitelist=127.0.0.1,10.42.0.0/16,10.43.0.0/16,192.168.10.0/24' "${QBT_CONF}"
-        fi
+    if [[ ! -f ${QBT_CONF} ]]; then
+        mkdir -p "$(dirname "${QBT_CONF}")"
+        printf '[Preferences]\n' > "${QBT_CONF}"
+        chown abc:abc "$(dirname "${QBT_CONF}")" "${QBT_CONF}"
     fi
 
-    # 4b. Bypass WebUI auth for localhost so in-pod tooling (port-sync.sh) needs
-    #     NO password. linuxserver custom services do not run with-contenv, so the
-    #     port-sync service had no WEBUI_PASSWORD, sent empty creds, and got
-    #     127.0.0.1 auth-BANNED by qBittorrent (1h) — which returned 403 to ALL
-    #     clients incl. the LB. This removes the credential dependency and the ban
-    #     class entirely. External access (via the MetalLB IP) still requires auth.
-    if [[ -f ${QBT_CONF} ]] && ! grep -q '^WebUI\\LocalHostAuth=false$' "${QBT_CONF}"; then
+    # Force IPv4 WebUI bind. Idempotent: drop any existing line, then insert
+    # 0.0.0.0 ahead of WebUI\Port.
+    if ! grep -q '^WebUI\\Address=0.0.0.0$' "${QBT_CONF}"; then
+        s6-setuidgid abc sed -i '/^WebUI\\Address=/d' "${QBT_CONF}"
+        s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\Address=0.0.0.0' "${QBT_CONF}"
+    fi
+    # Bypass WebUI auth for localhost + pod/service/LAN subnets.
+    # port-sync.sh (a linuxserver custom service) runs without the container
+    # env, so it has no WEBUI_PASSWORD — localhost auth bypass removes that
+    # credential dependency and prevents the 127.0.0.1 auth-ban class (1h ban
+    # returning 403 to ALL clients incl. the LB). External access via the
+    # MetalLB IP still requires auth.
+    if ! grep -q '^WebUI\\LocalHostAuth=false$' "${QBT_CONF}"; then
         s6-setuidgid abc sed -i '/^WebUI\\LocalHostAuth=/d' "${QBT_CONF}"
         s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\LocalHostAuth=false' "${QBT_CONF}"
+    fi
+    if ! grep -q '^WebUI\\AuthSubnetWhitelist=' "${QBT_CONF}"; then
+        s6-setuidgid abc sed -i '/^WebUI\\Port=/i WebUI\\AuthSubnetWhitelist=127.0.0.1,10.42.0.0/16,10.43.0.0/16,192.168.10.0/24' "${QBT_CONF}"
     fi
 
     WEBUI_ADDRESS=$(grep -Po "^WebUI\\Address=\K(.*)" /config/qBittorrent/qBittorrent/config/qBittorrent.conf 2>/dev/null)

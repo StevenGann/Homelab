@@ -4,7 +4,12 @@
 # so the NFS mounts failed ("No such file or directory") and the app could not start.
 # Bound by volumeName to the original dynamically-provisioned PVs (data preserved;
 # PV reclaim policy is Retain). Re-do the NFS migration deliberately later:
-#   1) create the dirs on Akasha, 2) copy data in, 3) flip these back to the NFS PVs.
+#   1) create the dirs on Akasha, 2) copy data in AS UID 568 (the app's YOUTARR_UID —
+#      root_squash passes non-root UIDs through but squashes root→65534),
+#   3) flip these back to the NFS PVs.
+# WARNING: root_squash chown trap (same failure mode as cleanuparr 2026-06-24):
+#   if /config files were previously root-owned (now 65534), UID 568 cannot
+#   chown them → "Operation not permitted" → CrashLoopBackOff.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

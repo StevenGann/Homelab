@@ -78,13 +78,29 @@ spec:
             - { name: gluetun-port, mountPath: /tmp/gluetun }                   # shared: reads forwarded_port
             - { name: port-sync,    mountPath: /custom-services.d }             # linuxserver.io: services run in background after app starts
             - { name: s6-run,      mountPath: /etc/s6-overlay/s6-rc.d/svc-qbittorrent/run, subPath: run }  # override image's broken run script
-          readinessProbe:
+          startupProbe:
             tcpSocket: { port: 8085 }
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 180  # 30 min window: Pi 5 + NFS config + hundreds of torrents
+          readinessProbe:
+            httpGet:
+              path: /api/v2/app/version
+              port: 8085
             initialDelaySeconds: 20
             periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket: { port: 8085 }
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests: { cpu: "100m", memory: "1Gi" }  # 1Gi request auto-excludes 4GB nodes
-            limits:   { cpu: "1",    memory: "4Gi" }  # 324 torrents OOMKilled at 1Gi; 4Gi headroom for growth
+            limits:   { cpu: "1",    memory: "6Gi" }  # 2026-06-24: 4Gi → 6Gi: match instance #1 after OOM-hang incident
       volumes:
         - name: tun
           hostPath: { path: /dev/net/tun, type: CharDevice }

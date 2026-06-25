@@ -1,22 +1,17 @@
-# cleanuparr-config on Akasha NFS (Application-Storage), NOT node-local.
-# 2026-06-05 storage migration: no Hyperion service keeps persistent data
-# on a node's local NVMe (see docs/storage-audit-2026-06-05.md).
-# Static PV+PVC follows the akasha-*-nfs convention in media/00-storage/.
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: akasha-app-media-cleanuparr-config
-  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
-spec:
-  capacity: { storage: 1Gi }
-  accessModes: [ReadWriteMany]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  volumeMode: Filesystem
-  claimRef: { namespace: media, name: cleanuparr-config }
-  mountOptions: [nfsvers=4.1, hard, noatime]
-  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/cleanuparr-config }
+# cleanuparr-config — local-path (/mnt/node-storage), NOT NFS.
+# 2026-06-24: NFS root_squash chown crash-loop (ADR-0003). Container runs as
+# UID 568 but /config files were owned by 65534 (nobody — mapped root from the
+# gosu era). UID 568 cannot chown files owned by 65534 on NFS → "Operation not
+# permitted" → immediate exit. Moved to local ext4, following kapowarr-db pattern.
+#
+# local-path is WaitForFirstConsumer + node-pinned: the PV (and therefore the
+# pod, via node affinity) stays on whichever worker it was first provisioned on.
+# The old akasha-app-media-cleanuparr-config NFS PV is Retain-preserved as a
+# cold backup (kustomize prune:disabled on the old PV — but it's now removed
+# from this file to avoid name collision; the PV remains live in-cluster until
+# manually deleted).
+# When Longhorn is deployed post-control-plane-relocation (ADR-0003), this
+# should move to Longhorn for node-failure survivability.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -25,7 +20,6 @@ metadata:
   namespace: media
   annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteMany]
-  storageClassName: ""
-  volumeName: akasha-app-media-cleanuparr-config
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
   resources: { requests: { storage: 1Gi } }

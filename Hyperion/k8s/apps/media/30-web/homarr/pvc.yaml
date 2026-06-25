@@ -1,7 +1,17 @@
-# homarr-appdata on Akasha NFS (Application-Storage), NOT node-local.
-# 2026-06-05 storage migration: no Hyperion service keeps persistent data
-# on a node's local NVMe (see docs/storage-audit-2026-06-05.md).
+# WARNING: STAGED — NOT DEPLOYED. The active homarr-appdata PVC is in
+# 20-extras/homarr/pvc.yaml (local-path). This file is an orphaned proposal
+# from the 2026-06-05 NFS migration wave. DO NOT ACTIVATE without understanding:
+#
+# 1. Homarr runs as root (no securityContext/PUID set). On root_squash NFS,
+#    root→65534(nobody), so root cannot chown/create new files.
+# 2. Homarr embeds better-sqlite3. SQLite over NFSv4.1 has latency flapping
+#    that can cause 3-10 restarts/hour (documented in ADR-0003).
+# 3. If migrating to NFS deliberately: create the dir on Akasha AS root,
+#    populate data, and only then flip the PVC. Expect SQLite performance
+#    issues until Longhorn is available.
+#
 # Static PV+PVC follows the akasha-*-nfs convention in media/00-storage/.
+# See ADR-0003 and the cleanuparr fix (2026-06-24).
 ---
 apiVersion: v1
 kind: PersistentVolume
