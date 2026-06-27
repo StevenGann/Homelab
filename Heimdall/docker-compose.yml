@@ -65,18 +65,44 @@ services:
   technitium:
     image: technitium/dns-server:15.2.0
     restart: unless-stopped
-    network_mode: host        # need real :53 + accurate LAN client IPs for filtering/rate-limit
+    # Moved from host to bridge networking (2026-06-27). Pi-hole now owns :53.
+    # Only reachable from Heimdall itself on localhost.
+    ports:
+      - "127.0.0.1:5353:53/tcp"
+      - "127.0.0.1:5353:53/udp"
+      - "127.0.0.1:5380:5380/tcp"
     environment:
       - DNS_SERVER_DOMAIN=heimdall.lab
       - DNS_SERVER_ADMIN_PASSWORD_FILE=/run/secrets/technitium-admin-pw
       - DNS_SERVER_LOG_FOLDER_PATH=/var/log/technitium/dns
-      # Env vars apply ONLY on first start (when /etc/dns is empty).
-      # After first start, all config changes happen via the HTTP API
-      # (see Heimdall/scripts/seed-zones.sh for the additive-only seed pattern).
     volumes:
       - /opt/Homelab/Heimdall/technitium/config:/etc/dns
       - /opt/Homelab/Heimdall/technitium/logs:/var/log/technitium/dns
       - /opt/Homelab/Heimdall/secrets/technitium-admin-pw:/run/secrets/technitium-admin-pw:ro
+    logging:
+      driver: journald
+
+  # ─── Pi-hole DNS + Ad Blocking ──────────────────────────────────────────────────────
+  pihole:
+    image: pihole/pihole:2026.06.0
+    restart: unless-stopped
+    network_mode: host        # real client IPs for per-device stats
+    depends_on:
+      - technitium            # .lab forwarding target must be up
+    environment:
+      - TZ=America/Chicago
+      - WEBPASSWORD_FILE=/run/secrets/pihole-webpassword
+      - PIHOLE_DNS_=1.1.1.1;1.0.0.1
+      - FTLCONF_webserver_port=8180o,443os,[::]:8180o,[::]:443os
+      - FTLCONF_misc_etc_dnsmasq_d=true
+      - DNSSEC=true
+      - DNSMASQ_LISTENING=all
+      # Conditional forwarding handled by mounted dnsmasq config
+      # (02-lan.conf: server=/lab/127.0.0.1#5353)
+    volumes:
+      - /opt/Homelab/Heimdall/pihole/etc-pihole:/etc/pihole
+      - /opt/Homelab/Heimdall/pihole/etc-dnsmasq.d:/etc/dnsmasq.d
+      - /opt/Homelab/Heimdall/secrets/pihole-webpassword:/run/secrets/pihole-webpassword:ro
     logging:
       driver: journald
 
