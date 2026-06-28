@@ -130,12 +130,45 @@ comfyui.lab {
     }
 }
 
-# ─── Hermes Agent (Alfred) Dashboard ──────────────────────────────────────────────────
-# Proxies to the hermes-dashboard LoadBalancer (basic-auth protected nginx sidecar).
+# ─── Pi-hole Admin ────────────────────────────────────────────────────────────────────
+# Admin UI on 127.0.0.1:8180 (host-networked Docker container). Port 8180 is not
+# reachable from subnets outside 192.168.10.0/24 due to UniFi iGate filtering, so
+# Caddy proxies it on standard ports via pihole.lab.
+
+pihole.lab {
+    tls internal
+    reverse_proxy 127.0.0.1:8180
+}
+
+# ─── Technitium DNS Admin ─────────────────────────────────────────────────────────────
+# Admin UI on 127.0.0.1:5380 (localhost-only after Pi-hole took over :53). Same
+# reachability issue as Pi-hole — Caddy proxies it via technitium.lab.
+
+technitium.lab {
+    tls internal
+    reverse_proxy 127.0.0.1:5380
+}
+
+# ─── Alfred (Family AI Assistant) ───────────────────────────────────────────────────
+# Chat UI served from /data/alfred.html; API calls proxied to Hermes API server.
+
 alfred.lab {
     tls internal
-    reverse_proxy 192.168.10.52:80
+
+    handle /v1/* {
+        reverse_proxy http://192.168.10.101:31646
+    }
+    handle /health {
+        reverse_proxy http://192.168.10.101:31646
+    }
+
+    handle {
+        root * /data
+        try_files {path} /alfred.html
+        file_server
+    }
 }
+
 
 # ─── Phase 3 routes go below this line ────────────────────────────────────────────────
 #
