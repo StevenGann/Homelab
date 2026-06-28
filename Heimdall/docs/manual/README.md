@@ -32,6 +32,7 @@ You're sitting at your workstation, Heimdall is already deployed, and you want t
 | Look up a password / secret | `sops --decrypt Heimdall/secrets/env.sops.env` on the workstation |
 | See what broke after an edit | [06 — Troubleshooting](06-troubleshooting.md) |
 | Rebuild Heimdall from scratch | [`runbooks/reconstruction.md`](../runbooks/reconstruction.md) |
+| Recover the k3s cluster after a full-rack power cycle | [`runbooks/cluster-power-cycle-recovery.md`](../runbooks/cluster-power-cycle-recovery.md) |
 
 ## Conventions used in this manual
 
