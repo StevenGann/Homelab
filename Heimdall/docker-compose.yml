@@ -93,7 +93,7 @@ services:
       - TZ=America/Chicago
       - WEBPASSWORD_FILE=/run/secrets/pihole-webpassword
       - PIHOLE_DNS_=1.1.1.1;1.0.0.1
-      - FTLCONF_webserver_port=8180o,443os,[::]:8180o,[::]:443os
+      - FTLCONF_webserver_port=8180o,[::]:8180o
       - FTLCONF_misc_etc_dnsmasq_d=true
       - FTLCONF_dns_listeningMode=ALL
       - DNSSEC=true
