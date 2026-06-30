@@ -36,15 +36,15 @@ spec:
             - { name: temp,    mountPath: /temp }                          # emptyDir for now (see note)
             - { name: tv,      mountPath: /data/media/tv,     readOnly: true }   # Akasha TV-Shows (NFS, RWX) — scan only
             - { name: movies,  mountPath: /data/media/movies, readOnly: true }   # Akasha Movies (NFS, RWX) — scan only
-          startupProbe:                  # generous for first-boot on slow arm64 storage
-            tcpSocket: { port: 8265 }
+          startupProbe:                  # httpGet detects HTTP-level hangs that tcpSocket misses
+            httpGet: { path: /, port: 8265 }
             failureThreshold: 30
             periodSeconds: 10
           readinessProbe:
-            tcpSocket: { port: 8265 }
+            httpGet: { path: /, port: 8265 }
             periodSeconds: 15
           livenessProbe:
-            tcpSocket: { port: 8265 }
+            httpGet: { path: /, port: 8265 }
             periodSeconds: 30
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
