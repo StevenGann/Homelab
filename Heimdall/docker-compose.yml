@@ -119,3 +119,20 @@ services:
       - /opt/Homelab/Heimdall/caddy/config:/config
     logging:
       driver: journald
+
+  # ─── Dynamic DNS (NoIP) — public A records for stevengann / the-elevator /
+  # the-monolith .ddns.net. This is the real public-DNS path (Caddyfile points
+  # jf.stevengann.com → monolith.ddns.net). Config (3 NoIP host creds) is
+  # SOPS-encrypted at Heimdall/secrets/ddns-config.json.sops and shipped by
+  # deploy.sh to the data dir below. Captured into git 2026-07-04 — was a
+  # host-only orphan container (DR report C3).
+  ddns-updater:
+    image: qmcgaw/ddns-updater:v2.10.0
+    restart: unless-stopped
+    environment:
+      - PERIOD=15m
+      - CONFIG_FILEPATH=/updater/data/config.json
+    volumes:
+      - /opt/Homelab/Heimdall/ddns-updater/data:/updater/data
+    logging:
+      driver: journald
