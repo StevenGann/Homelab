@@ -6,7 +6,7 @@ the cluster on 2026-07-04. Runs the official multi-arch image on the Pi workers.
 | | |
 |---|---|
 | Image | `justarchi/archisteamfarm:6.3.7.0` (arm64) |
-| Web UI / IPC | `http://192.168.10.85` (also `:1242`, the native ASF port) — LoadBalancer |
+| Web UI / IPC | `http://192.168.10.86` (also `:1242`, the native ASF port) — LoadBalancer |
 | Auth | `IPCPassword` (in the SOPS secret) — required for the UI/API |
 | Node | `topology.kubernetes.io/zone=hyperion` (Pi workers) |
 | Storage | `asf-config` PVC (`local-path`, node-local) mounted at `/app/config` |
@@ -69,5 +69,5 @@ code via the web UI).
   migrated session valid, ASF logs in without prompting. If the session ever
   expires, submit the Steam Guard code through the IPC web UI.
 - No `asf.lab` DNS record yet — Technitium records live on Heimdall (not in this
-  repo). Use the raw IP, or add an A-record `asf.lab → 192.168.10.85` on
+  repo). Use the raw IP, or add an A-record `asf.lab → 192.168.10.86` on
   Heimdall's Technitium if you want the friendly name.

@@ -4,7 +4,7 @@ metadata:
   name: archisteamfarm
   namespace: archisteamfarm
   annotations:
-    metallb.io/loadBalancerIPs: 192.168.10.85
+    metallb.io/loadBalancerIPs: 192.168.10.86
 spec:
   type: LoadBalancer
   selector:
@@ -14,7 +14,7 @@ spec:
     - name: ipc
       port: 1242
       targetPort: 1242
-    # Convenience: friendly http://192.168.10.85 with no port.
+    # Convenience: friendly http://192.168.10.86 with no port.
     - name: http
       port: 80
       targetPort: 1242
