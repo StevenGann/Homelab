@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: nextcloud
   namespace: nextcloud
-  annotations: { metallb.io/loadBalancerIPs: 192.168.10.82 }
+  annotations: { metallb.io/loadBalancerIPs: 192.168.10.87 }   # moved off .82 (komga holds it)
 spec:
   type: LoadBalancer
   selector: { app: nextcloud }
