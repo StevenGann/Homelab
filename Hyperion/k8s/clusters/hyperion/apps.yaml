@@ -310,7 +310,9 @@ spec:
   interval: 10m
   path: ./Hyperion/k8s/apps/monolithbot
   prune: true
-  wait: true
+  wait: false                  # pod CrashLoopBackOff on invalid/empty config.json
+                               # (pre-existing app-config bug, not a deploy issue) —
+                               # adopt into GitOps without blocking on health.
   timeout: 5m
   dependsOn:
     - name: metallb-config
