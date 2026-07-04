@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: asf-config
+  namespace: archisteamfarm
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path     # k3s default provisioner (node-local hostPath)
+  resources:
+    requests:
+      storage: 1Gi

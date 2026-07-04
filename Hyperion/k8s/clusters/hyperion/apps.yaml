@@ -227,3 +227,24 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: archisteamfarm
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/archisteamfarm
+  prune: true
+  wait: true
+  timeout: 10m                 # arm64 image pull + .NET first-boot + Steam login
+  dependsOn:
+    - name: metallb-config     # needs the MetalLB pool for the LoadBalancer IP
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:                  # SOPS-encrypted Steam creds + IPC password + seeded .db session
+    provider: sops
+    secretRef:
+      name: sops-age

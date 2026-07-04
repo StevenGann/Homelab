@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archisteamfarm
+  namespace: archisteamfarm
+  labels:
+    app: archisteamfarm
+spec:
+  replicas: 1
+  # RWO local-path PVC + node-local data → Recreate (a RollingUpdate would
+  # deadlock: the new pod can't mount the PVC while the old pod holds it).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: archisteamfarm
+  template:
+    metadata:
+      labels:
+        app: archisteamfarm
+    spec:
+      nodeSelector:
+        topology.kubernetes.io/zone: hyperion   # Pi workers (reachable networking)
+      # seed-config: hydrate the PVC from the SOPS-decrypted `asf-seed` Secret.
+      #   - *.db / *.cache  → session state: copied ONCE, then ASF owns it
+      #                       (never clobber a live Steam login on restart).
+      #   - *.json / IPC.config → config: git is the source of truth, refreshed
+      #                       every start. Edit config in git, NOT via the IPC UI.
+      # k8s Secret keys can't contain spaces, so "Main Bot.*" is stored as
+      # "Main_Bot.*" and renamed to the exact ASF filename here.
+      initContainers:
+        - name: seed-config
+          image: busybox:1.37.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              cd /app/config
+              # --- session state: seed once, never overwrite ---
+              [ -f "ASF.db" ]                 || cp "/seed/ASF.db"                "ASF.db"
+              [ -f "Main Bot.db" ]            || cp "/seed/Main_Bot.db"          "Main Bot.db"
+              [ -f "SteamTokenDumper.cache" ] || cp "/seed/SteamTokenDumper.cache" "SteamTokenDumper.cache"
+              # --- config: git-authoritative, refresh every start ---
+              cp "/seed/ASF.json"      "ASF.json"
+              cp "/seed/IPC.config"    "IPC.config"
+              cp "/seed/Main_Bot.json" "Main Bot.json"
+              # ASF runs as UID 1000 (asf); make everything owned/readable by it.
+              chown -R 1000:1000 /app/config
+          volumeMounts:
+            - { name: config, mountPath: /app/config }
+            - { name: seed, mountPath: /seed, readOnly: true }
+      containers:
+        - name: archisteamfarm
+          image: justarchi/archisteamfarm:6.3.7.0
+          ports:
+            - name: ipc
+              containerPort: 1242
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+          # .NET cold-start + Steam login on a Pi can take a while; give it room
+          # before liveness starts killing it.
+          startupProbe:
+            tcpSocket: { port: 1242 }
+            periodSeconds: 5
+            failureThreshold: 40      # up to ~200s to first accept on :1242
+          livenessProbe:
+            tcpSocket: { port: 1242 }
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket: { port: 1242 }
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 768Mi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: asf-config
+        - name: seed
+          secret:
+            secretName: asf-seed

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: archisteamfarm
+  namespace: archisteamfarm
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.10.81
+spec:
+  type: LoadBalancer
+  selector:
+    app: archisteamfarm
+  ports:
+    # Native ASF IPC port (matches upstream docs / ASF client tooling).
+    - name: ipc
+      port: 1242
+      targetPort: 1242
+    # Convenience: friendly http://192.168.10.81 with no port.
+    - name: http
+      port: 80
+      targetPort: 1242
