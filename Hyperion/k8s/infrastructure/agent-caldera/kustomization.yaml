@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: agent-caldera
 resources:
   - namespace.yaml
+  - secret.sops.yaml
   - pvc-vault.yaml
   - pvc-data.yaml
   - deployment.yaml

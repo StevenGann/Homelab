@@ -66,3 +66,23 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+  decryption:                  # SOPS-encrypted agent-caldera-secrets (recovered 2026-07-04)
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+# Adopted 2026-07-04: beszel-agent DaemonSet (ns hermes) was running unmanaged.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: beszel-agent
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/infrastructure/beszel-agent
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
