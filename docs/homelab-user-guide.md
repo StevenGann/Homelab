@@ -98,6 +98,7 @@ usually never need to touch these. Admin/power-user territory.
 | App | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
 | **Pterodactyl** | [pterodactyl.lab](http://pterodactyl.lab) | [192.168.10.69](http://192.168.10.69) | Game-server management panel. Create/manage servers (Minecraft, Rust, etc.). Game servers themselves run on dedicated "Wings" hosts (added separately). **Login required.** |
+| **ArchiSteamFarm** | [asf.lab:1242](http://asf.lab:1242) | [192.168.10.86:1242](http://192.168.10.86:1242) | Steam trading-card farmer — idles your Steam library to collect cards automatically. **Login required** (IPC password — ask the admin). Migrated from a workstation into the cluster July 2026. |
 
 ## 🛠️ Infrastructure (advanced — platform admins only)
 

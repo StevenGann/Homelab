@@ -98,6 +98,7 @@ RECORDS=(
     "monolithbot.lab|A|192.168.10.79"   # :80    (Discord bot admin UI)
     "mqttexplorer.lab|A|192.168.10.81"  # :80    (MQTT Explorer web UI)
     "nextcloud.lab|A|192.168.10.82"       # :80    (NextCloud file sync & share)
+    "asf.lab|A|192.168.10.86"             # :1242  (ArchiSteamFarm — Steam card farmer)
 )
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────────────
