@@ -1,14 +1,16 @@
 # Heimdall — Compose stack
 #
-# Four services. Komodo Periphery is NOT here — it's a host systemd binary installed by
+# Six services. Komodo Periphery is NOT here — it's a host systemd binary installed by
 # Heimdall/scripts/setup.sh (the "five things to manage" architectural choice; see the
 # pipeline-run FINAL.md).
 #
 # Bring-up order (resolved by depends_on + restart policies):
 #   1. mongo               (komodo-core depends on it)
 #   2. komodo-core         (manages the rest via the local Periphery)
-#   3. technitium          (host networking; needs port 53)
-#   4. caddy               (host networking; binds 80, 443, 443/udp, plus L4 ports)
+#   3. technitium          (bridge net :5353; .lab authoritative + fwd 1.1.1.1/8.8.8.8)
+#   4. pihole              (host networking; owns :53; forwards .lab -> technitium)
+#   5. caddy               (host networking; binds 80, 443, 443/udp, plus L4 ports)
+#   6. ddns-updater        (NoIP dynamic DNS for the public .ddns.net domains)
 
 services:
 
