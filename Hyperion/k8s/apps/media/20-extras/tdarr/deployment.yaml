@@ -36,16 +36,20 @@ spec:
             - { name: temp,    mountPath: /temp }                          # emptyDir for now (see note)
             - { name: tv,      mountPath: /data/media/tv,     readOnly: true }   # Akasha TV-Shows (NFS, RWX) — scan only
             - { name: movies,  mountPath: /data/media/movies, readOnly: true }   # Akasha Movies (NFS, RWX) — scan only
-          startupProbe:                  # httpGet detects HTTP-level hangs that tcpSocket misses
+          startupProbe:                  # httpGet detects HTTP-level hangs that tcpSocket misses; 30s delay + 10s timeout — Node.js event loop blocks during NFS I/O (scanner/encoder tests scan media over NFS)
             httpGet: { path: /, port: 8265 }
             failureThreshold: 30
+            initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 10
           readinessProbe:
             httpGet: { path: /, port: 8265 }
             periodSeconds: 15
+            timeoutSeconds: 10
           livenessProbe:
             httpGet: { path: /, port: 8265 }
             periodSeconds: 30
+            timeoutSeconds: 10
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1",    memory: "512Mi" }   # server does no transcoding — stays light
