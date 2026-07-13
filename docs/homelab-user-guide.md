@@ -16,6 +16,12 @@ link here as admin access — please don't change settings you don't understand.
 > network do automatically. **If a `.lab` link doesn't load, use the Direct
 > (IP:port) link in the next column** and check with an admin that your DNS is
 > pointed at `192.168.10.4`. All `.lab` links are plain `http://` (no HTTPS yet).
+>
+> ⚠️ **If a whole device can't reach *anything* homelab** — no `.lab` names, no
+> services even by raw IP — but its own subnet and the internet work fine, the
+> usual culprit is a **full-tunnel VPN** on that device (e.g. PIA) swallowing
+> cross-subnet traffic. Add the home subnets as split-tunnel/bypass rules. Full
+> diagnosis: [`troubleshoot-client-lan-connectivity.md`](runbooks/troubleshoot-client-lan-connectivity.md).
 
 > 💡 **Start here:** **[http://homarr.lab](http://homarr.lab)** (or
 > [192.168.10.53:7575](http://192.168.10.53:7575)) — the homelab home page; it
