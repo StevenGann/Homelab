@@ -93,10 +93,12 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 3
           livenessProbe:
-            tcpSocket: { port: 8085 }
+            httpGet:
+              path: /             # root returns 200 without auth; /api/v2/app/version returns 403 on LSIO images
+              port: 8085
             initialDelaySeconds: 180
             periodSeconds: 30
-            timeoutSeconds: 5
+            timeoutSeconds: 10   # 2026-07-15: 5s→10s (Pi 5 + NFS config can slow first byte)
             failureThreshold: 3
           resources:
             requests: { cpu: "100m", memory: "1Gi" }  # 1Gi request auto-excludes 4GB nodes
