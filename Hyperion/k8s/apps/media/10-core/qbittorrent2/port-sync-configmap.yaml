@@ -59,13 +59,6 @@ data:
       [ "$_code" = "200" ]
     }
 
-    # ── wait for gluetun to publish the forwarded port ─────────────────────────
-    waited=0
-    while [ ! -f "$PORT_FILE" ] && [ $waited -lt $MAX_WAIT ]; do
-      sleep $POLL_INTERVAL; waited=$((waited + POLL_INTERVAL))
-    done
-    [ -f "$PORT_FILE" ] || { log "no $PORT_FILE after ${MAX_WAIT}s — exiting (s6 will retry)"; exit 1; }
-
     # ── wait for the WebUI to be up + authenticated (never kill it) ─────────────
     _w=0
     until webui_ready; do
@@ -75,12 +68,21 @@ data:
     done
     log "WebUI ready"
 
-    # ── fix AuthSubnetWhitelist via API (QSettings adds spaces on save, which
-    #    may break subnet parsing — the API sets the correct format in-memory)
+    # ── fix AuthSubnetWhitelist via API BEFORE forwarded_port wait ─────────────
+    #    kubelet httpGet probes (readiness + liveness) need the whitelist active
+    #    as early as possible. QSettings adds spaces on config-save which may
+    #    break subnet parsing — the API sets the correct format in-memory.
     _code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${QBIT_API}/app/setPreferences" \
       --data-urlencode 'json={"bypass_auth_subnet_whitelist":"127.0.0.1,10.42.0.0/16,10.43.0.0/16,192.168.10.0/24","bypass_auth_subnet_whitelist_enabled":true}' 2>/dev/null)
     if [ "$_code" = "200" ]; then log "AuthSubnetWhitelist set via API"
     else log "AuthSubnetWhitelist API returned $_code (non-fatal)"; fi
+
+    # ── wait for gluetun to publish the forwarded port ─────────────────────────
+    waited=0
+    while [ ! -f "$PORT_FILE" ] && [ $waited -lt $MAX_WAIT ]; do
+      sleep $POLL_INTERVAL; waited=$((waited + POLL_INTERVAL))
+    done
+    [ -f "$PORT_FILE" ] || { log "no $PORT_FILE after ${MAX_WAIT}s — exiting (s6 will retry)"; exit 1; }
 
     # ── sync loop: apply on first pass + whenever the forwarded port changes ────
     LAST=""
