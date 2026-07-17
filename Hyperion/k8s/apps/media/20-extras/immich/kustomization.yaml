@@ -10,3 +10,4 @@ resources:
   - redis.yaml
   - ml.yaml
   - server.yaml
+  - ml-service-alias.yaml

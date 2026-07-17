@@ -1,0 +1,20 @@
+# Immich v3 hardcodes "immich-machine-learning" as the ML hostname in some
+# internal paths. The main Service is "immich-ml" (ml.yaml) — this alias
+# ensures both names resolve to the same ML pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: immich-machine-learning
+  namespace: media
+  labels:
+    app: immich
+    component: ml
+spec:
+  type: ClusterIP
+  selector:
+    app: immich
+    component: ml
+  ports:
+    - name: http
+      port: 3003
+      targetPort: 3003
