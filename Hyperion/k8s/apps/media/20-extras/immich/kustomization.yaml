@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: media
+resources:
+  - secret.sops.yaml
+  - pv-library.yaml
+  - pvc-library.yaml
+  - pvc-postgres.yaml
+  - postgres.yaml
+  - redis.yaml
+  - ml.yaml
+  - server.yaml

@@ -71,6 +71,12 @@ usually never need to touch these. Admin/power-user territory.
 
 ---
 
+## 🖼 Photo & Video Management
+
+| App | Link | Direct (IP:port) | What it is for |
+|---|---|---|---|
+| **Immich** | [immich.lab](https://immich.lab) | [192.168.10.88:2283](http://192.168.10.88:2283) | Self-hosted Google Photos alternative â automatic phone backup, face recognition, albums, search. Photo library stored on Akasha (TrueNAS NFS). |
+
 ## 📊 Dashboards & Monitoring
 
 | App | Link | Direct (IP:port) | What it's for |

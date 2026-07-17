@@ -10,5 +10,6 @@ resources:
   - tdarr
   - kapowarr
   - youtarr
+  - immich
   - komga
   - navidrome
