@@ -111,7 +111,7 @@ services:
 
   # ─── Caddy (custom image with caddy-l4 plugin) ──────────────────────────────────────
   caddy:
-    image: ghcr.io/stevengann/homelab-heimdall-caddy:v2.11.3-l4-0.1.1
+    image: ghcr.io/stevengann/homelab-heimdall-caddy:v2.11.3-l4-0.1.2
     restart: unless-stopped
     network_mode: host        # required for L4 source-IP preservation on game traffic
                               # (iter-1 known concern #1)
