@@ -6,7 +6,7 @@ metadata:
   labels: { app: tdarr }
 spec:
   replicas: 1
-  strategy: { type: Recreate }          # RWO local-path server/configs pins to a node
+  strategy: { type: Recreate }          # server RWO local-path pins to a node; configs/logs RWX NFS spare
   selector:
     matchLabels: { app: tdarr }
   template:
@@ -36,22 +36,34 @@ spec:
             - { name: temp,    mountPath: /temp }                          # emptyDir for now (see note)
             - { name: tv,      mountPath: /data/media/tv,     readOnly: true }   # Akasha TV-Shows (NFS, RWX) — scan only
             - { name: movies,  mountPath: /data/media/movies, readOnly: true }   # Akasha Movies (NFS, RWX) — scan only
-          startupProbe:                  # generous for first-boot on slow arm64 storage
-            tcpSocket: { port: 8265 }
+          startupProbe:                  # httpGet still used for startup — verifies real HTTP responsiveness before
+            httpGet: { path: /, port: 8265 }               # declaring ready (scanner tests ~2m + encoder tests ~40s over NFS)
             failureThreshold: 30
+            initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 10
           readinessProbe:
-            tcpSocket: { port: 8265 }
-            periodSeconds: 15
+            tcpSocket: { port: 8265 }                      # 2026-07-13: switched from httpGet -> tcpSocket — NFS I/O on
+            periodSeconds: 15                               # media volumes blocks the Node.js event loop during library scans,
+            timeoutSeconds: 10                              # causing httpGet "context deadline exceeded". tcpSocket detects
+                                                            # event-loop hangs at the kernel accept-queue level without
+                                                            # depending on HTTP response. (cf. Radarr 2026-06-06 fix for
+                                                            # identical NFS probe death spiral.)
           livenessProbe:
-            tcpSocket: { port: 8265 }
-            periodSeconds: 30
+            tcpSocket: { port: 8265 }                       # tcpSocket — avoids NFS-I/O + probe death spiral (2026-07-13 fix).
+            initialDelaySeconds: 120                         # Wait 2m before first check (avoids startup-probe race; startup
+            periodSeconds: 30                                # probe window is 300s max, real startup is ~160s).
+            timeoutSeconds: 10
+            failureThreshold: 5                              # 150s (5 × 30s) before kill — give the event loop time to
+                                                             # self-recover from transient NFS latency spikes.
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
-            limits:   { cpu: "1",    memory: "512Mi" }   # server does no transcoding — stays light
+            limits:   { cpu: "1",    memory: "1Gi" }     # 2026-07-13: 512Mi → 1Gi — event-loop blocks during NFS I/O are
+                                                             # worsened by GC pauses when memory is tight. 512Mi was tightest
+                                                             # in the cluster. Radarr is 1536Mi, Sonarr 1Gi, Cleanuparr 768Mi.
       volumes:
         - name: server
-          persistentVolumeClaim: { claimName: tdarr-server }
+          persistentVolumeClaim: { claimName: tdarr-server-data }
         - name: configs
           persistentVolumeClaim: { claimName: tdarr-configs }
         - name: logs

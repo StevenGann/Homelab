@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alfred — Home Assistant</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+  header { background: #16213e; padding: 16px 24px; border-bottom: 2px solid #0f3460; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 1.2rem; color: #e94560; }
+  header span { font-size: 0.8rem; color: #888; }
+  #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .msg.user { align-self: flex-end; background: #0f3460; color: #fff; }
+  .msg.alfred { align-self: flex-start; background: #16213e; border: 1px solid #0f3460; }
+  .msg.alfred.error { border-color: #e94560; color: #e94560; }
+  #input-area { padding: 16px 24px; background: #16213e; border-top: 2px solid #0f3460; display: flex; gap: 12px; }
+  #input-area input { flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; font-size: 1rem; }
+  #input-area input:focus { outline: none; border-color: #e94560; }
+  #input-area button { padding: 12px 24px; border-radius: 8px; border: none; background: #e94560; color: #fff; font-size: 1rem; cursor: pointer; font-weight: 600; }
+  #input-area button:hover { background: #c73e54; }
+  #input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .thinking { color: #666; font-style: italic; padding: 8px 16px; align-self: flex-start; }
+  #login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #1a1a2e; display: flex; align-items: center; justify-content: center; z-index: 100; }
+  #login-box { background: #16213e; padding: 32px; border-radius: 12px; border: 1px solid #0f3460; text-align: center; }
+  #login-box h2 { color: #e94560; margin-bottom: 8px; }
+  #login-box p { color: #888; margin-bottom: 20px; font-size: 0.9rem; }
+  #login-box input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; font-size: 1rem; margin-bottom: 12px; text-align: center; }
+  #login-box button { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #e94560; color: #fff; font-size: 1rem; cursor: pointer; font-weight: 600; }
+  #login-error { color: #e94560; margin-top: 8px; font-size: 0.85rem; display: none; }
+</style>
+</head>
+<body>
+
+<div id="login-overlay">
+  <div id="login-box">
+    <h2>Alfred</h2>
+    <p>Home Assistant</p>
+    <input type="password" id="password" placeholder="Enter password" autofocus>
+    <button onclick="login()">Sign In</button>
+    <div id="login-error">Incorrect password</div>
+  </div>
+</div>
+
+<header>
+  <h1>Alfred</h1>
+  <span>Your Home Assistant</span>
+</header>
+
+<div id="messages">
+  <div class="msg alfred">Good evening! I'm Alfred, your home assistant. How can I help you today?</div>
+</div>
+
+<div id="input-area">
+  <input type="text" id="user-input" placeholder="Ask Alfred something..." onkeydown="if(event.key==='Enter') send()">
+  <button onclick="send()" id="send-btn">Send</button>
+</div>
+
+<script>
+let authToken = sessionStorage.getItem('alfred_token');
+let messages = [];
+
+if (authToken) {
+  document.getElementById('login-overlay').style.display = 'none';
+}
+
+async function login() {
+  const pw = document.getElementById('password').value;
+  const resp = await fetch('/v1/models', {
+    headers: { 'Authorization': 'Bearer ' + pw }
+  });
+  if (resp.ok) {
+    authToken = pw;
+    sessionStorage.setItem('alfred_token', pw);
+    document.getElementById('login-overlay').style.display = 'none';
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+
+function addMsg(text, cls) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + cls;
+  div.textContent = text;
+  document.getElementById('messages').appendChild(div);
+  document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+
+function addThinking() {
+  const div = document.createElement('div');
+  div.className = 'thinking';
+  div.id = 'thinking-indicator';
+  div.textContent = 'Alfred is thinking...';
+  document.getElementById('messages').appendChild(div);
+  document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+
+function removeThinking() {
+  const el = document.getElementById('thinking-indicator');
+  if (el) el.remove();
+}
+
+async function send() {
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.disabled = true;
+  document.getElementById('send-btn').disabled = true;
+
+  addMsg(text, 'user');
+  messages.push({ role: 'user', content: text });
+  addThinking();
+
+  try {
+    const resp = await fetch('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+      body: JSON.stringify({ model: 'alfred', messages: messages })
+    });
+
+    removeThinking();
+
+    if (!resp.ok) {
+      addMsg('Error: ' + resp.status + ' ' + (await resp.text()).slice(0, 200), 'alfred error');
+    } else {
+      const data = await resp.json();
+      const reply = data.choices?.[0]?.message?.content || '(no response)';
+      messages.push({ role: 'assistant', content: reply });
+      addMsg(reply, 'alfred');
+    }
+  } catch (e) {
+    removeThinking();
+    addMsg('Connection error: ' + e.message, 'alfred error');
+  }
+
+  input.disabled = false;
+  document.getElementById('send-btn').disabled = false;
+  input.focus();
+}
+</script>
+</body>
+</html>

@@ -190,3 +190,9 @@ alfred.lab {
 # Pattern for L4 (game servers etc.) — see the layer4 docs at github.com/mholt/caddy-l4
 # and adding-a-route.md for the JSON config form (or use the Caddyfile `layer4` directive
 # if the syntax has stabilized in your pinned plugin version).
+
+# ─── Immich (Photo/Video Management) ─────────────────────────────────────────────────
+immich.lab {
+    tls internal
+    reverse_proxy 192.168.10.88:2283
+}

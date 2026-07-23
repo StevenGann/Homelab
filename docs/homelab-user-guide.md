@@ -16,6 +16,12 @@ link here as admin access — please don't change settings you don't understand.
 > network do automatically. **If a `.lab` link doesn't load, use the Direct
 > (IP:port) link in the next column** and check with an admin that your DNS is
 > pointed at `192.168.10.4`. All `.lab` links are plain `http://` (no HTTPS yet).
+>
+> ⚠️ **If a whole device can't reach *anything* homelab** — no `.lab` names, no
+> services even by raw IP — but its own subnet and the internet work fine, the
+> usual culprit is a **full-tunnel VPN** on that device (e.g. PIA) swallowing
+> cross-subnet traffic. Add the home subnets as split-tunnel/bypass rules. Full
+> diagnosis: [`troubleshoot-client-lan-connectivity.md`](runbooks/troubleshoot-client-lan-connectivity.md).
 
 > 💡 **Start here:** **[http://homarr.lab](http://homarr.lab)** (or
 > [192.168.10.53:7575](http://192.168.10.53:7575)) — the homelab home page; it
@@ -65,6 +71,12 @@ usually never need to touch these. Admin/power-user territory.
 
 ---
 
+## 🖼 Photo & Video Management
+
+| App | Link | Direct (IP:port) | What it is for |
+|---|---|---|---|
+| **Immich** | [immich.lab](https://immich.lab) | [192.168.10.88:2283](http://192.168.10.88:2283) | Self-hosted Google Photos alternative â automatic phone backup, face recognition, albums, search. Photo library stored on Akasha (TrueNAS NFS). |
+
 ## 📊 Dashboards & Monitoring
 
 | App | Link | Direct (IP:port) | What it's for |
@@ -98,6 +110,7 @@ usually never need to touch these. Admin/power-user territory.
 | App | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
 | **Pterodactyl** | [pterodactyl.lab](http://pterodactyl.lab) | [192.168.10.69](http://192.168.10.69) | Game-server management panel. Create/manage servers (Minecraft, Rust, etc.). Game servers themselves run on dedicated "Wings" hosts (added separately). **Login required.** |
+| **ArchiSteamFarm** | [asf.lab:1242](http://asf.lab:1242) | [192.168.10.86:1242](http://192.168.10.86:1242) | Steam trading-card farmer — idles your Steam library to collect cards automatically. **Login required** (IPC password — ask the admin). Migrated from a workstation into the cluster July 2026. |
 
 ## 🛠️ Infrastructure (advanced — platform admins only)
 

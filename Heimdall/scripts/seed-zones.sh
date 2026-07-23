@@ -94,10 +94,21 @@ RECORDS=(
     "boxarr.lab|A|192.168.10.75"         # :8888  (box office → Radarr)
     "jellystat.lab|A|192.168.10.76"      # :3000  (Jellyfin statistics)
     "sortarr.lab|A|192.168.10.77"        # :8787  (media library analytics)
+    "immich.lab|A|192.168.10.4"        # Caddy reverse-proxy → LoadBalancer (photo/video management)
     "romm.lab|A|192.168.10.78"          # :8080  (ROM manager)
     "monolithbot.lab|A|192.168.10.79"   # :80    (Discord bot admin UI)
     "mqttexplorer.lab|A|192.168.10.81"  # :80    (MQTT Explorer web UI)
-    "nextcloud.lab|A|192.168.10.82"       # :80    (NextCloud file sync & share)
+    "nextcloud.lab|A|192.168.10.87"       # :80    (NextCloud — moved off .82 which komga took)
+    "asf.lab|A|192.168.10.86"             # :1242  (ArchiSteamFarm — Steam card farmer)
+    # ── Backfilled 2026-07-04 (were operator-UI-added / missing from git) ──
+    "komga.lab|A|192.168.10.82"           # :25600 (comic/manga server — holds .82)
+    "agent-caldera.lab|A|192.168.10.85"   # :8000  (agent shared-knowledge Caldera)
+    "guppi.lab|A|192.168.10.52"           # :80    (Hermes/Guppi AI agent)
+    "jeeves.lab|A|192.168.10.80"          # :80    (Jeeves AI agent)
+    "uptime-kuma.lab|A|192.168.10.51"     # :80    (alias for uptime.lab)
+    "pihole.lab|A|192.168.10.4"           # :80    (Pi-hole admin, Caddy-fronted)
+    "technitium.lab|A|192.168.10.4"       # :5380  (Technitium admin, Caddy-fronted)
+    "truenas.lab|A|192.168.10.247"        # alias for akasha.lab (TrueNAS)
 )
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────────────
@@ -302,6 +313,25 @@ add_record() {
         || die "Failed to add record $domain ($rtype $rdata)"
 }
 
+# ─── Recursion / upstream forwarders ─────────────────────────────────────────────────
+# Technitium is authoritative for .lab but ships with recursion=Deny /
+# forwarders=None. Since Pi-hole uses Technitium as its sole upstream, without
+# this the whole homelab loses EXTERNAL DNS (github.com etc. return REFUSED).
+# Captured as code after the 2026-07-04 outage. Idempotent (set is a no-op if
+# already correct).
+set_forwarders() {
+    local token=$1
+    log "Ensuring Technitium recursion=AllowOnlyForPrivateNetworks + forwarders=1.1.1.1,8.8.8.8"
+    retry_curl "set_forwarders" \
+        -X POST "$DNS_API/api/settings/set" \
+        -G --data-urlencode "token=$token" \
+              --data-urlencode "recursion=AllowOnlyForPrivateNetworks" \
+              --data-urlencode "forwarders=1.1.1.1, 8.8.8.8" \
+              --data-urlencode "forwarderProtocol=Udp" \
+        >/dev/null \
+        || die "Failed to set Technitium forwarders/recursion"
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────────────
 main() {
     log "Seeding Technitium zone '$ZONE' with ${#RECORDS[@]} record(s)."
@@ -310,6 +340,7 @@ main() {
     token=$(get_token)
 
     create_zone "$token" "$ZONE"
+    set_forwarders "$token"
 
     for rec in "${RECORDS[@]}"; do
         # Parse "name|type|rdata[|ttl]"

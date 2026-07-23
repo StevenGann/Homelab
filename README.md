@@ -255,5 +255,6 @@ Flux-decrypted Secrets have a required encryption form (encrypt only
 - **[`CLAUDE.md`](CLAUDE.md)** — operator/agent conventions; the authoritative Hyperion architecture notes.
 - **[`docs/design/`](docs/design/)** — ADRs and planning docs (e.g. ADR-0002 control-plane networking, ADR-0003 Longhorn deferred, the Thoth and \*arr-stack plans).
 - **[`docs/agent-notes/`](docs/agent-notes/)** — durable Pi/Linux/IaC facts that survive each planning pipeline.
+- **[`docs/runbooks/`](docs/runbooks/)** — repo-wide runbooks: [disaster recovery](docs/runbooks/disaster-recovery.md), [key backup & recovery](docs/runbooks/key-backup-and-recovery.md), and [client can't reach homelab services across subnets](docs/runbooks/troubleshoot-client-lan-connectivity.md).
 - **[`TEAM.md`](TEAM.md)** / **[`PIPELINES.md`](PIPELINES.md)** — the standing agent-team roster and the DEVELOPMENT/DEBUGGING orchestration used to design changes.
 - Per-host docs: [`Heimdall/docs/manual/`](Heimdall/docs/manual/README.md), [`Thoth/README.md`](Thoth/README.md), [`Hyperion/docs/runbooks/`](Hyperion/docs/runbooks/), [`Akasha/docs/runbooks/`](Akasha/docs/runbooks/).

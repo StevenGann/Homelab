@@ -1,37 +1,33 @@
-# Tdarr server DB / configs / logs on Akasha NFS (Application-Storage), NOT
-# node-local. 2026-06-05 storage migration: no Hyperion service keeps persistent
-# data on a node's local NVMe (see docs/storage-audit-2026-06-05.md). The old
-# "DB must NOT run over NFS" note is superseded by the mandate — Tdarr's NeDB
-# store works over NFSv4.1 `hard` mounts with locking. Static PV+PVC follows the
-# akasha-*-nfs convention in media/00-storage/. PVC names unchanged.
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: akasha-app-media-tdarr-server
-  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
-spec:
-  capacity: { storage: 5Gi }
-  accessModes: [ReadWriteMany]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  volumeMode: Filesystem
-  claimRef: { namespace: media, name: tdarr-server }
-  mountOptions: [nfsvers=4.1, hard, noatime]
-  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/tdarr-server }
+# Tdarr server data — NeDB database on node-local local-path (/mnt/node-storage).
+# 2026-07-13: Rolled back from Akasha NFS to local-path. Tdarr's Node.js event
+# loop blocks on NFS I/O during NeDB reads/writes, causing liveness-probe kills
+# (29 restarts in 10h — the same NFS death spiral that hit sonarr/radarr/lidarr/
+# prowlarr in June 2026 and was fixed by local-path). See ADR-0003.
+#
+# The Akasha NFS copy at /mnt/Media-Storage/Application-Storage/media/tdarr-server
+# is preserved as a cold backup under the orphaned Retain PV
+# akasha-app-media-tdarr-server. To restore: scale deployment → 0, mount both
+# PVCs to a debug pod, copy NFS → local PVC, scale up.
+#
+# local-path is WaitForFirstConsumer + node-pinned: the PV (and therefore the
+# pod, via node affinity) stays on whichever worker it was first provisioned on.
+# prune:disabled so an accidental git removal can't delete the volume (local-path
+# reclaimPolicy is Delete).
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: tdarr-server
+  name: tdarr-server-data
   namespace: media
   annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteMany]
-  storageClassName: ""
-  volumeName: akasha-app-media-tdarr-server
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
   resources: { requests: { storage: 5Gi } }
 ---
+# Tdarr configs on Akasha NFS (read-mostly, soft mounts for fast failure).
+# soft,timeo=100,retrans=2 -> ~30s total timeout before EIO instead of hanging
+# the Node.js event loop indefinitely during an NFS stall.
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -44,7 +40,7 @@ spec:
   storageClassName: ""
   volumeMode: Filesystem
   claimRef: { namespace: media, name: tdarr-configs }
-  mountOptions: [nfsvers=4.1, hard, noatime]
+  mountOptions: [nfsvers=4.1, soft, timeo=100, retrans=2, noatime]
   nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/tdarr-configs }
 ---
 apiVersion: v1
@@ -59,6 +55,7 @@ spec:
   volumeName: akasha-app-media-tdarr-configs
   resources: { requests: { storage: 1Gi } }
 ---
+# Tdarr logs on Akasha NFS (append-only — safe with soft mounts).
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -71,7 +68,7 @@ spec:
   storageClassName: ""
   volumeMode: Filesystem
   claimRef: { namespace: media, name: tdarr-logs }
-  mountOptions: [nfsvers=4.1, hard, noatime]
+  mountOptions: [nfsvers=4.1, soft, timeo=100, retrans=2, noatime]
   nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/tdarr-logs }
 ---
 apiVersion: v1

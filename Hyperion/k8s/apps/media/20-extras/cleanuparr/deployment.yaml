@@ -46,12 +46,11 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 15              # .NET app — default 1s masks threadpool/GC stalls
           readinessProbe:
-            httpGet: { path: /health/ready, port: 11011 }
-            periodSeconds: 15
-            timeoutSeconds: 15              # /health/ready checks downstream services (e.g. qbittorrent);
-                                           # 5s was too tight — generated 4045 "context deadline
-                                           # exceeded" events in 9d even when downstream was healthy
-            failureThreshold: 5             # 75s before NotReady (5×15s); survive transient HttpClient stalls
+            httpGet: { path: /health, port: 11011 }     # /health, NOT /health/ready — avoid single-client
+            periodSeconds: 15                          # failures (e.g. qbittorrent) cascading into
+            timeoutSeconds: 15                         # endpoint-drop + MetalLB route-withdrawal.
+            failureThreshold: 5                        # App-level health still exposed at /health/ready
+                                                       # for watchdog monitoring (2026-07-10)
           livenessProbe:
             httpGet: { path: /health, port: 11011 }
             periodSeconds: 30

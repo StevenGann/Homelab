@@ -1,7 +1,10 @@
 # SSO for Friend/Family-Facing Services — Implementation Plan
 
 > **Status:** Identity-plane IaC SCAFFOLDED 2026-06-02 (Authentik + blueprints +
-> Homarr OIDC + Caddy/DNS wiring committed; not yet deployed). Bring-up:
+> Homarr OIDC + Caddy/DNS wiring committed; **not yet deployed**). A 2026-07-04
+> repo-vs-live review found the scaffold ~90% complete but with **three deploy
+> blockers** — see the new **[§0 Pre-changeover checklist](#0-pre-changeover-operator-checklist--read-first-2026-07-04-review)**
+> (READ FIRST) before running `deploy.sh`. Bring-up:
 > [`Heimdall/docs/runbooks/sso-bring-up.md`](../../Heimdall/docs/runbooks/sso-bring-up.md).
 > Locked operator decisions (2026-06-01 → 2026-06-02): **IdP = Authentik; IdP
 > placement = Heimdall. Remote access = the operator's existing VPN** (NOT public
@@ -15,6 +18,81 @@
 > The Authentik pieces live under `Heimdall/` (compose + `scripts/deploy.sh` pattern,
 > same as Caddy/Technitium/Komodo); per-app OIDC client config lands in the app's
 > existing `Hyperion/k8s/` manifest tree.
+
+---
+
+## 0. Pre-changeover operator checklist — READ FIRST (2026-07-04 review)
+
+A repo-vs-live review confirmed the scaffold is real and mostly complete, but it
+is **not deploy-ready as-is**. Insert this as **Phase 0**, ahead of §6's Phase 1.
+**Do not run `deploy.sh` expecting a working IdP until the 🔴 items are cleared** —
+`deploy.sh` currently brings Authentik up **unconditionally**, so any stray deploy
+(e.g. a Caddy/DNS change) will start a half-configured stack.
+
+### 🔴 Blockers — clear these before the first real Authentik boot
+
+1. **The machine secrets are not on Heimdall.** *Verified 2026-07-04:* the shipped
+   `/opt/Homelab/Heimdall/.env` contains **no `AUTHENTIK_*` variables**. A deploy
+   today would start Postgres with an **empty password** and Authentik with an
+   **empty `AUTHENTIK_SECRET_KEY`** (which refuses to boot).
+   - **YOU must:** `cd Heimdall && sops -d secrets/env.sops.env` and confirm it
+     defines **all** of: `AUTHENTIK_SECRET_KEY`, `AUTHENTIK_PG_PASS`,
+     `AUTHENTIK_BOOTSTRAP_PASSWORD`, `AUTHENTIK_BOOTSTRAP_TOKEN`,
+     `AUTHENTIK_HOMARR_CLIENT_ID`, `AUTHENTIK_HOMARR_CLIENT_SECRET`. Generate any
+     missing values (`openssl rand -base64 60` for the key/passwords), re-encrypt,
+     then run `deploy.sh` **with secrets** so the updated `.env` is shipped.
+     *(This is the #1 blocker and only you can do it — it needs the operator age key.)*
+2. **The LDAP firewall is closed.** `Heimdall/hostconf/nftables.conf` has **no
+   389/636 rule**, so Jellyfin on Akasha (`192.168.10.247`) cannot reach the LDAP
+   outpost at `192.168.10.4:389` — which **blocks Phase 2, the highest-value
+   integration**. Needs `ip saddr 192.168.10.0/24 tcp dport { 389, 636 } accept`.
+   *(Small repo change — can be committed for you.)*
+3. **`deploy.sh` starts Authentik unconditionally.** Gate the Authentik block
+   behind a sentinel (mirror cloudflared's `if [ -f .../credentials.json ]`) so it
+   only comes up when you intend it to. *(Small repo change — can be committed for you.)*
+
+### 🟡 Operator prerequisites (hands-on, outside this repo)
+
+- **Install the Jellyfin LDAP plugin** and point it at `192.168.10.4:389` in
+  Jellyfin's UI on **Akasha (TrueNAS)** — the highest-value consumer, not IaC-able
+  (runbook §3). **Verify login in the mobile/TV app, not just the web UI.**
+- **Break-glass:** keep a **local Jellyfin admin** account *outside* LDAP so an
+  Authentik/Heimdall outage can't lock you (and friends) out of Jellyfin.
+- **After first apply,** copy `AUTHENTIK_LDAP_OUTPOST_TOKEN` from the Authentik UI
+  (Applications → Outposts → LDAP) into `secrets/env.sops.env`, then redeploy.
+- **Public tier only — safe to DEFER:** create a Cloudflare account + move
+  `stevengann.com` nameservers at Namecheap; `cloudflared tunnel create` → ship
+  `secrets/cloudflared-credentials.sops` + the tunnel UUID into `config.yml`; add
+  the UCG port-forwards for `jf`/`mc`/`se`.
+
+### Decisions to lock before building
+- **Navidrome disposition** — web-only share vs. separate password vs. push
+  friends to Jellyfin for music (Subsonic clients can't use the IdP; §3).
+- **How far forward-auth extends** over admin apps — a uniform login wall, or leave
+  them on current per-app auth (LAN/VPN already gates them). Native-client apps
+  (Jellyfin/Navidrome) must stay **off** forward-auth/Cloudflare Access.
+
+### Revised sequencing
+Phases **1–4** (Authentik → LDAP outpost → Jellyfin **mobile** login → Seerr
+inherits) deliver ~80% of the value and need **no Cloudflare / public domain** —
+do these first. Defer the entire public/tunnel tier (Phases 5+) until the VPN/LAN
+tier is proven end-to-end.
+
+### Review notes (context, not blockers)
+- **Heimdall has ample headroom** (23 GB RAM free, load ~0.2 as of 2026-07-04), so
+  the §4 rationale "keep Authentik's Postgres/Redis/worker off the Pi workers still
+  mid NixOS pivot" is now **moot** — the NixOS pivot is complete and all nodes are
+  `Ready`. Placement-on-Heimdall still stands (identity belongs with the edge proxy
+  + DNS), just for that reason rather than Pi resource pressure.
+- **Availability concentration:** Heimdall now hosts DNS + reverse proxy + k3s
+  control plane + (soon) SSO. Once shared apps depend on LDAP, a Heimdall outage
+  logs friends out — the break-glass local Jellyfin admin above is the mitigation.
+- **Version:** pinned `2026.5.2` (chosen 2026-06-02, ~a month stale). Fine to deploy,
+  but Authentik runs **DB migrations** on upgrade — pin by digest after first pull
+  and bump deliberately.
+- **Docs drift to reconcile:** `CLAUDE.md`'s network table and `README.md` imply
+  Authentik is already live — correct them so nothing asserts a running service
+  until it is.
 
 ---
 

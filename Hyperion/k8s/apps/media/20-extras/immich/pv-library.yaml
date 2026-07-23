@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: immich-library-nfs
+  labels:
+    app: immich
+    component: library
+spec:
+  capacity:
+    storage: 5Ti
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    server: 192.168.10.247
+    path: /mnt/Media-Storage/Application-Storage/immich-library

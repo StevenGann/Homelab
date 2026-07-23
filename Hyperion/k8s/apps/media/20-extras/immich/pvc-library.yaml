@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-library
+  namespace: media
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 5Ti
+  selector:
+    matchLabels:
+      app: immich
+      component: library

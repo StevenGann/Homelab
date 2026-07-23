@@ -30,6 +30,8 @@ ENV_SOPS="${REPO_ROOT}/Heimdall/secrets/env.sops.env"
 PW_SOPS="${REPO_ROOT}/Heimdall/secrets/technitium-admin-pw.sops"
 K3S_ENV_SOPS="${REPO_ROOT}/Heimdall/secrets/k3s-control-plane.sops.env"
 CF_CREDS_SOPS="${REPO_ROOT}/Heimdall/secrets/cloudflared-credentials.sops"
+DDNS_SOPS="${REPO_ROOT}/Heimdall/secrets/ddns-config.json.sops"
+DDNS_REMOTE="/opt/Homelab/Heimdall/ddns-updater/data/config.json"
 ENV_REMOTE="/opt/Homelab/Heimdall/.env"
 PW_REMOTE="/opt/Homelab/Heimdall/secrets/technitium-admin-pw"
 K3S_ENV_REMOTE="/opt/Homelab/Heimdall/k3s-control-plane/.env"
@@ -96,6 +98,16 @@ if [ "$DO_SECRETS" -eq 1 ]; then
         sops --decrypt --input-type binary --output-type binary "$PW_SOPS" | \
             ssh "$HEIMDALL_HOST" "tee $PW_REMOTE > /dev/null && chmod 600 $PW_REMOTE" \
             || die "Failed to ship technitium-admin-pw"
+    fi
+
+    log "Shipping ddns-updater config (decrypted from $DDNS_SOPS)..."
+    if [ -n "$DRY_RUN" ]; then
+        printf '\033[1;36m[dry-run]\033[0m sops --decrypt --input-type binary --output-type binary %s | ssh %s "install -d $(dirname %s) && tee %s > /dev/null && chmod 600 %s"\n' \
+            "$DDNS_SOPS" "$HEIMDALL_HOST" "$DDNS_REMOTE" "$DDNS_REMOTE" "$DDNS_REMOTE"
+    else
+        sops --decrypt --input-type binary --output-type binary "$DDNS_SOPS" | \
+            ssh "$HEIMDALL_HOST" "install -d \"$(dirname "$DDNS_REMOTE")\" && tee $DDNS_REMOTE > /dev/null && chmod 600 $DDNS_REMOTE" \
+            || die "Failed to ship ddns-updater config"
     fi
 
     # k3s control plane env — present only after the operator has minted the
@@ -170,6 +182,14 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
         cd /opt/Homelab/Heimdall
         docker compose pull
         docker compose up -d
+
+        # Static web assets tracked in git (caddy/www/) → the served dir
+        # (caddy/data is gitignored runtime state). alfred.lab serves
+        # /data/alfred.html via the Caddyfile.
+        if [ -d /opt/Homelab/Heimdall/caddy/www ]; then
+            cp -f /opt/Homelab/Heimdall/caddy/www/*.html \
+                  /opt/Homelab/Heimdall/caddy/data/ 2>/dev/null || true
+        fi
 
         # File-bind-mounts (Caddyfile, periphery configs, etc.) hold the old inode
         # across a git-pull that renames files. Restart containers whose bind-

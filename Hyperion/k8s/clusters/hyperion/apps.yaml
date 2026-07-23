@@ -1,5 +1,4 @@
-Done
-lication workloads. Each app gets a Flux Kustomization here.
+# Application workloads. Each app gets a Flux Kustomization here.
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -227,3 +226,159 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: archisteamfarm
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/archisteamfarm
+  prune: true
+  wait: true
+  timeout: 10m                 # arm64 image pull + .NET first-boot + Steam login
+  dependsOn:
+    - name: metallb-config     # needs the MetalLB pool for the LoadBalancer IP
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:                  # SOPS-encrypted Steam creds + IPC password + seeded .db session
+    provider: sops
+    secretRef:
+      name: sops-age
+# ── Adopted 2026-07-04: apps that were running hand-applied (kubectl apply -k),
+# now wired into Flux so they reconcile from git for DR. Manifests pre-existed.
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: boxarr
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/boxarr
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: metallb-config
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: jellystat
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/jellystat
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: metallb-config
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:                  # jellystat-secret (POSTGRES_PASSWORD/JWT_SECRET)
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: listenarr
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/listenarr
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: metallb-config
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: monolithbot
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/monolithbot
+  prune: true
+  wait: false                  # pod CrashLoopBackOff on invalid/empty config.json
+                               # (pre-existing app-config bug, not a deploy issue) —
+                               # adopt into GitOps without blocking on health.
+  timeout: 5m
+  dependsOn:
+    - name: metallb-config
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:                  # monolithbot secret.sops.yaml
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: musicseerr
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/musicseerr
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: metallb-config
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: sortarr
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/sortarr
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: metallb-config
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: jeeves
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/jeeves
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: metallb-config
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:                  # SOPS: deepseek + shared + dashboard-auth
+    provider: sops
+    secretRef:
+      name: sops-age

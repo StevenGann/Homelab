@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: jeeves-shared
+    namespace: jeeves
+type: Opaque
+data:
+    GITHUB_TOKEN: ENC[AES256_GCM,data:FUbwXDM/Aflr1H+B2SYspqXEqN5Nkym02NKe8SKn5MqWQyRjBlBd5pCuc37X9APWAbCvacgyMRY=,iv:uZAXWeVgOoc8lxSJGTghTzffWy0dMX88Hmrwmuj5fb0=,tag:sz++KBIHnlqWYw546IPnZg==,type:str]
+    HASS_TOKEN: ENC[AES256_GCM,data:s1oGNkTL+vmj+GGhRpGgoekrzQ0lVVA95jP97f/sTx852rnyKwxQ8k9qCRwKbcdB2xQYfiFqu3JbTMBCINww0s5znJiU+WHN3zkiWhZbuz0mkyfuL6nbs0P+r+aVsu9U59DiYQ1xTVetBSFNqdKzT2TUNynRsujVXUmH7hMNmbg+hXZwMowGpsvr9Lw8zC3BFQW7T0Ee1a5WrNTkqrIQDDM4SiRll9Tj2fX2PPslGFWF2Yps4yPIt3OH8isrD+aPD4AzO2jMH+NHJH22xHGj9R+0dIp93bZzTHiE8v0q13UWW/barNUdBOOCGPLkvdUn0hC3Ng==,iv:s7OllFXgg3LfMBpnDgtrMjcF8pqYZyxGNROM0sAtRow=,tag:i3Pcip/1sGzLIed8H//qKQ==,type:str]
+sops:
+    kms: []
+    gcp_kms: []
+    azure_kv: []
+    hc_vault: []
+    age:
+        - recipient: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB3WU1pYzNiVklRU3cvRTh0
+            UVlxTU45bmdEanpXNzdXaFJCQkluQzh0TlI4ClZFU01LN0oyZlNjQ012dDljUnMx
+            NTU3YytwYWZTYVdaaGN5NWVwRGJta0UKLS0tIFNndHFQTFp5cXJQS2VwU3hBeWd2
+            NmsxVVBFLzNZSVRza1BMdkFNVkdYK2MKCEqj8571l6B+xpW9BLtlDYT0Kdeyqeql
+            Ei8QQCIRfoIzvDwa5BjWJ73BymsocRd6YapQy/wdcPGnX5dzolqFWQ==
+            -----END AGE ENCRYPTED FILE-----
+        - recipient: age1wjvfq7kt5z04q3r04k9l2exjxuql0y8n0tq7qxylrjs5vn8ss5pqkv9x59
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB5NC9JaWlzZG5vRXNiMmI2
+            M2xpUmRpNUtnRUVCb2JlMUpaM0owOHZkQjNFCmE0VDM2c2o5MUM5SWNjS2dVOFk1
+            OWlNYTg1cm1jL1V1eFFCcm5SbWRXZEUKLS0tIDN0UHdIRk92UDNIWGlJSXVpWFFt
+            OTlqajFCUVdrZ0c3anNpWHhKeGJiaGsKHi1ZcVKZg6Zj9ZOAcCl/JEk2it7E121S
+            hObJBq+tFldHuyQMoYQ1PvIMLrAHUh2yLxEdKtzILnp/EhaFTaRKhw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-07-04T20:28:10Z"
+    mac: ENC[AES256_GCM,data:bVdcowa/LvdgBDCYfLEgbX81NPZxEDhTQ9mlKq9DEmf0jKqNbaFIXhicMYQmg+RjK3wNoIpu23I9ygffemh4xmQx+WULl/GlAzP/qk+1c1Ssk/UrmY0T7yiSRY9HKWMXA6v2mn01gXsOC64wHlJKW6XKuMTv9cn/qh9bgVIe/RU=,iv:pSQLld5onKaTkgJNLGf4XLm3UapsK1jBHXOPpNkQ8Qo=,tag:0OZJbympXd66ad4Dv0c93Q==,type:str]
+    pgp: []
+    encrypted_regex: ^(data|stringData)$
+    version: 3.9.4

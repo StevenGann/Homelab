@@ -8,7 +8,7 @@ resources:
   - service.yaml
   - config.yaml
   - nginx-proxy.yaml
-  - dashboard-auth.yaml
-  - shared.yaml
-  - deepseek.yaml
+  - dashboard-auth.sops.yaml
+  - shared.sops.yaml
+  - deepseek.sops.yaml
   # - discord.yaml  # disabled until token provided
