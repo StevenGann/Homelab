@@ -38,12 +38,15 @@ spec:
             httpGet: { path: /ping, port: 4533 }
             failureThreshold: 30
             periodSeconds: 10
+            timeoutSeconds: 10           # SQLite + NFS music mount may delay first response beyond 1s default
           readinessProbe:
             httpGet: { path: /ping, port: 4533 }
             periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: { path: /ping, port: 4533 }
             periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             requests: { cpu: "100m", memory: "192Mi" }
             limits:   { cpu: "2",    memory: "768Mi" }   # scans/transcode can spike

@@ -42,12 +42,15 @@ spec:
             httpGet: { path: /setup/status, port: 3011 }
             failureThreshold: 30
             periodSeconds: 10
+            timeoutSeconds: 10           # MariaDB readiness may delay first response beyond 1s default
           readinessProbe:
             httpGet: { path: /setup/status, port: 3011 }
             periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: { path: /setup/status, port: 3011 }
             periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1",    memory: "768Mi" }   # yt-dlp + ffmpeg muxing
@@ -67,9 +70,11 @@ spec:
             exec: { command: ["healthcheck.sh", "--connect", "--innodb_initialized"] }
             failureThreshold: 30
             periodSeconds: 10
+            timeoutSeconds: 10           # MariaDB init can exceed 1s default on arm64
           livenessProbe:
             exec: { command: ["healthcheck.sh", "--connect", "--innodb_initialized"] }
             periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "500m", memory: "512Mi" }

@@ -43,6 +43,18 @@ Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after 
 - ✅ **beszel** (.68), **speedtest-tracker** (.67) — DEPLOYED.
 - ✅ **pterodactyl panel** (.69, Panel+MariaDB+Redis, admin user created) — DEPLOYED.
   **Wings** on Thoth + other Docker hosts — operator to set up + connect to the panel.
+- [ ] **Space Engineers Pterodactyl server** — needs fixing.
+  **Status (2026-06-30 — Guppy investigated):**
+  - Nest (ID 5) + Torch egg (ID 15) ready; allocations on thoth for ports 27016, 8766, 8081 created.
+  - Server created twice (original session + today) — both times `install_failed` / reinstall stuck with zero console output.
+  - **Root cause narrowed down:** install container (`ghcr.io/parkervcp/installers:debian`) never starts on Wings — 0 disk bytes, 0 console output, state stays `offline`.
+  - Minecraft on Thoth works fine (uses `ghcr.io/pterodactyl/*` images — different org), so Wings/Docker/network are fundamentally healthy.
+  - Both `parkervcp` images confirmed present on ghcr.io. Likely a Docker pull failure on Thoth (rate-limit, auth block, or uncached image).
+  - Wings is outdated (1.11.13 vs 1.13.0 latest) but this alone shouldn't cause silent image pull failures.
+  - **Blocked:** no SSH to Thoth. Guppy's key (`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGeAJHrXaf0ofNiEimygJWEp3GlwTJFe7Dl0Cwb3kzFb`) not authorized for root or sydney.
+  - **Next step:** authorize Guppy's SSH key on Thoth → it'll check `docker images`, `docker logs wings`, test `docker pull ghcr.io/parkervcp/installers:debian`, and fix in minutes.
+  - **Wings API token** (usable for diagnostics): `xwDBY7JU2dJwDMEZTtZ4OKB2uX8YooRwn4lQiLlIAESxqOtvdvDhDlAfkS5SFi5R` → Wings at `http://192.168.10.144:8080`.
+  - Panel admin: `http://192.168.10.69` / `the.cat.madder@gmail.com` / `Qazxcv1992!`.
 - ❌ **portracker** — DROPPED (Docker-socket discovery, poor k8s fit).
 - Still on Akasha (candidates): **monolithbot** (arm64 CI ready), **n8n+postgres+qdrant**,
   **crafty-4** (or fold into Pterodactyl). **Cleanup:** stray `k3s-control-plane` stack
@@ -60,6 +72,11 @@ Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after 
 **Open follow-ups:**
 - ✅ **qBittorrent VPN** (2026-06-04, RESOLVED): Migrated PIA OpenVPN → Mullvad → **ProtonVPN WireGuard** with NAT-PMP port forwarding. A port-sync script (ConfigMap) syncs the forwarded port to qBittorrent's `listen_port` and **binds libtorrent to `tun0`** — the missing interface bind was the final blocker (DHT dead, "firewalled", external IP N/A because torrent traffic sourced from eth0 and got killed by gluetun's kill-switch). Full DHT + inbound connectivity verified (272 DHT nodes, ~40 MB/s). Post-mortem: `Hyperion/k8s/apps/media/10-core/qbittorrent/README.md`.
 - **PDU (APC AP7900)** (2026-06-04): Telnet CLI confirmed working at 192.168.10.180:23 (apc/apc -c). 8 outlets, all ON (~4.3A). Outlet names: 1=Monolith, 2=Compute, 3=Synology. Non-B model (Telnet+HTTP only, no SSH). Bare Telnet for now; targeted control module planned when UPS + 2nd PDU arrive.
+- [ ] **Energy audit — per-service power draw** (2026-06-30):
+  Homelab draws 500–700W total. Noted that killing the broken Space Engineers server dropped consumption by ~45W — idle/broken services can be significant power hogs.
+  **Goal:** systematically shut down one service at a time, measure the wattage drop via HA/UPS/PDU telemetry, and identify wasteful services for optimization.
+  **Future automation:** periodic energy audits via HA wattage sensors. Consider tying into a daily service restart cycle — spin services up one at a time, measure draw, flag outliers.
+  **Data sources:** APC AP7900 PDU (.180), UPS telemetry in HA, per-outlet current readings.
 - **Relocate the k3s control plane off Heimdall** (the bridge-networked
   container limitation — breaks metrics-server, needs placement workarounds).
   See `docs/design/adr-0002-containerized-control-plane-networking.md`. Operator

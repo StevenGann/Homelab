@@ -35,12 +35,15 @@ spec:
             httpGet: { path: /api/v1/status, port: 5055 }
             failureThreshold: 30
             periodSeconds: 10
+            timeoutSeconds: 10           # Node/Next.js startup can exceed 1s default under load
           readinessProbe:
             httpGet: { path: /api/v1/status, port: 5055 }
             periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: { path: /api/v1/status, port: 5055 }
             periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1",    memory: "768Mi" }   # Node/Next.js runtime

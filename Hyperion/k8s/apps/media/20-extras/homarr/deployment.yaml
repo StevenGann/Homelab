@@ -50,12 +50,15 @@ spec:
             httpGet: { path: /api/health/ready, port: 7575 }
             failureThreshold: 30
             periodSeconds: 10
+            timeoutSeconds: 10           # Next.js can take >1s during init; 1s default caused spurious restart on 2026-07-13
           readinessProbe:                # /api/health/live also checks the embedded DB
             httpGet: { path: /api/health/live, port: 7575 }
             periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: { path: /api/health/live, port: 7575 }
             periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             requests: { cpu: "200m", memory: "384Mi" }
             limits:   { cpu: "1",    memory: "768Mi" }

@@ -33,18 +33,18 @@ spec:
             httpGet: { path: /ping, port: 8989 }
             failureThreshold: 30
             periodSeconds: 10
-            timeoutSeconds: 5    # NFS-mounted DB needs >1s
+            timeoutSeconds: 10    # .NET GC + NFS I/O needs headroom
           readinessProbe:
             httpGet: { path: /ping, port: 8989 }
             periodSeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
           livenessProbe:
             httpGet: { path: /ping, port: 8989 }
             periodSeconds: 30
-            timeoutSeconds: 5
+            timeoutSeconds: 10
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
-            limits:   { cpu: "1",    memory: "1Gi" }      # do NOT cap tighter — Sonarr OOM history
+            limits:   { cpu: "1",    memory: "2Gi" }      # .NET GC thrash at 1Gi; 72 restarts/29d
       volumes:
         - name: config
           persistentVolumeClaim: { claimName: sonarr-config }

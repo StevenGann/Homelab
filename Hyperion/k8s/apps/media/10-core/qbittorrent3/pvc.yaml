@@ -1,21 +1,15 @@
-# qBittorrent instance #2 config on Akasha NFS (own path, parallel to instance #1).
-# Static PV+PVC follows the akasha-*-nfs convention in media/00-storage/.
+# qBittorrent instance #3 config on node-local local-path storage.
+# 2026-07-17: MIGRATED OFF Akasha NFS after HTTP server hang incident.
+# qbittorrent-nox's Qt event loop blocks when NFS I/O stalls (Ssl state),
+# TCP port stays bound but HTTP server stops responding → context deadline
+# exceeded on httpGet probes → liveness kill + restart loop.
+# Cross-node correlation: qbittorrent (A, hyperion-eta) and qbittorrent3 (C,
+# hyperion-kappa) both exhibited the same hang; qbittorrent2 (B, local-path)
+# had zero probe failures. Config is now on local-path (/mnt/node-storage),
+# same pattern as qbittorrent2/sonarr/radarr/lidarr/prowlarr (ADR-0003).
+# Migration script: Hyperion/k8s/scripts/migrate-qbittorrent3-nfs-to-localpath.sh
+# Old data preserved at /mnt/Media-Storage/Application-Storage/media/qbittorrent3-config on Akasha.
 # Downloads are SHARED (media-downloads) — only the config dir is per-instance.
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: akasha-app-media-qbittorrent3-config
-  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
-spec:
-  capacity: { storage: 1Gi }
-  accessModes: [ReadWriteMany]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  volumeMode: Filesystem
-  claimRef: { namespace: media, name: qbittorrent3-config }
-  mountOptions: [nfsvers=4.1, hard, noatime]
-  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/media/qbittorrent3-config }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -24,7 +18,6 @@ metadata:
   namespace: media
   annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
 spec:
-  accessModes: [ReadWriteMany]
-  storageClassName: ""
-  volumeName: akasha-app-media-qbittorrent3-config
-  resources: { requests: { storage: 1Gi } }
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 5Gi } }

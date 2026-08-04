@@ -6,8 +6,10 @@
 #
 # The Akasha NFS copy at /mnt/Media-Storage/Application-Storage/media/tdarr-server
 # is preserved as a cold backup under the orphaned Retain PV
-# akasha-app-media-tdarr-server. To restore: scale deployment → 0, mount both
-# PVCs to a debug pod, copy NFS → local PVC, scale up.
+# akasha-app-media-tdarr-server.
+#
+# To migrate data or restore from backup, run:
+#   Hyperion/k8s/scripts/migrate-tdarr-nfs-to-localpath.sh [--force]
 #
 # local-path is WaitForFirstConsumer + node-pinned: the PV (and therefore the
 # pod, via node affinity) stays on whichever worker it was first provisioned on.

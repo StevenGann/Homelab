@@ -38,12 +38,15 @@ spec:
             tcpSocket: { port: 25600 }
             failureThreshold: 30
             periodSeconds: 10
+            timeoutSeconds: 5
           readinessProbe:
             tcpSocket: { port: 25600 }
             periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             tcpSocket: { port: 25600 }
             periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1",    memory: "1Gi" }
