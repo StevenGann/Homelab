@@ -50,10 +50,6 @@ spec:
             # noise per event and wedged /vault/status state to "error" (cosmetic).
             # The primary DNS target already delivers — no second consumer exists.
             # CALDERA_WEBHOOK_SECRET is loaded from caldera-secrets (envFrom below)
-            # TEMP 2026-08-12: disable MCP — the :edge image's mcp package dropped
-            # mcp.server.fastmcp, crashing create_app at import. Re-enable after the
-            # Caldera repo pins mcp (dependency drift under mcp>=1.2,<2.0).
-            - { name: CALDERA_MCP_ENABLED, value: "false" }
           envFrom:
             - secretRef: { name: caldera-secrets }   # CALDERA_API_KEYS + CALDERA_GITHUB_TOKEN
           ports:
