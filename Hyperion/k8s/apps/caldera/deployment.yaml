@@ -44,9 +44,11 @@ spec:
             # caldera-secrets as CALDERA_WEBHOOK_SECRET (SOPS-encrypted).
             - { name: CALDERA_WEBHOOK_URL,     value: "http://hermes.hermes.svc.cluster.local:8644/webhooks/caldera-hook" }
             # Multi-target webhook fan-out via CALDERA_WEBHOOK_TARGETS JSON array.
-            # Each entry is [url, secret] — added alongside the primary URL above.
-            # Currently fans out to Jeeves agent for dual-agent notifications.
-            - { name: CALDERA_WEBHOOK_TARGETS, value: "[[\"http://10.42.8.200:8644/webhooks/caldera-hook\",\"6AQalt5cyzTcdvemPbr0ctz2vjfMRbqAIqzwZn22MB0\"]]" }
+            # REMOVED 2026-08-12: the lone fan-out target was a duplicate of the
+            # primary URL above (same /webhooks/caldera-hook path on Hermes) but
+            # hardcoded to a dead pod IP (10.42.8.200). It burned 3 retries + log
+            # noise per event and wedged /vault/status state to "error" (cosmetic).
+            # The primary DNS target already delivers — no second consumer exists.
             # CALDERA_WEBHOOK_SECRET is loaded from caldera-secrets (envFrom below)
           envFrom:
             - secretRef: { name: caldera-secrets }   # CALDERA_API_KEYS + CALDERA_GITHUB_TOKEN
