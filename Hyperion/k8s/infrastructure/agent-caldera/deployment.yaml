@@ -54,6 +54,11 @@ spec:
               value: "30"
             - name: CALDERA_WEBHOOK_URL
               value: http://hermes.hermes.svc.cluster.local:8644/webhooks/caldera-hook
+            # TEMP 2026-08-12: disable MCP — the :edge image's mcp package dropped
+            # mcp.server.fastmcp, crashing create_app at import. Re-enable after the
+            # Caldera repo pins mcp (dependency drift under mcp>=1.2,<2.0).
+            - name: CALDERA_MCP_ENABLED
+              value: "false"
           envFrom:
             - secretRef:
                 name: agent-caldera-secrets
