@@ -54,7 +54,7 @@ spec:
                   # Legacy sql-backup directories older than 7 days.
                   find "$SRV/Backups" -maxdepth 1 -type d -name 'tdarr-sql-backup-*' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
                   echo "tdarr-report-cleanup: done — post-clean usage:"
-                  df -h /app/server | tail -1
+                  du -sh "$SRV" 2>/dev/null || true
               resources:
                 requests: { cpu: "25m", memory: "64Mi" }
                 limits:   { cpu: "200m", memory: "256Mi" }
