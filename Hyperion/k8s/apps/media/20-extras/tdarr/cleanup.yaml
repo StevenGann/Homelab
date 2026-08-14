@@ -1,0 +1,64 @@
+# Tdarr job-report + backup cleanup.
+#
+# ROOT CAUSE (2026-08-14 incident): the tdarr-server-data local-path PVC (5Gi
+# spec, but local-path does NOT enforce capacity) ballooned to 14.9GB on
+# hyperion-eta's 32GB root partition — 11.3GB of per-transcode job reports in
+# DB2/JobReports (560k files, never auto-cleaned) plus 2.3GB of daily SQL
+# backups. That tripped the kubelet DiskPressure eviction threshold and the
+# node evicted tdarr (plus collateral komga/youtarr/metallb-speaker) in a flap
+# loop until the space was manually freed.
+#
+# Tdarr's own `jobHistorySizeLimitGB` (10) did NOT prevent the file-side bloat,
+# and `backupLimit` (30) is a COUNT not a SIZE limit, so backups grow as the DB
+# grows (~114MB/day). This CronJob is defense-in-depth: it prunes the files
+# that actually consume the node's ephemeral disk, independent of Tdarr's
+# retention logic.
+#
+# RWO note: tdarr-server-data is RWO local-path (hostPath-backed), pinned to
+# whichever node first provisioned it (hyperion-eta). local-path does not
+# enforce single-pod attachment, so a cleanup pod CAN mount the same PVC
+# alongside the running tdarr pod as long as it lands on the same node — which
+# the PV's node affinity guarantees. Runs at 07:40 UTC, after Tdarr's 07:01
+# daily SQL backup, so a fresh backup always survives the prune.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tdarr-report-cleanup
+  namespace: media
+spec:
+  schedule: "40 7 * * *"            # 07:40 UTC ≈ 00:40 America/Los_Angeles
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 900
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: cleanup
+              image: busybox:1.36
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  SRV=/app/server/Tdarr
+                  echo "tdarr-report-cleanup: pruning job reports and backups"
+                  # Job reports older than 7 days (regenerable per-transcode reports).
+                  find "$SRV/DB2/JobReports" -mindepth 1 -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+                  # Daily SQL backup zips older than 7 days (keep the last week).
+                  find "$SRV/Backups" -name 'Backup-version-*.zip' -mtime +7 -delete 2>/dev/null || true
+                  # Legacy sql-backup directories older than 7 days.
+                  find "$SRV/Backups" -maxdepth 1 -type d -name 'tdarr-sql-backup-*' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+                  echo "tdarr-report-cleanup: done — post-clean usage:"
+                  df -h /app/server | tail -1
+              resources:
+                requests: { cpu: "25m", memory: "64Mi" }
+                limits:   { cpu: "200m", memory: "256Mi" }
+          volumes:
+            - name: server
+              persistentVolumeClaim:
+                claimName: tdarr-server-data
