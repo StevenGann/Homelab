@@ -65,14 +65,20 @@ spec:
             httpGet:
               path: /api/heartbeat
               port: 8080
-            periodSeconds: 10
-            timeoutSeconds: 5
+            # Raised from 10s/5s — a COMPLETE/HASHES scan of large ISOs blocks the
+            # single-worker backend while hashing (CPU-saturating on the Pi 5), which
+            # starved /api/heartbeat past the 5s timeout and tripped the liveness
+            # probe (pod killed mid-scan, ROMs left unhashed/unmatched). 30s/30s
+            # gives the backend time to finish hashing before probes fail.
+            periodSeconds: 30
+            timeoutSeconds: 30
           livenessProbe:
             httpGet:
               path: /api/heartbeat
               port: 8080
-            periodSeconds: 10
-            timeoutSeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 30
+            failureThreshold: 3
           resources:
             requests:
               memory: 256Mi
