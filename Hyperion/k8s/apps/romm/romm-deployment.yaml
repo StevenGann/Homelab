@@ -54,19 +54,22 @@ spec:
             - name: library
               mountPath: /romm/library
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /api/heartbeat
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 5
             failureThreshold: 30
             timeoutSeconds: 5
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /api/heartbeat
               port: 8080
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /api/heartbeat
               port: 8080
             periodSeconds: 10
             timeoutSeconds: 5
@@ -74,7 +77,10 @@ spec:
             requests:
               memory: 256Mi
             limits:
-              memory: 1Gi
+              # OOM history (exit 137): 1Gi exceeded during large ROM upload
+              # assembly (chunked ISO merge buffered in memory; GameCube ISOs
+              # are ~1.4GiB). Raised to 2Gi for headroom on big uploads.
+              memory: 2Gi
       volumes:
         - name: resources
           persistentVolumeClaim:
