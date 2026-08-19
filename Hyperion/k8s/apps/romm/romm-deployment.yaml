@@ -77,10 +77,13 @@ spec:
             requests:
               memory: 256Mi
             limits:
-              # OOM history (exit 137): 1Gi exceeded during large ROM upload
-              # assembly (chunked ISO merge buffered in memory; GameCube ISOs
-              # are ~1.4GiB). Raised to 2Gi for headroom on big uploads.
-              memory: 2Gi
+              # OOM/hang history: chunked ISO upload assembly buffers the file
+              # in memory. 1Gi OOM'd; 2Gi still borderline — a 1.4GiB GameCube
+              # ISO + ~310MB base footprint (backend+nginx+rq+valkey) peaked
+              # near the ceiling and hung the backend (liveness kill, exit 137
+              # reason Error, not OOMKilled) on 2026-08-19. 3Gi for real
+              # headroom. NOTE: Wii ISOs (~4.7GiB) would still need more.
+              memory: 3Gi
       volumes:
         - name: resources
           persistentVolumeClaim:
