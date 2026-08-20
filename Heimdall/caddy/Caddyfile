@@ -196,3 +196,14 @@ immich.lab {
     tls internal
     reverse_proxy 192.168.10.88:2283
 }
+
+# ─── Ignis (browser-based Obsidian) ──────────────────────────────────────────────
+# Ignis has NO built-in auth and serves full read/write vault access, so basic auth
+# is mandatory. WebSocket (live sync) is proxied by Caddy automatically.
+ignis.lab {
+    tls internal
+    basic_auth {
+        sydney $2b$10$dvVKLKLF2xftVHILVk65ae.uZhLYg8ksSNdkBT0RAoPXEh4VjuXX.
+    }
+    reverse_proxy http://192.168.10.90:8080
+}
