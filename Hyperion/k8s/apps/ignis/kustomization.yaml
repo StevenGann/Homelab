@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: ignis
 resources:
   - namespace.yaml
+  - secret.sops.yaml     # SOPS-encrypted: IGNIS_GITHUB_TOKEN (StevenGann/Obsidian)
   - pvc.yaml
   - deployment.yaml
   - service.yaml

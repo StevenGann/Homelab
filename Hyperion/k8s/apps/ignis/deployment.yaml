@@ -16,20 +16,42 @@ spec:
     spec:
       nodeSelector: { topology.kubernetes.io/zone: hyperion }   # Pi workers
       terminationGracePeriodSeconds: 30
+      # ── init: clone the real vault (StevenGann/Obsidian) into /vaults ──────────
+      # The repo root is the git working tree; the actual Obsidian vault is its
+      # `Vault/` subdir (where `.obsidian` lives). Cloning into /vaults directly
+      # makes Ignis discover `Vault/` as the vault (dot-dirs like `.git` are skipped).
+      initContainers:
+        - name: clone-vault
+          image: alpine/git:latest
+          env:
+            - name: IGNIS_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef: { name: ignis-secrets, key: IGNIS_GITHUB_TOKEN }
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              REPO_URL="https://x-access-token:${IGNIS_GITHUB_TOKEN}@github.com/StevenGann/Obsidian.git"
+              if [ ! -d /vaults/.git ]; then
+                echo "[clone-vault] cloning StevenGann/Obsidian..."
+                git clone "$REPO_URL" /vaults
+              else
+                echo "[clone-vault] existing checkout found, skipping clone"
+              fi
+              # Make everything owned by PUID/PGID (1000:1000) so Ignis + the
+              # git-sync sidecar (both UID 1000) can read/write.
+              chown -R 1000:1000 /vaults
+          volumeMounts:
+            - { name: vaults, mountPath: /vaults }
       containers:
         - name: ignis
           image: nobbe/ignis:latest
           imagePullPolicy: IfNotPresent
           env:
             - { name: TZ,  value: "America/Los_Angeles" }
-            # Match the uid/gid the entrypoint will run the server as. The
-            # entrypoint creates this user and chowns the volumes; keep these
-            # consistent with whatever owns the vault files.
             - { name: PUID, value: "1000" }
             - { name: PGID, value: "1000" }
-            # Pin the Obsidian build Ignis downloads + extracts on first boot.
-            # Leave unset to use the image's default (1.12.7). Set explicitly
-            # so a future image default change can't silently swap the app.
             - { name: OBSIDIAN_VERSION, value: "1.12.7" }
           ports:
             - name: http
@@ -38,9 +60,6 @@ spec:
             - { name: vaults,    mountPath: /vaults }
             - { name: data,      mountPath: /app/data }
             - { name: obsidian,  mountPath: /app/obsidian-app }
-          # First boot downloads Obsidian (~150MB) + extracts the asar + npm-installs
-          # obsidian-headless. On a Pi this can take 2-5 min — give startupProbe a
-          # wide window before liveness starts killing it.
           startupProbe:
             httpGet: { path: /api/version, port: 8080 }
             periodSeconds: 5
@@ -57,6 +76,49 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits:   { memory: 1Gi }
+        # ── sidecar: git sync — keep Ignis edits round-tripped to GitHub ─────────
+        # Mirrors Caldera's git-sync model: pull remote, commit local edits, push.
+        # Runs as UID 1000 (same as Ignis) so files it creates stay writable.
+        - name: git-sync
+          image: alpine/git:latest
+          env:
+            - name: IGNIS_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef: { name: ignis-secrets, key: IGNIS_GITHUB_TOKEN }
+            - name: GIT_AUTHOR_NAME
+              value: "ignis"
+            - name: GIT_AUTHOR_EMAIL
+              value: "ignis@homelab.local"
+            - name: GIT_COMMITTER_NAME
+              value: "ignis"
+            - name: GIT_COMMITTER_EMAIL
+              value: "ignis@homelab.local"
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              cd /vaults
+              REPO_URL="https://x-access-token:${IGNIS_GITHUB_TOKEN}@github.com/StevenGann/Obsidian.git"
+              git remote set-url origin "$REPO_URL" 2>/dev/null || true
+              while true; do
+                # Pull remote changes (autostash local edits to avoid clobbering).
+                git pull --rebase --autostash origin main 2>/dev/null \
+                  || git rebase --abort 2>/dev/null || true
+                # Commit + push any local edits (e.g. made in Ignis).
+                if [ -n "$(git status --porcelain)" ]; then
+                  N=$(git status --porcelain | wc -l | tr -d ' ')
+                  git add -A
+                  git commit -m "ignis: sync $N change(s)" 2>/dev/null || true
+                  git push origin main 2>/dev/null || true
+                fi
+                sleep 60
+              done
+          volumeMounts:
+            - { name: vaults, mountPath: /vaults }
       volumes:
         - { name: vaults,   persistentVolumeClaim: { claimName: ignis-vault } }
         - { name: data,     persistentVolumeClaim: { claimName: ignis-data } }

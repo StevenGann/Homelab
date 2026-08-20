@@ -399,4 +399,8 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+  decryption:                  # SOPS: IGNIS_GITHUB_TOKEN for the vault clone/sync
+    provider: sops
+    secretRef:
+      name: sops-age
 
