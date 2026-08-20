@@ -1,0 +1,27 @@
+# ignis-vault       : the Obsidian vault root (each subdir = a vault).
+# ignis-data        : Ignis server state (plugin config, settings).
+# ignis-obsidian    : downloaded Obsidian app assets (~200MB, first boot).
+# All RWO local-path. Single-replica app (Recreate strategy).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ignis-vault, namespace: ignis }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 5Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ignis-data, namespace: ignis }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ignis-obsidian, namespace: ignis }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 2Gi } }

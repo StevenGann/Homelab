@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ignis
+  namespace: ignis
+  labels: { app: ignis }
+spec:
+  replicas: 1
+  # RWO local-path PVCs → Recreate (RollingUpdate would deadlock on the PVC).
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: ignis }
+  template:
+    metadata:
+      labels: { app: ignis }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }   # Pi workers
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: ignis
+          image: nobbe/ignis:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: TZ,  value: "America/Los_Angeles" }
+            # Match the uid/gid the entrypoint will run the server as. The
+            # entrypoint creates this user and chowns the volumes; keep these
+            # consistent with whatever owns the vault files.
+            - { name: PUID, value: "1000" }
+            - { name: PGID, value: "1000" }
+            # Pin the Obsidian build Ignis downloads + extracts on first boot.
+            # Leave unset to use the image's default (1.12.7). Set explicitly
+            # so a future image default change can't silently swap the app.
+            - { name: OBSIDIAN_VERSION, value: "1.12.7" }
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - { name: vaults,    mountPath: /vaults }
+            - { name: data,      mountPath: /app/data }
+            - { name: obsidian,  mountPath: /app/obsidian-app }
+          # First boot downloads Obsidian (~150MB) + extracts the asar + npm-installs
+          # obsidian-headless. On a Pi this can take 2-5 min — give startupProbe a
+          # wide window before liveness starts killing it.
+          startupProbe:
+            httpGet: { path: /api/version, port: 8080 }
+            periodSeconds: 5
+            failureThreshold: 60        # up to ~5 min for first boot
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: { path: /api/version, port: 8080 }
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: { path: /api/version, port: 8080 }
+            periodSeconds: 30
+            timeoutSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { memory: 1Gi }
+      volumes:
+        - { name: vaults,   persistentVolumeClaim: { claimName: ignis-vault } }
+        - { name: data,     persistentVolumeClaim: { claimName: ignis-data } }
+        - { name: obsidian, persistentVolumeClaim: { claimName: ignis-obsidian } }
