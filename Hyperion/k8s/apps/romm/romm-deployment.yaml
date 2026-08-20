@@ -65,20 +65,22 @@ spec:
             httpGet:
               path: /api/heartbeat
               port: 8080
-            # Raised from 10s/5s — a COMPLETE/HASHES scan of large ISOs blocks the
-            # single-worker backend while hashing (CPU-saturating on the Pi 5), which
-            # starved /api/heartbeat past the 5s timeout and tripped the liveness
-            # probe (pod killed mid-scan, ROMs left unhashed/unmatched). 30s/30s
-            # gives the backend time to finish hashing before probes fail.
-            periodSeconds: 30
-            timeoutSeconds: 30
+            # 2026-08-20: 30s/30s was STILL too tight. Hashing multi-file DOS
+            # folders (hundreds of files each) over NFS blocks the single-worker
+            # uvicorn backend for well over a minute, so /api/heartbeat returned
+            # 499 at the 30s mark and the liveness probe killed the pod mid-scan
+            # (exit 137, reason "Error" — NOT OOMKilled; memory sat at 1.9/3Gi).
+            # 120s timeout + 60s period tolerates a multi-minute hash burst; 5
+            # consecutive liveness failures (~5 min window) before any kill.
+            periodSeconds: 60
+            timeoutSeconds: 120
           livenessProbe:
             httpGet:
               path: /api/heartbeat
               port: 8080
-            periodSeconds: 30
-            timeoutSeconds: 30
-            failureThreshold: 3
+            periodSeconds: 60
+            timeoutSeconds: 120
+            failureThreshold: 5
           resources:
             requests:
               memory: 256Mi
@@ -88,8 +90,10 @@ spec:
               # ISO + ~310MB base footprint (backend+nginx+rq+valkey) peaked
               # near the ceiling and hung the backend (liveness kill, exit 137
               # reason Error, not OOMKilled) on 2026-08-19. 3Gi for real
-              # headroom. NOTE: Wii ISOs (~4.7GiB) would still need more.
-              memory: 3Gi
+              # headroom; 4Gi (2026-08-20) as further insurance during full-
+              # library scans of folder-per-game DOS/ScummVM platforms.
+              # NOTE: Wii ISOs (~4.7GiB) would still need more.
+              memory: 4Gi
       volumes:
         - name: resources
           persistentVolumeClaim:
