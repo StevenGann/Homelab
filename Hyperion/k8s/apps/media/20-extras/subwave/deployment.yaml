@@ -1,0 +1,240 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subwave
+  namespace: media
+  labels:
+    app: subwave
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: subwave
+  template:
+    metadata:
+      labels:
+        app: subwave
+    spec:
+      nodeSelector:
+        topology.kubernetes.io/zone: hyperion
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: subwave-state
+      containers:
+        # ---------------------------------------------------------------
+        # BROADCAST — icecast2 + liquidsoap (one container; entrypoint runs
+        # both, exits if either dies). Runs as root (drops icecast via sudo).
+        # ---------------------------------------------------------------
+        - name: broadcast
+          image: ghcr.io/perminder-klair/subwave-broadcast:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+            # Icecast passwords left unset → auto-generated on first boot and
+            # persisted to /var/sub-wave/icecast-secrets.env (mode 600).
+          ports:
+            - name: icecast
+              containerPort: 7702
+            - name: telnet
+              containerPort: 1234
+          volumeMounts:
+            - name: state
+              mountPath: /var/sub-wave
+          startupProbe:
+            httpGet:
+              path: /status-json.xsl
+              port: 7702
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /status-json.xsl
+              port: 7702
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /status-json.xsl
+              port: 7702
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+
+        # ---------------------------------------------------------------
+        # CONTROLLER — AI DJ brain (Node.js). Reads state + secrets from the
+        # shared mount; drives liquidsoap over telnet (localhost:1234) and the
+        # analyzer over localhost:8080 (single pod, shared network namespace).
+        # ---------------------------------------------------------------
+        - name: controller
+          image: ghcr.io/perminder-klair/subwave-controller:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: TZ
+              value: America/Los_Angeles
+            - name: STATE_DIR
+              value: /var/sub-wave
+            - name: SOUNDS_DIR
+              value: /sounds
+            - name: ADMIN_USER
+              value: admin
+            - name: ADMIN_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: subwave-secrets
+                  key: admin-pass
+            - name: SITE_URL
+              value: https://subwave.lab
+            - name: NAVIDROME_URL
+              value: http://navidrome:4533
+            - name: NAVIDROME_USER
+              value: admin
+            - name: NAVIDROME_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: subwave-secrets
+                  key: navidrome-pass
+            - name: DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: subwave-secrets
+                  key: deepseek-api-key
+            - name: ELEVENLABS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: subwave-secrets
+                  key: elevenlabs-api-key
+            - name: LIQUIDSOAP_HOST
+              value: localhost
+            - name: LIQUIDSOAP_PORT
+              value: "1234"
+            - name: ANALYZE_URL
+              value: http://localhost:8080
+          ports:
+            - name: http
+              containerPort: 7701
+          volumeMounts:
+            - name: state
+              mountPath: /var/sub-wave
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 7701
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 7701
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 7701
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+
+        # ---------------------------------------------------------------
+        # WEB — Next.js listener UI (player + admin console). Talks to the
+        # controller over localhost:7701 (shared pod network namespace).
+        # ---------------------------------------------------------------
+        - name: web
+          image: ghcr.io/perminder-klair/subwave-web:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: SITE_URL
+              value: https://subwave.lab
+            - name: CONTROLLER_INTERNAL_URL
+              value: http://localhost:7701
+          ports:
+            - name: http
+              containerPort: 7700
+          startupProbe:
+            httpGet:
+              path: /
+              port: 7700
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 7700
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 7700
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+
+        # ---------------------------------------------------------------
+        # ANALYZER — acoustic analysis sidecar (bpm/key/intro/loudness).
+        # Runs as uid 10001 (image default). Reads tracks the controller
+        # pre-fetches into /var/sub-wave/analyze-tmp.
+        # ---------------------------------------------------------------
+        - name: analyzer
+          image: ghcr.io/perminder-klair/subwave-analyzer:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: state
+              mountPath: /var/sub-wave
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 6Gi
