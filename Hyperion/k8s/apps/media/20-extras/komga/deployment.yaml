@@ -27,29 +27,30 @@ spec:
             - { name: KOMGA_LIBRARIES_SCAN_STARTUP, value: "true" }
             - { name: KOMGA_REMEMBER_ME_KEY, valueFrom: { secretKeyRef: { name: komga-secret, key: remember-me-key, optional: true } } }
             - { name: KOMGA_SERVER_PORT, value: "25600" }
-            # JAVA_TOOL_OPTIONS limits heap to stay within the 1Gi memory limit
-            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx768m" }
+            # Heap capped to leave native headroom (image codecs: libheif/libjxl/libwebp/kepubify)
+            # within the 2Gi limit. Book analysis of large CBRs OOMs the cgroup at 1Gi/-Xmx768m.
+            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx1536m" }
           ports:
             - { name: http, containerPort: 25600 }
           volumeMounts:
             - { name: config,  mountPath: /config }                # H2 DB + covers — local-path
             - { name: comics,  mountPath: /comics, readOnly: true }  # Akasha Comics (NFS, read-only)
           startupProbe:                  # generous for first-boot DB init + library scan
-            tcpSocket: { port: 25600 }
+            httpGet: { path: /, port: http }
             failureThreshold: 30
             periodSeconds: 10
             timeoutSeconds: 5
           readinessProbe:
-            tcpSocket: { port: 25600 }
+            httpGet: { path: /, port: http }
             periodSeconds: 15
             timeoutSeconds: 5
           livenessProbe:
-            tcpSocket: { port: 25600 }
+            httpGet: { path: /, port: http }
             periodSeconds: 30
             timeoutSeconds: 5
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
-            limits:   { cpu: "1",    memory: "1Gi" }
+            limits:   { cpu: "1",    memory: "2Gi" }
       volumes:
         - name: config
           persistentVolumeClaim: { claimName: komga-config }
