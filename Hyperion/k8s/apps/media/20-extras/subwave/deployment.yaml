@@ -126,6 +126,15 @@ spec:
               value: "1234"
             - name: ANALYZE_URL
               value: http://localhost:8080
+            # Icecast lives inside the merged `broadcast` container; all four
+            # containers share one pod network namespace, so reach it on
+            # localhost. The compose default `broadcast:7702` does NOT resolve
+            # here and silently breaks stream-status polling → the controller
+            # reports the station offline (streamOnline=false) while it's live.
+            - name: ICECAST_STATUS_URL
+              value: http://localhost:7702/status-json.xsl
+            - name: ICECAST_ADMIN_URL
+              value: http://localhost:7702/admin/listclients
           ports:
             - name: http
               containerPort: 7701
