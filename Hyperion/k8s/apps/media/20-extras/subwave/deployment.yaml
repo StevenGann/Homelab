@@ -115,6 +115,11 @@ spec:
                 secretKeyRef:
                   name: subwave-secrets
                   key: elevenlabs-api-key
+            - name: GOOGLE_GENERATIVE_AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: subwave-secrets
+                  key: google-ai-key
             - name: LIQUIDSOAP_HOST
               value: localhost
             - name: LIQUIDSOAP_PORT
