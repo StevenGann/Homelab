@@ -207,3 +207,57 @@ ignis.lab {
     }
     reverse_proxy http://192.168.10.90:8080
 }
+
+# ─── Subwave (AI DJ internet radio) ─────────────────────────────────────────────
+https://subwave.lab {
+    tls internal
+    @streams path /stream.mp3 /stream.opus /stream.flac /stream.aac
+    handle @streams {
+        reverse_proxy 192.168.10.91:7702 {
+            flush_interval -1
+        }
+    }
+    handle /api/listener-auth {
+        respond 404
+    }
+    handle_path /api/* {
+        reverse_proxy 192.168.10.91:7701
+    }
+    handle /listen.pls {
+        reverse_proxy 192.168.10.91:7701
+    }
+    handle /listen.m3u {
+        reverse_proxy 192.168.10.91:7701
+    }
+    handle {
+        reverse_proxy 192.168.10.91:7700
+    }
+}
+
+# ─── Subwave over plain HTTP (native apps) ──────────────────────────────────
+# Android/iOS apps fall back to cleartext http:// when the device doesn't trust
+# the internal CA (the default on phones). Port 80 is already nftables-restricted
+# to 192.168.10.0/24, so this is LAN-only. Routes mirror the https block above.
+http://subwave.lab {
+    @streams path /stream.mp3 /stream.opus /stream.flac /stream.aac
+    handle @streams {
+        reverse_proxy 192.168.10.91:7702 {
+            flush_interval -1
+        }
+    }
+    handle /api/listener-auth {
+        respond 404
+    }
+    handle_path /api/* {
+        reverse_proxy 192.168.10.91:7701
+    }
+    handle /listen.pls {
+        reverse_proxy 192.168.10.91:7701
+    }
+    handle /listen.m3u {
+        reverse_proxy 192.168.10.91:7701
+    }
+    handle {
+        reverse_proxy 192.168.10.91:7700
+    }
+}
