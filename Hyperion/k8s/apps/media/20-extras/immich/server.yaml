@@ -44,10 +44,10 @@ spec:
         topology.kubernetes.io/zone: hyperion
       containers:
         - name: immich-server
-          image: ghcr.io/immich-app/immich-server:release
+          image: ghcr.io/immich-app/immich-server:v3.1.0
           env:
             - name: IMMICH_VERSION
-              value: release
+              value: v3.1.0
             - name: DB_HOSTNAME
               value: immich-postgres
             - name: DB_USERNAME
