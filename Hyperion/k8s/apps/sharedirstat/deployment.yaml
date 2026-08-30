@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sharedirstat
+  namespace: sharedirstat
+  labels: { app: sharedirstat, homelab.lab/auto-refresh: "true" }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: sharedirstat } }
+  template:
+    metadata: { labels: { app: sharedirstat } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: sharedirstat
+          image: ghcr.io/stevengann/sharedirstat:edge
+          imagePullPolicy: Always
+          args: ["serve"]
+          env:
+            - { name: TZ, value: "America/Los_Angeles" }
+          ports:
+            - { name: http, containerPort: 8080 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+            limits:   { cpu: "2000m", memory: "1Gi" }
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: http
+              httpHeaders: [{ name: Host, value: sharedirstat.lab }]
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+              httpHeaders: [{ name: Host, value: sharedirstat.lab }]
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              httpHeaders: [{ name: Host, value: sharedirstat.lab }]
+            periodSeconds: 30
+          volumeMounts:
+            - { name: config, mountPath: /config, readOnly: true }
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+            - { name: share-movies, mountPath: /shares/movies, readOnly: true }
+            - { name: share-tv-shows, mountPath: /shares/tv-shows, readOnly: true }
+            - { name: share-music, mountPath: /shares/music, readOnly: true }
+            - { name: share-downloads, mountPath: /shares/downloads, readOnly: true }
+            - { name: share-comics, mountPath: /shares/comics, readOnly: true }
+            - { name: share-youtube, mountPath: /shares/youtube, readOnly: true }
+            - { name: share-roms, mountPath: /shares/roms, readOnly: true }
+            - { name: share-audiobooks, mountPath: /shares/audiobooks, readOnly: true }
+            - { name: share-nextcloud, mountPath: /shares/nextcloud, readOnly: true }
+      volumes:
+        - name: config
+          configMap: { name: sharedirstat }
+        - name: data
+          persistentVolumeClaim: { claimName: sharedirstat-data }
+        - name: tmp
+          emptyDir: {}
+        - name: share-movies
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Movies, readOnly: true }
+        - name: share-tv-shows
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/TV-Shows, readOnly: true }
+        - name: share-music
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Music, readOnly: true }
+        - name: share-downloads
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Downloads, readOnly: true }
+        - name: share-comics
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Comics, readOnly: true }
+        - name: share-youtube
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/YouTube, readOnly: true }
+        - name: share-roms
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/ROMs, readOnly: true }
+        - name: share-audiobooks
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Audiobooks, readOnly: true }
+        - name: share-nextcloud
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/NextCloud, readOnly: true }

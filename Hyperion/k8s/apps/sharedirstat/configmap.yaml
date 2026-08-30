@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sharedirstat
+  namespace: sharedirstat
+data:
+  config.yaml: |
+    server:
+      listen: ":8080"
+      base_path: "/"
+      allowed_hosts:
+        - "sharedirstat.lab"
+        - "192.168.10.92"
+      trust_proxy_headers: false
+    log:
+      level: info
+      format: json
+    data_dir: /data
+    scan:
+      on_startup: if-missing
+      max_concurrent_shares: 2
+      default_concurrency: 8
+      default_schedule: "0 3 * * *"
+      follow_symlinks: false
+      cross_mount_points: false
+      size_basis: apparent
+      max_nodes_per_share: 20000000
+    operations:
+      readonly: false
+      delete:
+        confirm_mode: name
+        trash:
+          enabled: false
+          retention: 168h
+      download:
+        zip_enabled: true
+    ui:
+      default_share: movies
+    shares:
+      - id: movies
+        name: Movies
+        path: /shares/movies
+        allow_delete: false
+        allow_download: true
+      - id: tv-shows
+        name: TV Shows
+        path: /shares/tv-shows
+        allow_delete: false
+        allow_download: true
+      - id: music
+        name: Music
+        path: /shares/music
+        allow_delete: false
+        allow_download: true
+      - id: downloads
+        name: Downloads
+        path: /shares/downloads
+        allow_delete: false
+        allow_download: true
+      - id: comics
+        name: Comics
+        path: /shares/comics
+        allow_delete: false
+        allow_download: true
+      - id: youtube
+        name: YouTube
+        path: /shares/youtube
+        allow_delete: false
+        allow_download: true
+      - id: roms
+        name: ROMs
+        path: /shares/roms
+        allow_delete: false
+        allow_download: true
+      - id: audiobooks
+        name: Audiobooks
+        path: /shares/audiobooks
+        allow_delete: false
+        allow_download: true
+      - id: nextcloud
+        name: NextCloud
+        path: /shares/nextcloud
+        allow_delete: false
+        allow_download: true
