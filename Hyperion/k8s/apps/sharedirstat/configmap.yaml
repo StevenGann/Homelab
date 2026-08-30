@@ -40,45 +40,45 @@ data:
       - id: movies
         name: Movies
         path: /shares/movies
-        allow_delete: false
+        allow_delete: true
         allow_download: true
       - id: tv-shows
         name: TV Shows
         path: /shares/tv-shows
-        allow_delete: false
+        allow_delete: true
         allow_download: true
       - id: music
         name: Music
         path: /shares/music
-        allow_delete: false
+        allow_delete: true
         allow_download: true
       - id: downloads
         name: Downloads
         path: /shares/downloads
-        allow_delete: false
+        allow_delete: true
         allow_download: true
       - id: comics
         name: Comics
         path: /shares/comics
-        allow_delete: false
+        allow_delete: true
         allow_download: true
       - id: youtube
         name: YouTube
         path: /shares/youtube
-        allow_delete: false
+        allow_delete: true
         allow_download: true
       - id: roms
         name: ROMs
         path: /shares/roms
-        allow_delete: false
+        allow_delete: true
         allow_download: true
       - id: audiobooks
         name: Audiobooks
         path: /shares/audiobooks
-        allow_delete: false
+        allow_delete: true
         allow_download: true
       - id: nextcloud
         name: NextCloud
         path: /shares/nextcloud
-        allow_delete: false
+        allow_delete: true
         allow_download: true

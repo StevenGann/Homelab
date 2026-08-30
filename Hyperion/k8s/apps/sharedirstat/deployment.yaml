@@ -58,15 +58,15 @@ spec:
             - { name: config, mountPath: /config, readOnly: true }
             - { name: data, mountPath: /data }
             - { name: tmp, mountPath: /tmp }
-            - { name: share-movies, mountPath: /shares/movies, readOnly: true }
-            - { name: share-tv-shows, mountPath: /shares/tv-shows, readOnly: true }
-            - { name: share-music, mountPath: /shares/music, readOnly: true }
-            - { name: share-downloads, mountPath: /shares/downloads, readOnly: true }
-            - { name: share-comics, mountPath: /shares/comics, readOnly: true }
-            - { name: share-youtube, mountPath: /shares/youtube, readOnly: true }
-            - { name: share-roms, mountPath: /shares/roms, readOnly: true }
-            - { name: share-audiobooks, mountPath: /shares/audiobooks, readOnly: true }
-            - { name: share-nextcloud, mountPath: /shares/nextcloud, readOnly: true }
+            - { name: share-movies, mountPath: /shares/movies, readOnly: false }
+            - { name: share-tv-shows, mountPath: /shares/tv-shows, readOnly: false }
+            - { name: share-music, mountPath: /shares/music, readOnly: false }
+            - { name: share-downloads, mountPath: /shares/downloads, readOnly: false }
+            - { name: share-comics, mountPath: /shares/comics, readOnly: false }
+            - { name: share-youtube, mountPath: /shares/youtube, readOnly: false }
+            - { name: share-roms, mountPath: /shares/roms, readOnly: false }
+            - { name: share-audiobooks, mountPath: /shares/audiobooks, readOnly: false }
+            - { name: share-nextcloud, mountPath: /shares/nextcloud, readOnly: false }
       volumes:
         - name: config
           configMap: { name: sharedirstat }
@@ -75,20 +75,20 @@ spec:
         - name: tmp
           emptyDir: {}
         - name: share-movies
-          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Movies, readOnly: true }
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Movies, readOnly: false }
         - name: share-tv-shows
-          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/TV-Shows, readOnly: true }
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/TV-Shows, readOnly: false }
         - name: share-music
-          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Music, readOnly: true }
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Music, readOnly: false }
         - name: share-downloads
-          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Downloads, readOnly: true }
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Downloads, readOnly: false }
         - name: share-comics
-          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Comics, readOnly: true }
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Comics, readOnly: false }
         - name: share-youtube
-          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/YouTube, readOnly: true }
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/YouTube, readOnly: false }
         - name: share-roms
-          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/ROMs, readOnly: true }
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/ROMs, readOnly: false }
         - name: share-audiobooks
-          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Audiobooks, readOnly: true }
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Audiobooks, readOnly: false }
         - name: share-nextcloud
-          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/NextCloud, readOnly: true }
+          nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/NextCloud, readOnly: false }
