@@ -100,7 +100,7 @@ RECORDS=(
     "mqttexplorer.lab|A|192.168.10.81"  # :80    (MQTT Explorer web UI)
     "nextcloud.lab|A|192.168.10.87"       # :80    (NextCloud — moved off .82 which komga took)
     "asf.lab|A|192.168.10.86"             # :1242  (ArchiSteamFarm — Steam card farmer)
-    "sharedirstat.lab|A|192.168.10.92"    # :80    (disk usage analyser — Akasha NFS shares)
+    "sharedirstat.lab|A|192.168.10.4"     # :443   (disk usage analyser — Caddy TLS → 192.168.10.92:80)
     # ── Backfilled 2026-07-04 (were operator-UI-added / missing from git) ──
     "komga.lab|A|192.168.10.82"           # :25600 (comic/manga server — holds .82)
     "agent-caldera.lab|A|192.168.10.85"   # :8000  (agent shared-knowledge Caldera)

@@ -261,3 +261,20 @@ http://subwave.lab {
         reverse_proxy 192.168.10.91:7700
     }
 }
+
+# ─── ShareDirStat (disk usage analyser — Akasha NFS shares) ─────────────────
+# No built-in auth; mounts are read-only (delete disabled). SSE progress +
+# streamed ZIP downloads need flush_interval -1.
+https://sharedirstat.lab {
+    tls internal
+    reverse_proxy http://192.168.10.92:80 {
+        flush_interval -1
+    }
+}
+
+# ─── ShareDirStat over plain HTTP (Uptime Kuma + non-TLS clients) ───────────
+http://sharedirstat.lab {
+    reverse_proxy http://192.168.10.92:80 {
+        flush_interval -1
+    }
+}
