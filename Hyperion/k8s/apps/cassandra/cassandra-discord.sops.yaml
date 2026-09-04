@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: cassandra-discord
+    namespace: cassandra
+type: Opaque
+data:
+    DISCORD_BOT_TOKEN: ENC[AES256_GCM,data:uKA39yrrb46AB9fKOT5BmVMcTfNlT4Hhqg6wNn2wUMDffqniGDjCADcp643+3LvqFQ3PC9w3gNQ8jEy8ZtHeQk/qgXZlxbMOuP18eZMAG3mMpO7Q60/d0RJv9ja+XzvK,iv:C7AMPUmIc34EzWK77q56chZsSDwFA2c0CEzRwYb+Gfs=,tag:H4jLwIXZf7dVKviNf3wJSA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBieFdsYWZNaWlic2ZWUmha
+            S1RIUm9QOHpab3M4L3FORU41eW1VaEZ6ZjBVCm1XanlxclhOeU8yVlJCNE5qeGY4
+            NmNUcFZKa1dTQ2V3K3ltNTc2ajNSb0EKLS0tIFZKZkRhL3MvcVkzWVorNHppSFZZ
+            cWtVdE1sSTBRWGpWdGZ0a3RJSUFURGcKFjPqSL/S8WAVdEEeKpvNHqZ5hOdXcTRk
+            4RIG9ZA6iWnt9k0T1am/Bsynt6ojnaZC66zSuAec5K4BJqSk/9XaAw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBYaFBaS2hJOFhRV0pTeEJk
+            R0w3QXh1YUJ0dFhNRFUyMnJHYjA4SzVEdmxRCllPUFp0aGNDbHhKaytpL1B4OXhM
+            Ly9hY2QvQjFUSTluSHYxait0d093aGMKLS0tIGhValJJNHhhN3czVkc2R3NJQjBq
+            M1FWZXNjMlYzaUtPMlVkRjMrT1lScGMK2ywJPqnSj9/Fj866kRdPEF2I6QESvvcH
+            awVrgkutXPYtsp0CO6j9NQQctVkgaxgtLWQqKYpxrfF6zs1tFY7XFQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1wjvfq7kt5z04q3r04k9l2exjxuql0y8n0tq7qxylrjs5vn8ss5pqkv9x59
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-09-04T04:32:26Z"
+    mac: ENC[AES256_GCM,data:t0LCaHa/Q3F3Wz1U/nwPRb542l9Pjlprv15SEQIemY0QmrysU7w7G2UWa0xI9CO6n5f1/Phz5AvSZxAkaKBYQR53rSskkTOA3UuwYHqzTGHkkVZpDuCIHLDtEXaagxhBdxKX2lbY6lei7l9JLc/JuYpnsIzswQlmYOP9LA7Qw0U=,iv:1SfIRc0QuYZCALac6rIF87IH03W2hoVE0F0UHrAnkQA=,tag:OddMekSsKosIAWoj5eqkYg==,type:str]
+    version: 3.13.3

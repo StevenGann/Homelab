@@ -10,3 +10,4 @@ resources:
   - nginx-proxy.yaml
   - deepseek.sops.yaml
   - dashboard-auth.sops.yaml
+  - cassandra-discord.sops.yaml

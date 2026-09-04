@@ -47,7 +47,12 @@ spec:
                 secretKeyRef:
                   name: cassandra-deepseek
                   key: DEEPSEEK_API_KEY
-            # Discord — disabled until token provided
+            # Discord — activated via DISCORD_BOT_TOKEN env (below) + discord config section
+            - name: DISCORD_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cassandra-discord
+                  key: DISCORD_BOT_TOKEN
           volumeMounts:
             - { name: data, mountPath: /opt/data }
           resources:

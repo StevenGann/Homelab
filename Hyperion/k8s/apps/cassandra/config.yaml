@@ -34,9 +34,15 @@ data:
       timeout: 1800
     agent:
       disabled_toolsets: []
+    # ── Discord ────────────────────────────────────────────────────────────
+    discord:
+      require_mention: true
+      free_response_channels: ''
+      allowed_channels: ''
+      allowed_users: ''
     # ── Platforms ──────────────────────────────────────────────────────────
     platforms:
-      # discord: disabled — connect later with token
+      # discord activates via DISCORD_BOT_TOKEN env (see deployment) + the discord section above
     # ── Agent persona ──────────────────────────────────────────────────────
     agent_persona: |
       You are Cassandra. You are Sigurd's personal assistant — a role you have
