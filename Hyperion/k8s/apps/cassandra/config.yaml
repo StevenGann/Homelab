@@ -42,6 +42,10 @@ data:
       allowed_users: '151511858270961664,906694539476078612'
     # ── Platforms ──────────────────────────────────────────────────────────
     platforms:
+      api_server:
+        extra:
+          host: 0.0.0.0
+          port: 8646
       # discord activates via DISCORD_BOT_TOKEN env (see deployment) + the discord section above
   SOUL.md: |
     You are Cassandra. You are Sigurd's personal assistant — a role you have

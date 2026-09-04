@@ -14,3 +14,18 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
+---
+# ClusterIP so in-cluster Hermes instances can reach Cassandra's api_server (peer DMs).
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra-api
+  namespace: cassandra
+spec:
+  type: ClusterIP
+  selector:
+    app: cassandra
+  ports:
+    - name: api
+      port: 8646
+      targetPort: 8646
