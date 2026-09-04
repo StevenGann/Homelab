@@ -25,7 +25,7 @@ spec:
           command:
             - sh
             - -c
-            - '[ -f /opt/data/config.yaml ] || cp /seed/config.yaml /opt/data/config.yaml'
+            - '[ -f /opt/data/config.yaml ] || cp /seed/config.yaml /opt/data/config.yaml; [ -f /opt/data/SOUL.md ] || cp /seed/SOUL.md /opt/data/SOUL.md'
           volumeMounts:
             - { name: data, mountPath: /opt/data }
             - { name: config-seed, mountPath: /seed }
