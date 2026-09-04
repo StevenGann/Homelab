@@ -28,7 +28,7 @@ data:
     operations:
       readonly: false
       delete:
-        confirm_mode: name
+        confirm_mode: simple
         trash:
           enabled: false
           retention: 168h
