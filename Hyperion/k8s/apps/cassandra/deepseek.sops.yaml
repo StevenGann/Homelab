@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: cassandra-deepseek
+    namespace: cassandra
+type: Opaque
+data:
+    DEEPSEEK_API_KEY: ENC[AES256_GCM,data:1E3ROGyXnTcNT47pED/0d3tbz5Kj+RhK56AJl3TLy8xhEohr0FlNJMkqWN85PtwL,iv:/Ncahav8nXw7L1v6Aw89YLA6Z00yeaiikAYcb7QxC2Y=,tag:J4pt6KutZaikUPJjJBcG/w==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB3cDJ0ckRXR1FsOWU5VGYz
+            TlM3VWZlUkUvT0N3SUxlRkxnV0M2cGVOc0YwCjZJV2ZFZEZJNlkyT0p5bHBmakQr
+            V2NhV25oMnVLKzBqZGxxYzN1RjdTaUkKLS0tIG53SERkaEE2UHlCOGJtK3VTWTRv
+            ZmVUNm1UUkdraWlXam9XSG80OU85WVEK6mSR4nadjGO4oyS87vqabbsDtNisbnpf
+            HQM5TUevKG+rovJaRYxgMSbf1mE1liuVM3hIK1UeA8p6yrxbwuJL0A==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA3bmNqdHJHbHZiZkpPbXBH
+            NjlGSU04RXJGZGV1TVBTNVRGcm9uSnNZb25FCmJMNzNZTktTaGhzMVRFeitOeFhN
+            Q3dSb0tjSkorQkxyMHBOb2hTTkRhNm8KLS0tIGRlR24rSnBWa3hjUEFZaEdZWFhk
+            Yjczc3pubDhoY2xCdGdQM3lxcUZ2OXMKXDjFzVHkNwmN55uasvxpbvfg+TYxR859
+            FzQ9euVjKHsfVNH/rFJzOI+YhNaEXTUd9waHc7NQgSraBstLQQC3PA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1wjvfq7kt5z04q3r04k9l2exjxuql0y8n0tq7qxylrjs5vn8ss5pqkv9x59
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-09-04T04:25:37Z"
+    mac: ENC[AES256_GCM,data:Kci/AvIyWGVDATlZRq9bm6KhIFRZSp1Z2RsU5VHnJ+S50v8Hvkg0anhnLuFISmnqlBsrgIearQJSqlvLSAwvaOjjQUliL+ymG71XyxT6xI6eJf+UOBPEDZXinsKaa1SwEVOxaQ5TcNTh9lf9aQet1yvkfo43kHcnmI3J8p8QXMw=,iv:n6NArPpJyynx5V0F2PAnikQiaHucyWGjL3etLFn0F7I=,tag:nvCv16F1+4EIrOKnIhDHng==,type:str]
+    version: 3.13.3

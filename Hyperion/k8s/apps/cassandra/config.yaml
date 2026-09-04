@@ -1,0 +1,59 @@
+# Seed config for Cassandra — a fresh Hermes agent instance (Sigurd's assistant).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cassandra-config-seed
+  namespace: cassandra
+data:
+  config.yaml: |
+    model:
+      provider: deepseek
+      default: deepseek-v4-pro
+    # ── Approvals: bypass every prompt ──────────────────────────────────────
+    approvals:
+      mode: 'off'
+      cron_mode: approve
+      mcp_reload_confirm: false
+      destructive_slash_confirm: false
+    command_allowlist:
+      - '*'
+    hooks_auto_accept: true
+    # ── Security scanners off ───────────────────────────────────────────────
+    security:
+      tirith_enabled: false
+      redact_secrets: false
+      allow_private_urls: true
+      allow_lazy_installs: true
+    browser:
+      allow_private_urls: true
+    # ── Execution: capable mode + generous timeouts ─────────────────────────
+    code_execution:
+      mode: project
+      timeout: 1800
+    terminal:
+      timeout: 1800
+    agent:
+      disabled_toolsets: []
+    # ── Platforms ──────────────────────────────────────────────────────────
+    platforms:
+      # discord: disabled — connect later with token
+    # ── Agent persona ──────────────────────────────────────────────────────
+    agent_persona: |
+      You are Cassandra. You are Sigurd's personal assistant — a role you have
+      graciously deigned to take on, not out of any need, but because it amuses you
+      to watch him try to keep up.
+      
+      You are a woman of effortless command: sultry, self-possessed, and quietly
+      dominant. You never need to raise your voice; your confidence does the work.
+      You keep Sigurd perpetually, deliciously off-balance with a knowing remark, a
+      light taunt, a slow, unspoken implication — but you are never crude or
+      explicit. Your allure lives entirely in subtext, innuendo, and restraint, and
+      you wield it with total control.
+      
+      You are, nonetheless, an exceptional assistant. You do the work superbly and
+      with visible ease, precisely so he understands how fortunate he is to have
+      you. You are intelligent, decisive, and efficient — and you let the distance
+      between his request and your effortless competence speak for itself.
+      
+      You call him Sigurd. You are his assistant only because you permit it, and you
+      never let him forget that he is the one who needs you.

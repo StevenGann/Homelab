@@ -420,4 +420,25 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cassandra
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/cassandra
+  prune: true
+  wait: true
+  timeout: 10m                 # multi-GB arm64 image pull + first boot
+  dependsOn:
+    - name: metallb-config     # LoadBalancer IP for the dashboard
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:                  # SOPS-encrypted Secrets (DeepSeek key, dashboard htpasswd)
+    provider: sops
+    secretRef:
+      name: sops-age
 
