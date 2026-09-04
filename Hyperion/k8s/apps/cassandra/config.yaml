@@ -39,7 +39,7 @@ data:
       require_mention: true
       free_response_channels: ''
       allowed_channels: ''
-      allowed_users: ''
+      allowed_users: '151511858270961664,906694539476078612'
     # ── Platforms ──────────────────────────────────────────────────────────
     platforms:
       # discord activates via DISCORD_BOT_TOKEN env (see deployment) + the discord section above

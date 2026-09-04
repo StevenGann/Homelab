@@ -53,6 +53,8 @@ spec:
                 secretKeyRef:
                   name: cassandra-discord
                   key: DISCORD_BOT_TOKEN
+            - name: DISCORD_ALLOWED_USERS
+              value: "151511858270961664,906694539476078612"
           volumeMounts:
             - { name: data, mountPath: /opt/data }
           resources:
