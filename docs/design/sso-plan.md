@@ -1,5 +1,17 @@
 # SSO for Friend/Family-Facing Services — Implementation Plan
 
+> ## ⚠️ Superseded in part (2026-09-05) by [`public-access-plan.md`](public-access-plan.md)
+>
+> That plan **inverts this one's transport decision**: the public tier (Cloudflare
+> Tunnel + one direct Jellyfin forward) is now the deliverable, not a deferred
+> phase, and remote access no longer assumes the operator's VPN. It also drops
+> Navidrome from the public set, replaces the NoIP DDNS chain with Cloudflare's
+> API, and re-bases the §0 blocker list on the live state as of 2026-09-05
+> (several §0 items are already resolved; others are re-stated there).
+>
+> **Still authoritative here:** §1 (problem), §2.2 (three integration patterns),
+> §3 (per-app disposition), §5 (gotchas). **Superseded:** §0, §2.1, §6, §7, §8.
+
 > **Status:** Identity-plane IaC SCAFFOLDED 2026-06-02 (Authentik + blueprints +
 > Homarr OIDC + Caddy/DNS wiring committed; **not yet deployed**). A 2026-07-04
 > repo-vs-live review found the scaffold ~90% complete but with **three deploy
