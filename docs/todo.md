@@ -22,15 +22,15 @@ plans that used to live in this file have been removed. The per-node procedure i
 Seven phases; nothing is internet-reachable until Phase 4, Jellyfin's single
 port-forward opens in Phase 6. Phase 0 has the repo changes and the operator
 gates (Cloudflare 2FA, rotate the accounts that become reachable, scoped API
-token for DDNS, decide Immich).
+token for DDNS). Immich is not exposed (may be retired).
 
 - [ ] Phase 0a — mechanical repo changes (nftables, deploy.sh gate, pins, blueprints, tunnel map)
 - [ ] Phase 0b — operator gates
 - [ ] Phase 1 — Authentik up on `auth.lab`; outpost token pasted; test friend created
 - [ ] Phase 2 — Jellyfin LDAP plugin; test friend logs into the **mobile app**
 - [ ] Phase 3 — Seerr via Jellyfin; break-glass accounts confirmed
-- [ ] Phase 4 — Cloudflare Tunnel: `auth` first, then `seerr`/`homarr`/`cloud`(/`photos`)
-- [ ] Phase 5 — OIDC: Homarr flip, Nextcloud `user_oidc`, Immich OAuth
+- [ ] Phase 4 — Cloudflare Tunnel: `auth` first, then `seerr`/`homarr`/`cloud`
+- [ ] Phase 5 — OIDC: Homarr flip, Nextcloud `user_oidc`
 - [ ] Phase 6 — Jellyfin direct: grey-cloud DDNS via Cloudflare, UCG 443→7443, LE cert
 - [ ] Phase 7 — monitors, Authentik Postgres backup, pins, user-guide "from outside" section
 

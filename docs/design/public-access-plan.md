@@ -13,7 +13,7 @@
 > **What this changes vs. the June plan:** that plan locked "remote access = the
 > operator's VPN; the public tier is deferred". This inverts it — the public tier
 > is the deliverable. It also drops Navidrome from the public set, replaces the
-> NoIP DDNS chain with Cloudflare's own API, adds Immich as a candidate, and
+> NoIP DDNS chain with Cloudflare's own API, declines Immich (may be retired), and
 > re-bases the blocker list on what is actually true today.
 
 ---
@@ -24,17 +24,17 @@
 |---|----------|--------|-----|
 | D-1 | **Jellyfin transport** | **Direct: UCG WAN `:443` → Heimdall `:7443`** (the isolated Caddy listener). *Alternative:* a dedicated second Cloudflare tunnel. | Jellyfin is plain HTTP and *could* use the tunnel; Cloudflare's CDN terms discourage serving video through the proxy, and the tunnel also carries the identity plane — a ToS action there would take `auth` down with it. Direct is the conventional media-server answer and performs better. Cost: **the one port-forward this plan allows.** If you later prefer zero forwards, moving `jf` onto its *own* tunnel is a config-only change. |
 | D-2 | **Navidrome** | **Not exposed.** Friends use Jellyfin for music. | Subsonic clients authenticate with `md5(password+salt)` per request — the server must hold a recoverable password and cannot consult LDAP or OIDC. Publicly it would be an unrevocable, MFA-less, IdP-less endpoint. Stays LAN/VPN. |
-| D-3 | **Public allowlist** | `auth`, `seerr`, `homarr`, `cloud` (Nextcloud) via tunnel; `jf` direct. **`photos` (Immich) via tunnel — *decide*.** | Everything friend-facing that is browser- or token-based. Immich's mobile app does OAuth in an in-app browser and then uses bearer tokens — tunnel-compatible — but a first phone backup is tens of GB of uploads, which is the "disproportionate large files" pattern. Include if the audience is family who will back up phones; otherwise leave LAN/VPN. |
+| D-3 | **Public allowlist** | `auth`, `seerr`, `homarr`, `cloud` (Nextcloud) via tunnel; `jf` direct. **Immich: not exposed** (decided 2026-09-05). | Everything friend-facing that is browser- or token-based. Immich is technically tunnel-compatible (in-app OAuth, then bearer tokens) but a first phone backup is tens of GB of uploads, and the service **may be retired soon** — not worth wiring an IdP client and a public hostname for. Stays LAN/VPN. |
 | D-4 | **Cloudflare Access** | **Not used.** Use a Cloudflare WAF rate-limit rule on `auth` instead. | Native clients (Jellyfin app, Nextcloud sync, Immich app) cannot pass an Access cookie. On browser-only apps it produces a *double* login (Access→Authentik, then app→Authentik/Jellyfin). Revisit only for a browser-only app with weak native auth. |
 | D-5 | **DDNS** | **ddns-updater → Cloudflare provider**, updating an `A` record for `jf.stevengann.com` (grey-cloud) directly. Retire the NoIP chain. | The NoIP path is broken today: ddns-updater is `unhealthy` because `stevengann.ddns.net` does not resolve, and `monolith.ddns.net` points at a stale IP. DNS is already on Cloudflare; a scoped API token removes a vendor and a CNAME hop. |
 | D-6 | **TLS for `jf`** | Let's Encrypt via **TLS-ALPN-01** through the forward (as designed). *Optional later:* DNS-01 with `caddy-dns/cloudflare`. | Works without a Caddy image rebuild. DNS-01 removes the "cert can't issue until the forward is live" ordering constraint and is a one-line Dockerfile change if wanted. |
 | D-7 | **Split-horizon DNS** | **No.** LAN clients resolve `*.stevengann.com` through Cloudflare like everyone else. | One issuer URL, one cert chain, nothing to distribute. In-cluster apps (Homarr) validate tokens via the tunnel hairpin — already how the scaffold is wired. LAN users keep `jellyfin.lab:30013`; `jf.stevengann.com` from the LAN relies on UCG NAT loopback (verify in Phase 6). |
 | D-8 | **Group model** | **One group: `friends-family`.** It becomes the LDAP `search_group`. `media-users` is dropped. | Two groups with one being the LDAP scope is a "forgot to add them to the second group → Jellyfin login silently fails" trap. Narrow later if a non-media friend tier ever exists. |
-| D-9 | **Exposure gate (credentials)** | Full rotation is scheduled separately, **but nothing becomes internet-reachable until the accounts that would be reachable are rotated**: the Jellyfin local admin, any Seerr/Nextcloud/Immich local admin using the shared LAN password, and the Cloudflare account gets 2FA. | A password committed to this public repo's history is in use for at least Jellyfin admin and workstation SSH. Opening `:7443` with it in place is one guess from admin. |
+| D-9 | **Exposure gate (credentials)** | Full rotation is scheduled separately, **but nothing becomes internet-reachable until the accounts that would be reachable are rotated**: the Jellyfin local admin, any Seerr/Nextcloud local admin using the shared LAN password, and the Cloudflare account gets 2FA. | A password committed to this public repo's history is in use for at least Jellyfin admin and workstation SSH. Opening `:7443` with it in place is one guess from admin. |
 | D-10 | **Authentik version** | Bump `2026.5.2` → **`2026.8.1`** *before* first boot. | Authentik runs DB migrations on upgrade; first boot is the cheapest moment to be current. Pin by digest after the first pull. |
 | D-11 | **MFA** | **Mandatory for admins** (`akadmin` + anyone in an admin group), **optional for friends**. | Authentik's LDAP outpost supports `password;totp` binds, but friends typing TOTP into a TV remote will not use the service. |
 | D-12 | **Seerr login** | "Sign in with Jellyfin" (LDAP-backed). | Seerr `3.0.1` as deployed exposes no OIDC (verified — no `oidc` in the login bundle). Jellyfin login inherits the directory for free. Set `jellyfinExternalHost` so friend-facing links work. |
-| D-13 | **Break-glass** | Every app keeps one **local admin outside LDAP/OIDC**: `akadmin`, Jellyfin admin, Homarr `credentials`, Nextcloud admin, Immich admin. | A Heimdall outage logs friends out; it must not lock *you* out. |
+| D-13 | **Break-glass** | Every app keeps one **local admin outside LDAP/OIDC**: `akadmin`, Jellyfin admin, Homarr `credentials`, Nextcloud admin. | A Heimdall outage logs friends out; it must not lock *you* out. |
 | D-14 | **Game servers** | **Deferred** until Thoth returns. Remove the existing open `25565` rule now. | Both servers live on Thoth, which is off. No server → no forward, and no open port to nothing. |
 
 ---
@@ -51,13 +51,12 @@
    │ cloudflared ──► Caddy :443 ──► Authentik :9180 │           │  (isolated Caddy
    │                        │  ──► 192.168.10.54 Seerr         │   listener, LE cert,
    │                        │  ──► 192.168.10.53 Homarr        │   serves ONLY jf)
-   │                        │  ──► 192.168.10.87 Nextcloud     │      │
-   │                        │  ──► 192.168.10.88 Immich (D-3)  │      ▼
+   │                        │  ──► 192.168.10.87 Nextcloud     │      ▼
    │ Authentik LDAP outpost :389/:636 ◄─────────────┼── Akasha Jellyfin :30013
    └────────────────────────────────────────────────┘   (LDAP plugin binds here)
 
    Identity: ONE Authentik directory.  LDAP → Jellyfin (→ Seerr).
-             OIDC → Homarr, Nextcloud, Immich.  Nothing else is public.
+             OIDC → Homarr, Nextcloud.  Nothing else is public.
 ```
 
 **Reachable from the WAN after this plan:** Heimdall `:7443` (Jellyfin only,
@@ -73,9 +72,9 @@ MetalLB VIP.
 | `seerr.stevengann.com` | Tunnel | `192.168.10.54:80` | Jellyfin (LDAP) | PWA only |
 | `homarr.stevengann.com` | Tunnel | `192.168.10.53:80` | Authentik OIDC | — |
 | `cloud.stevengann.com` | Tunnel | `192.168.10.87:80` | Authentik OIDC (`user_oidc`) | Desktop/mobile sync via app-password — tunnel-OK |
-| `photos.stevengann.com` *(D-3)* | Tunnel | `192.168.10.88:2283` | Authentik OAuth | Immich app — tunnel-OK |
 | `jf.stevengann.com` | **Direct** `:7443` | Akasha `192.168.10.247:30013` | Jellyfin (LDAP) | All Jellyfin apps |
 | ~~`music.stevengann.com`~~ | — | — | — | Dropped (D-2) |
+| ~~`photos.stevengann.com`~~ | — | — | — | Dropped (D-3, Immich may be retired) |
 | ~~`mc` / `se`~~ | — | — | — | Deferred (D-14) |
 
 Apex + `www` stay on GitHub Pages, grey-cloud, untouched.
@@ -86,10 +85,8 @@ Apex + `www` stay on GitHub Pages, grey-cloud, untouched.
   Jellyfin app → Jellyfin's LDAP plugin binds to `192.168.10.4:389` → outpost
   asks Authentik → user auto-created in Jellyfin on first success. Seerr's "Sign
   in with Jellyfin" replays the same credential against Jellyfin.
-- **OIDC (Homarr, Nextcloud, Immich):** browser redirect to
+- **OIDC (Homarr, Nextcloud):** browser redirect to
   `https://auth.stevengann.com/application/o/<app>/` → login → redirect back.
-  Immich's mobile app opens this in an in-app browser and returns to
-  `app.immich:///oauth-callback`.
 - **Offboarding:** deactivate the Authentik user → LDAP binds fail immediately,
   OIDC refresh fails at next token renewal. **Jellyfin device tokens do not
   expire on their own** — also delete (or disable) the user in Jellyfin to
@@ -114,7 +111,7 @@ Apex + `www` stay on GitHub Pages, grey-cloud, untouched.
 | Seerr | `3.0.1`, no OIDC | D-12. |
 | Homarr | `v1.60.0`; OIDC env fully wired, gated on `AUTH_PROVIDERS=credentials`; `homarr-secret` has the client id/secret | Phase 5 is a one-value flip. |
 | Nextcloud | `34.0.3` at `.87` | Blueprint `20-provider-nextcloud.yaml` still says "not deployed" and only has a `.lab` redirect URI — update. |
-| Immich | `v3.1.0` at `.88` | No blueprint yet. Add one if D-3 is yes. |
+| Immich | `v3.1.0` at `.88` | Not exposed (D-3). No blueprint, no hostname. |
 | Caddyfile | `auth.lab, auth.stevengann.com` + `jf.stevengann.com:7443` blocks exist; global `auto_https disable_redirects`; no `email` | Ready. Add `email` for LE expiry notices. |
 | Caddy image | Caddy `2.11.4` + `caddy-l4` only | No DNS-01 plugin (D-6 alternative needs a rebuild). |
 | Upstream | Authentik `2026.8.1`, cloudflared `2026.8.3` | Pins for Phase 0. |
@@ -150,14 +147,11 @@ until `deploy.sh` runs):
 5. `Heimdall/authentik/blueprints/20-provider-nextcloud.yaml` — add strict
    redirect `https://cloud.stevengann.com/apps/user_oidc/code`, set
    `meta_launch_url: https://cloud.stevengann.com`, drop "not deployed" text.
-6. **If D-3 = yes:** new `40-provider-immich.yaml` — OAuth2 provider, redirects
-   `https://photos.stevengann.com/auth/login`, `https://photos.stevengann.com/user-settings`,
-   `app.immich:///oauth-callback`; application `immich`; bound to `friends-family`.
-7. `Heimdall/cloudflared/config.yml` — remove `music`; uncomment `cloud` →
-   `http://192.168.10.87`; add `photos` → `http://192.168.10.88:2283` (D-3).
-   `docker-compose.yml` — pin `cloudflare/cloudflared:2026.8.3`, drop `pull_policy: always`.
-8. `Heimdall/caddy/Caddyfile` — add `email <operator>` to the global block.
-9. `Heimdall/cloudflared/README.md`, `sso-bring-up.md` §7/§8, `sso-plan.md`
+6. `Heimdall/cloudflared/config.yml` — remove `music`; uncomment `cloud` →
+   `http://192.168.10.87`. `docker-compose.yml` — pin
+   `cloudflare/cloudflared:2026.8.3`, drop `pull_policy: always`.
+7. `Heimdall/caddy/Caddyfile` — add `email <operator>` to the global block.
+8. `Heimdall/cloudflared/README.md`, `sso-bring-up.md` §7/§8, `sso-plan.md`
    header — reflect the hostname map above.
 
 **0b. Operator gates** (hands-on; nothing in 0a depends on them, but Phase 4+
@@ -173,7 +167,6 @@ does):
       `Heimdall/secrets/ddns-config.json.sops` for the `cloudflare` provider
       (`owner: jf`, `proxied: false`, `ip_version: ipv4`). This replaces the
       three NoIP entries.
-- [ ] Decide D-3 (Immich).
 
 **Exit:** `git push`; `deploy.sh --dry-run` shows Authentik gated *off* (env not
 shipped yet); nftables reload plan reviewed.
@@ -244,8 +237,7 @@ Runbook §7 + `Heimdall/cloudflared/README.md`, on owner-thinkpad:
    Cloudflare-issued cert, login page renders, `akadmin` login works (with TOTP).
 4. Cloudflare → Security → WAF → rate-limiting rule on `auth.stevengann.com`
    (e.g. 10 req/10 s per IP on `/flows/*` and `/api/v3/flows/*`).
-5. Route `seerr`, `homarr`, `cloud` (and `photos`). Re-run `deploy.sh` if
-   `config.yml` changed.
+5. Route `seerr`, `homarr`, `cloud`. Re-run `deploy.sh` if `config.yml` changed.
 
 **Exit:** test friend, **off-network**, logs into `https://seerr.stevengann.com`
 with "Sign in with Jellyfin". `https://homarr.stevengann.com` loads (still
@@ -265,13 +257,8 @@ instantly; DNS records can stay.
    client id `nextcloud`, secret from Authentik (Providers → Nextcloud). Keep
    the local admin. Verify the desktop client's browser login flow completes
    through the tunnel.
-3. **Immich (D-3):** Administration → Settings → OAuth: issuer
-   `https://auth.stevengann.com/application/o/immich/`, client id/secret from
-   the blueprint, mobile redirect `app.immich:///oauth-callback`, auto-register
-   on, storage-label from `preferred_username`. Verify in the **mobile app**
-   before disabling password login for non-admins.
 
-**Exit:** test friend logs into each via Authentik from off-network.
+**Exit:** test friend logs into both via Authentik from off-network.
 
 ### Phase 6 — Jellyfin direct (the one port-forward)
 
@@ -302,7 +289,7 @@ without it.
 ### Phase 7 — Hardening, monitoring, docs
 
 - **Uptime Kuma:** HTTPS monitors for `auth`, `seerr`, `homarr`, `cloud`,
-  `photos`, `jf` (these traverse the real public path); TCP monitor
+  `jf` (these traverse the real public path); TCP monitor
   `192.168.10.4:389`; keyword monitor on the tunnel's Cloudflare status if wanted.
 - **Backup the identity database.** Authentik's Postgres lives on Heimdall's
   local disk, unbacked — losing it loses every friend account. Nightly
@@ -335,7 +322,7 @@ without it.
 
 | Compromised | Blast radius | Mitigation |
 |-------------|--------------|------------|
-| A friend's Authentik password | That friend's Jellyfin libraries, Seerr requests, their Homarr/Nextcloud/Immich data | Deactivate user; optional MFA; Authentik reputation lockout; CF rate-limit on `auth` |
+| A friend's Authentik password | That friend's Jellyfin libraries, Seerr requests, their Homarr/Nextcloud data | Deactivate user; optional MFA; Authentik reputation lockout; CF rate-limit on `auth` |
 | Jellyfin local admin | Full Jellyfin (media, users) — **not** the directory | D-9 rotation; lockout; LDAP users never admin |
 | `akadmin` | The directory: every friend account, every OIDC client | Mandatory TOTP (D-11); bootstrap password in SOPS only; `auth` only reachable via tunnel + rate-limit |
 | Cloudflare account | DNS + tunnel = your entire public presence | 2FA (Phase 0b); scoped API tokens only |
@@ -362,7 +349,6 @@ the other direction but does not change this one.
 | `Heimdall/authentik/docker-compose.yml` | 0a | Pin `2026.8.1` |
 | `Heimdall/authentik/blueprints/00-groups.yaml`, `30-provider-ldap.yaml` | 0a | Single `friends-family` group as LDAP scope |
 | `Heimdall/authentik/blueprints/20-provider-nextcloud.yaml` | 0a | Public redirect URI + launch URL |
-| `Heimdall/authentik/blueprints/40-provider-immich.yaml` *(new, D-3)* | 0a | Immich OAuth provider |
 | `Heimdall/cloudflared/config.yml`, `docker-compose.yml` | 0a | Hostname map; pin `2026.8.3` |
 | `Heimdall/caddy/Caddyfile` | 0a | `email` in global block |
 | `Heimdall/secrets/ddns-config.json.sops` | 0b | Cloudflare provider (operator, needs token) |
@@ -372,7 +358,7 @@ the other direction but does not change this one.
 | `docs/homelab-user-guide.md`, `docs/todo.md`, `sso-plan.md`, runbook | 7 | Public URLs; pointers; drop `music`/games |
 
 Not in the repo (UI/operator): Jellyfin LDAP plugin + lockout; Seerr Jellyfin
-login + external host; Nextcloud `user_oidc`; Immich OAuth; UCG port-forward;
+login + external host; Nextcloud `user_oidc`; UCG port-forward;
 Cloudflare 2FA, tunnel creation, DNS routing, WAF rule, API token; Uptime Kuma
 monitors; TOTP on `akadmin`.
 
@@ -401,6 +387,9 @@ monitors; TOTP on `akadmin`.
   zero home-IP exposure. Re-add the nftables rules then.
 - **Navidrome** for friends — D-2. Only if a client ecosystem with IdP-capable
   auth (OpenSubsonic API keys) becomes usable.
+- **Immich** for friends — D-3. It may be retired; if it survives and a family
+  photo-backup use case appears, the wiring is: OAuth provider blueprint,
+  `photos.stevengann.com` on the tunnel, mobile redirect `app.immich:///oauth-callback`.
 - **Self-service enrollment / invites** — needs SMTP.
 - **Cloudflare Access** — D-4.
 - **DNS-01 for Caddy** — D-6; rebuild the image with `caddy-dns/cloudflare` if
