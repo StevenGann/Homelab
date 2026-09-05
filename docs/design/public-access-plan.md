@@ -160,7 +160,7 @@ does):
 - [ ] **Cloudflare account: enable 2FA.** It now controls your DNS and your
       tunnel — it is the highest-value account in this plan.
 - [ ] **Rotate the exposure set (D-9):** Jellyfin admin password; any Seerr /
-      Nextcloud / Immich local admin sharing the leaked password. Record which
+      Nextcloud local admin sharing the leaked password. Record which
       accounts are considered rotated in `docs/todo.md`.
 - [ ] Create a **scoped Cloudflare API token** (`Zone → DNS → Edit`, zone
       `stevengann.com` only) for ddns-updater. Re-author
@@ -183,7 +183,7 @@ shipped yet); nftables reload plan reviewed.
 3. Browser on the LAN → `https://auth.lab` (internal CA) → log in as `akadmin`
    with `AUTHENTIK_BOOTSTRAP_PASSWORD`. **Immediately enrol TOTP on `akadmin`** (D-11).
 4. Verify the worker applied the blueprints: group `friends-family`, providers
-   Homarr / Nextcloud / LDAP (/ Immich), outpost `LDAP`.
+   Homarr / Nextcloud / LDAP, outpost `LDAP`.
 5. Copy the LDAP outpost token (Applications → Outposts → LDAP → View
    deployment info) into `env.sops.env` → `AUTHENTIK_LDAP_OUTPOST_TOKEN` →
    `deploy.sh` again. The `ldap` container goes healthy.
