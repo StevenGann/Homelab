@@ -83,7 +83,11 @@ services:
     environment: *authentik-env
     healthcheck:
       test: ["CMD", "ak", "healthcheck"]
-      start_period: 60s
+      # 300s: the FIRST boot runs the full Django migration set (70+ apps) before
+      # the web server binds. On this hardware that took >4 min; the previous 60s
+      # start_period marked the container unhealthy mid-migration. Failures inside
+      # start_period don't count toward `retries`, so this only affects startup.
+      start_period: 300s
       interval: 30s
       retries: 6
       timeout: 30s
@@ -107,7 +111,7 @@ services:
     environment: *authentik-env
     healthcheck:
       test: ["CMD", "ak", "healthcheck"]
-      start_period: 60s
+      start_period: 300s
       interval: 30s
       retries: 6
       timeout: 30s
@@ -119,6 +123,15 @@ services:
     depends_on:
       postgresql: { condition: service_healthy }
       redis:      { condition: service_healthy }
+      # MUST wait for the server, not just the database (added 2026-09-05).
+      # BOTH images run run_migrations() on start. On a fresh DB they raced:
+      # the server began `migrate_schemas` at 23:52:14, the worker acquired the
+      # advisory lock at 23:52:28 and started its own pass, and Django aborted
+      # with InconsistentMigrationHistory (authentik_core.0034 applied before its
+      # authentik_tenants.0002 dependency) — leaving an unusable database that
+      # had to be wiped. The lock does not cover the Django migration phase, so
+      # serialise it here: the server is only healthy once migrations finish.
+      server:     { condition: service_healthy }
     logging: { driver: journald }
 
   # ─── LDAP outpost (so native-client apps — Jellyfin — can bind) ──────────
