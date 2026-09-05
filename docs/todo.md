@@ -1,280 +1,212 @@
 # Homelab IaC — To Do
 
-## Status (2026-06-04) — CLUSTER OPERATIONAL ✅ | DEEPSEEK-R1:70b ON THOTH 🧠
+## Status (verified live 2026-09-05) — CLUSTER OPERATIONAL ✅
 
-**All 10 NixOS Pi-5 workers (`alpha`..`kappa`, .101–.110) + the Heimdall k3s
-control plane are `Ready` (v1.34.5+k3s1).** Flashed via
-`Hyperion/setup-hyperion-node.sh --name <h>` from the stock RasPi-OS bootstrap
-SD (see `Hyperion/docs/runbooks/turnkey-node-setup.md`). **GitOps is live:**
-FluxCD v2.8.8 (read-only, no token) reconciles `Hyperion/k8s/`; **MetalLB**
-v0.14.9 serves the `.10–.99` pool. Apps running: **Headlamp** (192.168.10.50),
-**Uptime-Kuma** (192.168.10.51, persistent PVC), **Hermes** DeepSeek agent
-(192.168.10.52, basic-auth dashboard, SOPS-encrypted key — first SOPS-decrypted
-app; see `Hyperion/k8s/README.md` for the required Flux SOPS encryption form).
+**All 10 NixOS Pi-5 workers (`alpha`..`kappa`, `.101–.110`) plus the Heimdall
+control plane are `Ready`** on k3s `v1.34.5+k3s1`, NixOS 25.11, generation 5
+(last `switch` 2026-06-05). **GitOps is healthy:** 31 FluxCD Kustomizations, all
+`Ready` and reconciled at `main`. **46 LoadBalancer Services** across 31
+namespaces. No node reports DiskPressure/MemoryPressure.
 
-**Planned next — \*arr media stack on Hyperion.** Plan is **team-reviewed final**
-(`docs/design/arr-stack-plan.md`) — 2 DEVELOPMENT-pipeline iterations + an
-orchestrator-applied closing punch-list (run: `docs/pipeline-runs/20260601T093734Z-dev-arr-stack/`,
-gitignored). Companion: `Akasha/docs/runbooks/nfs-media-export.md`. Services on
-Hyperion: Prowlarr/Sonarr/Radarr/seerr/Cleanuparr/SuggestArr/Notifiarr/Kapowarr/
-Youtarr/Homarr/Trailarr + Tdarr **server**; Tdarr **worker on Thoth** (dual RTX
-6000 Ada); **Tunarr shelved**; **seerr-team/seerr v3.0.1**. Design: one Akasha
-NFS export → single `/data` per pod (hardlink/EXDEV-safe, canary-Job gated);
-`/config` on local-path; API keys seeded via SOPS; 3-tier Flux (00-storage →
-10-core → 20-extras withheld for PR-2 = lean-core gate).
-**PR-1 (core) DEPLOYED + validated 2026-06-01.** Both preflights done:
-(1) `boot.supportedFilesystems = [ "nfs" ]` applied live to all 10 nodes via
-per-node `nixos-rebuild switch` (no reboot, k3s undisturbed, closure-diff = NFS
-client only); (2) 3 NFS exports created on Akasha (`Downloads`/`TV-Shows`/`Movies`,
-`192.168.10.0/24`, `mapall=apps`/568). `00-storage` (probe `Complete`) + `10-core`
-(Prowlarr .55, Sonarr .56, Radarr .57 — all `/ping` 200, mounting the real Akasha
-library) are running. **Applied directly via control-plane kubectl** (committed at
-`f237d9f`); Flux's `media-storage`+`media-core` Kustomizations adopt them on the
-next `git push origin main`.
-**Remaining (manual, fresh-parallel):** in each *arr UI — set root folders
-(`/data/media/{tv,movies}`), add the qBittorrent download client (qbit-gluetun on
-Akasha) + a Remote Path Mapping to `/data/downloads`, connect Jellyfin, and
-Prowlarr→Sonarr/Radarr app-sync (API keys are SOPS-seeded; retrieve via
-`sops -d ...10-core/<app>/secret.sops.yaml`). **PR-2 = 20-extras** (seerr,
-Cleanuparr, Homarr, Notifiarr, Kapowarr, Youtarr, Trailarr, Tdarr-server) after a
-~1-week core soak (lean-core gate).
-
-**Clean deployments off Akasha — status 2026-06-04:**
-- ✅ **beszel** (.68), **speedtest-tracker** (.67) — DEPLOYED.
-- ✅ **pterodactyl panel** (.69, Panel+MariaDB+Redis, admin user created) — DEPLOYED.
-  **Wings** on Thoth + other Docker hosts — operator to set up + connect to the panel.
-- [ ] **Space Engineers Pterodactyl server** — needs fixing.
-  **Status (2026-06-30 — Guppy investigated):**
-  - Nest (ID 5) + Torch egg (ID 15) ready; allocations on thoth for ports 27016, 8766, 8081 created.
-  - Server created twice (original session + today) — both times `install_failed` / reinstall stuck with zero console output.
-  - **Root cause narrowed down:** install container (`ghcr.io/parkervcp/installers:debian`) never starts on Wings — 0 disk bytes, 0 console output, state stays `offline`.
-  - Minecraft on Thoth works fine (uses `ghcr.io/pterodactyl/*` images — different org), so Wings/Docker/network are fundamentally healthy.
-  - Both `parkervcp` images confirmed present on ghcr.io. Likely a Docker pull failure on Thoth (rate-limit, auth block, or uncached image).
-  - Wings is outdated (1.11.13 vs 1.13.0 latest) but this alone shouldn't cause silent image pull failures.
-  - **Blocked:** no SSH to Thoth. Guppy's key (`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGeAJHrXaf0ofNiEimygJWEp3GlwTJFe7Dl0Cwb3kzFb`) not authorized for root or sydney.
-  - **Next step:** authorize Guppy's SSH key on Thoth → it'll check `docker images`, `docker logs wings`, test `docker pull ghcr.io/parkervcp/installers:debian`, and fix in minutes.
-  - **Wings API token** (usable for diagnostics): `xwDBY7JU2dJwDMEZTtZ4OKB2uX8YooRwn4lQiLlIAESxqOtvdvDhDlAfkS5SFi5R` → Wings at `http://192.168.10.144:8080`.
-  - Panel admin: `http://192.168.10.69` / `the.cat.madder@gmail.com` / `Qazxcv1992!`.
-- ❌ **portracker** — DROPPED (Docker-socket discovery, poor k8s fit).
-- Still on Akasha (candidates): **monolithbot** (arm64 CI ready), **n8n+postgres+qdrant**,
-  **crafty-4** (or fold into Pterodactyl). **Cleanup:** stray `k3s-control-plane` stack
-  still running on Akasha (live one is on Heimdall); old stopped `qbit-gluetun`.
-
-**Thoth GPU deployments — 2026-06-04:**
-- ✅ **Tdarr worker node** — connected to Hyperion Tdarr server (:8266). NVENC working after
-  driver switch (595 data-center → 580 production). All codecs: h264_nvenc (5.46x), hevc_nvenc, av1_nvenc.
-- ✅ **Jellyfin (GPU)** — containerized at :8096, NVENC hardware transcoding verified.
-  Parallel eval alongside primary Hyperion Jellyfin (.54).
-- ✅ **Ollama models** — deepseek-r1:70b (42 GB, ~19 tok/s) pulled. llama3.2:1b also available.
-- ✅ **Beszel agent** — deployed on Thoth, reporting to hub (.68:8090).
-- ✅ **SSH + sudo** — Hermes key deployed to all Monolith hosts for sysadmin access.
-
-**Open follow-ups:**
-- ✅ **qBittorrent VPN** (2026-06-04, RESOLVED): Migrated PIA OpenVPN → Mullvad → **ProtonVPN WireGuard** with NAT-PMP port forwarding. A port-sync script (ConfigMap) syncs the forwarded port to qBittorrent's `listen_port` and **binds libtorrent to `tun0`** — the missing interface bind was the final blocker (DHT dead, "firewalled", external IP N/A because torrent traffic sourced from eth0 and got killed by gluetun's kill-switch). Full DHT + inbound connectivity verified (272 DHT nodes, ~40 MB/s). Post-mortem: `Hyperion/k8s/apps/media/10-core/qbittorrent/README.md`.
-- **PDU (APC AP7900)** (2026-06-04): Telnet CLI confirmed working at 192.168.10.180:23 (apc/apc -c). 8 outlets, all ON (~4.3A). Outlet names: 1=Monolith, 2=Compute, 3=Synology. Non-B model (Telnet+HTTP only, no SSH). Bare Telnet for now; targeted control module planned when UPS + 2nd PDU arrive.
-- [ ] **Energy audit — per-service power draw** (2026-06-30):
-  Homelab draws 500–700W total. Noted that killing the broken Space Engineers server dropped consumption by ~45W — idle/broken services can be significant power hogs.
-  **Goal:** systematically shut down one service at a time, measure the wattage drop via HA/UPS/PDU telemetry, and identify wasteful services for optimization.
-  **Future automation:** periodic energy audits via HA wattage sensors. Consider tying into a daily service restart cycle — spin services up one at a time, measure draw, flag outliers.
-  **Data sources:** APC AP7900 PDU (.180), UPS telemetry in HA, per-outlet current readings.
-- **Relocate the k3s control plane off Heimdall** (the bridge-networked
-  container limitation — breaks metrics-server, needs placement workarounds).
-  See `docs/design/adr-0002-containerized-control-plane-networking.md`. Operator
-  confirmed this is the next architectural step.
-- **MonolithBot migration:** multi-arch CI added to the MonolithBot repo
-  (2026-06-01); after GHA publishes the arm64 `:latest`, deploy to Hyperion via
-  GitOps with its `config.json` secrets in a k8s Secret.
-- Minor: `--disable=servicelb` (kill the klipper-vs-MetalLB `svclb-*` cruft);
-  migrate `kernelboot`→`kernel` bootloader before nixos-raspberrypi drops it.
-
-**New service configuration needed (deployed 2026-06-04):**
-- [ ] **Listenarr** (.73) — add download client + indexer, point at Akasha audiobooks.
-- [ ] **Musicseerr** (.74) — add Lidarr API key, connect streaming services.
-- [ ] **boxarr** (.75) — add Radarr API key, configure box office preferences.
-- [ ] **Jellystat** (.76) — connect to Jellyfin (192.168.10.54:80, user `admin` / shared LAN admin password — in SOPS).
-- [ ] **Sortarr** (.77) — connect to Sonarr, Radarr, Jellyfin for library analytics.
-
-(Heimdall `/opt/Homelab` git divergence — RESOLVED 2026-06-01 via
-`git reset --hard origin/main`.)
-
-### History (superseded — pivot now validated)
-
-**Hyperion was mid-pivot to NixOS.** The dev-nixos-identity-usb pipeline
-(approved 6 YAE / 0 NAY across 2 iterations) landed a full NixOS scaffold
-under `Hyperion/nixos/`. **The pivot is not yet hardware-validated —
-that is the Phase 1 hard gate.**
-
-The user's mid-pipeline correction (`00b-user-correction.md` in the run
-folder): despite many attempts, the existing Debian-path reflash
-mechanism does not produce a working node end-to-end. The pivot's job
-is to sidestep the broken mechanism with something more IaC-native,
-not to iterate on it further.
-
-**Current focus: execute Phase 1 of the NixOS pivot on `hyperion-alpha`.**
-
-Phase-1 walkthrough: [`Hyperion/docs/runbooks/first-node-bringup-nixos.md`](../Hyperion/docs/runbooks/first-node-bringup-nixos.md).
+The NixOS pivot, the \*arr stack rollout (PR-1 core *and* PR-2 extras), the
+Akasha cleanup and the MonolithBot migration are all **done** — the phase-by-phase
+plans that used to live in this file have been removed. The per-node procedure is
+[`Hyperion/docs/runbooks/turnkey-node-setup.md`](../Hyperion/docs/runbooks/turnkey-node-setup.md).
 
 ---
 
-## NixOS Pivot — Phase 1 (active)
+## Open — infrastructure
 
-Triple-redundant exit signals; any halts and triggers iter-3 with
-Counter-B promoted:
+### Overdue / lapsed gates
 
-1. **Hard gate:** NVMe boot fails twice on alpha.
-2. **Muddy-failure:** >6 hrs cumulative unplanned operator-intervention
-   time in any rolling 7-day window during the phase. Log in
-   `intervention-log.md`.
-3. **Behavioral:** <3 committed git changes addressing real Phase 1
-   work in 5 days. (Largely retired-as-rhetorical-purpose per the user's
-   00b correction; kept as sanity check.)
+- [ ] **Delete the dead Debian/Packer path.** Its **2026-08-15 sunset gate passed
+      with no action.** `Hyperion/retired/` was never created and the files are
+      still at their original paths: `Hyperion/packer/`, `Hyperion/ansible/`,
+      `Hyperion/bootstrap.sh`, `reimage.sh`, `watch-flash.sh`, `publish-image.sh`,
+      `flash-identity-usb.sh`, `flash-node.sh`. Nothing on the NixOS path depends
+      on them and the stack that served their images is not running. Also retire
+      the CI workflows `build-bootstrap-img.yml`, `build-node-img.yml`, and
+      `hyperion-sunset-review.yml` (whose cron has already fired for the last time).
+- [ ] **Bump the NixOS channel off 25.11.** Its support window has passed. Runbook:
+      [`nixos-channel-upgrade.md`](../Hyperion/docs/runbooks/nixos-channel-upgrade.md).
+      Nodes have not been `colmena apply`-ed since 2026-06-05.
 
-### Step 1 — Workstation tooling (one-time)
+### Decide: restore or retire
 
-```bash
-# Install Nix
-curl -L https://install.determinate.systems/nix | sh -s -- install
+- [ ] **The Hyperion flashing stack on Heimdall is not running.**
+      `Heimdall/hyperion/` (nginx image server `:50011`, `ci-deploy`,
+      `journal-remote` `:19532`/`:19531`) is tracked in git but its compose
+      project has never been brought up on Heimdall. **Consequence today:**
+      `systemd-journal-upload` on Heimdall *and* on all 10 Pi workers is in a
+      tight restart loop against a dead sink — **17,367 restarts on
+      `hyperion-gamma`, 17,370 on `hyperion-eta`, 17,367 on `hyperion-kappa`**
+      (measured 2026-09-05; roughly one restart every 30 s since install). It is
+      wasted CPU and it buries `systemctl --failed` noise. Either start the stack
+      (still useful as a central journal sink even with the Debian image path
+      gone) or set `services.journald.upload.enable = false` in
+      `Hyperion/nixos/modules/hyperion-base.nix`, `colmena apply`, and delete the
+      stack. **Do one or the other — this is the most concrete live fault found
+      in the 2026-09-05 sweep.**
+- [ ] **Authentik is tracked but not deployed.** No container; not in
+      `Heimdall/docker-compose.yml`. But `Heimdall/scripts/deploy.sh` still brings
+      it up unconditionally, the Caddyfile still serves `auth.lab`, and
+      `docs/design/sso-plan.md` treats it as the SSO layer. Decide, then make
+      deploy.sh + Caddyfile + docs agree.
+- [ ] **cloudflared is tracked but not deployed.** The real public path is
+      ddns-updater (NoIP) + port forwarding. Same decision.
 
-# Install age + sops + colmena via nix
-nix profile install nixpkgs#age nixpkgs#sops nixpkgs#colmena
-```
+### Cluster hygiene
 
-### Step 2 — Fill in placeholders in the flake
+- [ ] **Add `--disable traefik`** to the k3s server command. k3s's bundled ingress
+      is unused but holds `192.168.10.10`. (`--disable servicelb` is already
+      applied and, as of 2026-09-05, captured in
+      `Heimdall/k3s-control-plane/docker-compose.yml`.)
+- [ ] **Resolve `media/orphanarr`.** Hand-applied Deployment
+      (`ghcr.io/stevengann/orphanarr:latest`), **scaled to 0 replicas**, holding
+      `192.168.10.89` with no endpoints and **no git source**. Commit it under
+      `Hyperion/k8s/apps/` or delete it.
+- [ ] **Resolve `hermes/alfred-dashboard`.** A LoadBalancer on `192.168.10.11`
+      fronting the Hermes pod's `:8646`. It carries `kustomize.toolkit.fluxcd.io/*`
+      labels but is **not** in `Hyperion/k8s/apps/hermes/service.yaml`, so Flux
+      never prunes it. Separately, the Caddyfile serves an `alfred.lab` site with
+      **no A record behind it** — the route is unreachable by name. Commit the
+      Service and seed the record, or remove both.
+- [ ] **Reap 47 dead pods.** `hyperion-eta` had an eviction storm 22–34 days ago
+      (≈45 `Evicted` tdarr pods plus `komga`/`youtarr` `Error`/
+      `ContainerStatusUnknown`). The current replicas are all healthy (tdarr,
+      komga, youtarr each 1/1) — this is stale garbage, not an active fault, but
+      it should be cleared and the eviction cause confirmed as addressed by the
+      weekly Nix GC added in `30b9111`.
+- [ ] **Flux controllers are restarting often** — `helm-controller` 65,
+      `notification-controller` 64, `source-watcher` 63, `image-reflector` 61
+      restarts. Not currently breaking reconciliation, but worth a look.
 
-Three Phase-1 prerequisites in `Hyperion/nixos/`:
+### Architecture
 
-- [ ] Replace placeholder SSH pubkey in `modules/hyperion-base.nix`.
-- [ ] Pin `inputs.colmena.url` in `flake.nix` to a specific 2025-11 commit hash. Run `nix flake lock --update-input colmena`.
-- [ ] Decide k3s skew: accept 1.34.5 worker vs 1.35.3 server (within N-1 window) or override `services.k3s.package`.
-
-### Step 3 — Flash alpha's identity USB
-
-- [ ] Run `./flash-identity-usb.sh /dev/sdX hyperion-alpha`.
-- [ ] Note the printed age public key.
-- [ ] Add to `Hyperion/.sops.yaml` `creation_rules` under a new entry for `nixos/secrets/*.yaml`.
-
-### Step 4 — Mint the k3s join token (dual-encrypted)
-
-- [ ] `openssl rand -hex 32` → encrypt to **both** sides:
-  - `Heimdall/secrets/k3s-control-plane.sops.env` (`K3S_TOKEN=...`)
-  - `Hyperion/nixos/secrets/common.yaml` (`k3s-token: ...`)
-- [ ] Same plaintext; different recipient sets (operator key on Heimdall;
-      operator + per-node keys on Hyperion).
-- [ ] Canonical incantation: `Heimdall/k3s-control-plane/README.md` §"Initial mint".
-
-### Step 5 — Deploy the Heimdall k3s control plane
-
-- [ ] `bash Heimdall/scripts/deploy.sh` (ships both secrets + brings up
-      the `rancher/k3s:v1.34.5-k3s1` container at `192.168.10.4:6443`).
-- [ ] Confirm `curl -ksf https://192.168.10.4:6443/readyz` returns `ok`.
-
-### Step 6 — Build the installer image (CI or local)
-
-- [ ] Commit Phase-1 prep changes + push (CI fires the `Build Hyperion NixOS image` workflow on `ubuntu-24.04-arm` native).
-- [ ] Download the published `.img.zst` artifact.
-
-### Step 7 — Flash NVMe on workstation, install in alpha
-
-- [ ] `zstd -d <img>.zst | sudo dd of=/dev/sdX` (USB-to-NVMe adapter).
-- [ ] Move NVMe into alpha's M.2 HAT.
-- [ ] Insert HYPERION-ID identity USB.
-- [ ] Power on.
-
-### Step 8 — Validate the gate criteria
-
-- [ ] SSH `owner@192.168.10.101` succeeds (key auth).
-- [ ] `hostnamectl` reports `hyperion-alpha`.
-- [ ] `apply-identity.service` active (exited).
-- [ ] `kubectl get nodes` on the Heimdall control plane shows alpha Ready.
-- [ ] journal-upload reaches Heimdall `:19531/browse` shows alpha.
-- [ ] Warm reboot survives (the rpi-eeprom #718 discriminator).
-
-### Step 9 — Soak
-
-- [ ] 24-hour soak on alpha. Track intervention-log.md.
-- [ ] Decision point: continue to Phase 2 (beta) or halt per exit criteria.
+- [ ] **Relocate the k3s control plane off Heimdall.** Still the top architectural
+      item. The bridge-networked container means metrics-server/`kubectl top` is
+      broken and every app needs `nodeSelector topology.kubernetes.io/zone=hyperion`.
+      See [ADR-0002](design/adr-0002-containerized-control-plane-networking.md).
+- [ ] **Single-export NFS for the \*arr hardlink guarantee.** As built, Akasha
+      exports one dataset per media category, so `Downloads` and `TV-Shows`/`Movies`
+      are separate filesystems in the pods and imports fall back to
+      copy-then-delete (double disk usage, slower, seed diverges from library).
+      The design that avoids this is in
+      [`Akasha/docs/runbooks/nfs-media-export.md`](../Akasha/docs/runbooks/nfs-media-export.md),
+      which now carries a header saying it was never built. Either migrate to the
+      single-export model or write an ADR accepting the trade-off.
+- [ ] Minor: migrate `kernelboot` → `kernel` bootloader before
+      `nixos-raspberrypi` drops it (`Hyperion/nixos/modules/hyperion-pi5.nix`).
 
 ---
 
-## NixOS Pivot — Phase 2 (after alpha gate passes)
+## Open — data protection
 
-- [ ] Repeat the Step 3-7 procedure for `hyperion-beta` (a 4 GB Pi — memory-constraint surface).
-- [ ] 2-hour soak.
-- [ ] Decision: continue to Phase 3 (the other 8 nodes) or halt.
+These are the unresolved CRITICAL findings from
+[`docs/dr-readiness-2026-07-04.md`](dr-readiness-2026-07-04.md). *(Its HIGH-1
+orphan-workload finding and the komga/nextcloud `.82` collision have since been
+fixed; ddns-updater has been captured into git.)*
 
-## NixOS Pivot — Phase 3 (rollout)
+- [ ] **No backup of any k3s stateful PVC.** Every database is node-local
+      `local-path` with `reclaimPolicy: Delete`. Decide: DB-dump CronJobs to
+      Akasha, or Longhorn. *(Nodes are already staged for Longhorn — `open-iscsi`
+      is active and `/mnt/node-storage/longhorn` exists — but no
+      `longhorn-system` namespace has been created. See
+      [ADR-0003](design/adr-0003-longhorn-deferred.md).)*
+- [ ] **Akasha is a single point of failure** with no snapshot schedule or
+      off-host replication, and it holds the only existing backups.
+      `Media-Storage` is at 78% of 60 TB.
+- [ ] **Recover the orphan k8s secrets** that have no git source.
+- [ ] **Back up the operator age key off-site.** ✅ **It is NOT lost** — contrary
+      to `docs/sops-secret-inventory.md` and
+      [`key-backup-and-recovery.md`](runbooks/key-backup-and-recovery.md) (both of
+      which now carry correction banners), the private half of `age1u8tfm7s…` is
+      on **owner-thinkpad (`192.168.10.230`)** at `~/.config/sops/age/keys.txt`,
+      verified decrypting `Hyperion/nixos/secrets/common.yaml` on 2026-09-05. The
+      Flux key is beside it as `hyperion-flux.txt`.
+      **Do not run the re-key procedure** — it is unnecessary. What *is* needed:
+      the key sits on one machine with **no off-site copy**, and `sops`/`age`/
+      `colmena` are installed only there, making owner-thinkpad a single point of
+      failure for authoring any secret. Follow the "backing up" half of the runbook.
+- [ ] `nextcloud/mariadb-secret.yaml` and `mosquitto/secret.yaml` are committed
+      as **plaintext**, not SOPS.
 
-- [ ] `colmena apply --on hyperion-delta,hyperion-epsilon,hyperion-zeta,hyperion-eta --parallel 4` (batch 1).
-- [ ] 30-min soak.
-- [ ] `colmena apply --on hyperion-gamma,hyperion-theta,hyperion-iota,hyperion-kappa --parallel 4` (batch 2).
-- [ ] All 10 nodes registered with k3s server.
+---
 
-## NixOS Pivot — Phase 4 (day-2 rehearsal)
+## Open — hosts
 
-- [ ] Make a trivial config change, push via Colmena, verify rollout.
-- [ ] Test rollback via `nixos-rebuild --rollback switch` on one node.
-- [ ] Rotate the k3s token via sops-edit + Colmena. Confirm zero-downtime.
+### Thoth (`192.168.10.144`) — OFFLINE
 
-## NixOS Pivot — Phase 5 (docs + retire)
+**Powered off pending hardware changes; all resident services suspended** until
+it returns. That covers Ollama (`deepseek-r1:70b`), OpenWebUI, ComfyUI, the
+GPU Jellyfin at `:8096`, the Tdarr GPU worker, the Beszel agent, and Pterodactyl
+Wings. The `thoth.lab` / `ollama.lab` / `openwebui.lab` / `comfyui.lab` DNS
+records and Caddy routes still exist and fail.
 
-- [ ] Move legacy files into `Hyperion/retired/`:
-  - `bootstrap.sh`, `rpi-bootstrap.pkr.hcl`, `rpi-node.pkr.hcl`, `reimage.sh`, `watch-flash.sh`, `publish-image.sh`, `ansible/`
-- [ ] Mark `Hyperion/docs/runbooks/{build-packer-image,debug-flashing}.md` as historical.
-- [ ] Update `Heimdall/hyperion/` so its `ci-deploy` only polls for the `nvme-*` tag pattern (the Debian Node IMG path retires once retired).
+- [ ] On return: re-verify NVENC (the 595 data-center → 580 production driver
+      switch), reconnect the Tdarr worker to the server at `.62:8266`, and
+      re-onboard Komodo Periphery.
+- [ ] **Space Engineers Pterodactyl server** — blocked and now moot while Thoth
+      is down. Prior diagnosis: the install container
+      (`ghcr.io/parkervcp/installers:debian`) never starts on Wings — 0 disk
+      bytes, 0 console output, state stays `offline`, while Minecraft (using
+      `ghcr.io/pterodactyl/*`) works. Suspected image-pull failure on Thoth.
+      Wings is also outdated (1.11.13 vs 1.13.0).
 
-## NixOS Pivot — Phase 6 (sunset gate)
+### Epsilon (`192.168.0.105`) — Tdarr worker not running
 
-- **2026-08-15 sunset gate.** GitHub Actions workflow `hyperion-sunset-review.yml` auto-opens an issue on 2026-08-01 with the three pass/fail criteria.
-- [ ] On all-green: `git rm -r Hyperion/retired/` in a commit titled `chore(hyperion): retire Debian/Packer artifacts at sunset`.
-- [ ] On any-red: extend by 4 weeks (max 2 extensions before mandatory revert).
-- [ ] Channel bump 25.11 → 26.05 lands inside this window (25.11 EOL 2026-06-30). See `Hyperion/docs/runbooks/nixos-channel-upgrade.md`.
+Hostname `WS-EPSILON`, **Ubuntu 26.04** (the docs said Pop!_OS), RTX 4080, on the
+main home subnet. It is documented as running a Tdarr GPU transcode worker via
+Docker Compose, but **no container runtime is installed on the host**. With Thoth
+also down, Tdarr currently has **no GPU workers at all**.
+
+- [ ] Decide whether Epsilon rejoins the transcode fleet, and if so capture its
+      config in the repo (it is currently unmanaged).
+
+---
+
+## Open — service configuration
+
+Deployed and reachable, but reportedly never finished being configured:
+
+- [ ] **Listenarr** (`.73`) — add download client + indexer, point at Akasha audiobooks.
+- [ ] **Musicseerr** (`.74`) — add Lidarr API key, connect streaming services.
+- [ ] **boxarr** (`.75`) — add Radarr API key, configure box-office preferences.
+- [ ] **Jellystat** (`.76`) — connect to Jellyfin (Akasha `.247:30013`).
+- [ ] **Sortarr** (`.77`) — connect to Sonarr, Radarr, Jellyfin.
+- [ ] **ddns-updater** on Heimdall reports **unhealthy**. Public `*.ddns.net`
+      names depend on it. Rotate the three NoIP passwords while fixing it.
+
+---
+
+## Open — power
+
+- [ ] **Energy audit — per-service power draw.** The lab draws 500–700 W total;
+      killing one broken game server once dropped it ~45 W, so idle/broken
+      services matter. Plan: shut down one service at a time, measure the drop
+      via the APC AP7900 PDU (`.180`, Telnet CLI, 8 outlets — 1=Monolith,
+      2=Compute, 3=Synology) and HA/UPS telemetry, and flag outliers. A targeted
+      PDU control module is planned for when the UPS and a 2nd PDU arrive.
+      *(Note: with Thoth off, current draw is not representative.)*
 
 ---
 
 ## Scheduled — re-evaluate Heimdall as flashing-services home
 
-**By 2027-05-21** (12 months after the Akasha→Heimdall migration), OR
-**when the Akasha-replacement host is in production** (whichever first),
-run a follow-up pipeline to decide:
-
-- (a) re-migrate the Hyperion flashing services to the new host, OR
-- (b) formally adopt Heimdall as the permanent home and update CLAUDE.md / README / network-layout accordingly.
+**By 2027-05-21** (12 months after the Akasha→Heimdall migration), OR when the
+Akasha-replacement host is in production, decide: (a) re-migrate the Hyperion
+flashing services to the new host, or (b) formally adopt Heimdall as the
+permanent home and update CLAUDE.md / README / network-layout accordingly.
 
 Source: `dev-hyperion-flashing-to-heimdall` FINAL.md Tier 4.3. The
-temporary-posture commitment is what made the migration palatable; this
-entry exists so the trigger doesn't silently slip into permanence. If
-by 2026-11-21 (6-month mark) there is no Akasha-replacement progress,
-surface the question early rather than waiting the full 12 months.
+temporary-posture commitment is what made the migration palatable; this entry
+exists so the trigger doesn't silently slip into permanence. If by **2026-11-21**
+(the 6-month mark) there is no Akasha-replacement progress, surface the question
+early.
 
----
-
-## Legacy Debian path (sunsetting — kept until 2026-08-15)
-
-The Debian/Packer path remains in-tree as the fallback if the NixOS
-pivot's Phase 1+2 gates fail. **All Debian-path TODO items are paused
-pending Phase 1 outcome.** If Phase 1 fails, the iter-3 pipeline opens
-with Counter-B promoted (delete the reflash loop, keep Debian, gate
-reflashes behind an operator-touched `force-reflash` sentinel) — see
-the pipeline run's iter-1 Old Man proposal.
-
-The pre-pivot debug pipeline FINAL.md is at
-`docs/pipeline-runs/20260504T000719Z-dbg-nvme-not-flashing/FINAL.md`.
-
-### Tools that remain useful regardless of pivot outcome
-
-- `Hyperion/configure-eeprom.sh` — EEPROM is below the OS; this script is KEEP under both paths.
-- `Hyperion/watch-flash.sh` — live monitor during Debian flashing attempts; gets retired if Phase 1+2 pass.
-- `Heimdall/hyperion/` flashing services — serve both Debian and NixOS images via the same nginx.
-
----
-
-## k3s + FluxCD bring-up (orthogonal to the pivot)
-
-- [ ] Bring k3s agents online on the worker nodes (NixOS handles this via `services.k3s.enable = true`; pivot does this automatically once nodes are imaged).
-- [ ] Bootstrap FluxCD against `Hyperion/k8s/`.
-- [ ] Migrate existing workloads into `Hyperion/k8s/apps/`.
-
-These are pre-existing TODOs and survive the pivot unchanged.
+> This decision now interacts with the "restore or retire the flashing stack"
+> item above — the stack has not actually been running on Heimdall, so option (b)
+> would be adopting a home for something that isn't there.
 
 ---
 
@@ -284,8 +216,8 @@ These are pre-existing TODOs and survive the pivot unchanged.
 |-----------|------|----|-------|---------|
 | `nvme0n1p1` | 512 MB | FAT32 | `/boot/firmware` | Pi 5 boot firmware (`kernel.img`, `config.txt`) |
 | `nvme0n1p2` | 32 GB | ext4 | `/` | Root OS (NixOS generations live here) |
-| `nvme0n1p3` | ~220 GB | ext4 | `/mnt/node-storage` | Node-local ephemeral storage |
+| `nvme0n1p3` | ~220 GB | ext4 | `/mnt/node-storage` | Node-local ephemeral storage (+ staged Longhorn dir) |
 
-Declarative source of truth: `Hyperion/nixos/disko/nvme-layout.nix`.
-
-**2026-06-04 — n8n deployed:** v2.23.2 on Hyperion k3s at .71. FluxCD-managed. SQLite. First visitor creates admin account.
+Declarative source of truth: `Hyperion/nixos/disko/nvme-layout.nix`. Measured on
+`hyperion-alpha` 2026-09-05: `/` 8.3 G used of 32 G (28%), `/nix/store` 3.0 G,
+`/boot/firmware` 111 M of 511 M, `/mnt/node-storage` 151 M of 202 G.

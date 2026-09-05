@@ -1,5 +1,33 @@
 # SOPS secret inventory & recoverability assessment
 
+> # ✅ CORRECTION (2026-09-05): THE OPERATOR KEY IS **NOT** LOST
+>
+> This document's core premise is wrong. The operator age private key for
+> `age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm` — the
+> recipient in every `.sops.yaml` — is present and working on **owner-thinkpad
+> (`192.168.10.230`)** at `~/.config/sops/age/keys.txt`. Verified 2026-09-05 by
+> decrypting `Hyperion/nixos/secrets/common.yaml` with it. That host also holds
+> the Flux key (`age1wjvfq7k…`) at `~/.config/sops/age/hyperion-flux.txt`.
+>
+> What actually happened in July 2026 was a **workstation migration**: the key was
+> not carried to the new machine and was not on the backup USB, so it looked lost
+> from there. It stayed on the old ThinkPad the whole time.
+>
+> **Therefore:** the recovery plan below (mint a new key, re-harvest every secret,
+> re-key every `.sops.yaml`) is **not required**. The real remaining problem is
+> narrower and still worth fixing:
+>
+> - The key exists on exactly **one machine, with no off-site backup**. That is a
+>   single hard-drive failure away from the situation this document describes.
+>   Back it up per [`key-backup-and-recovery.md`](runbooks/key-backup-and-recovery.md) §"Backing up".
+> - `sops`/`age`/`colmena` are installed **only** on owner-thinkpad, so it is the
+>   only host that can author a secret.
+>
+> Everything below is retained as the (still-valid) analysis of what *would* be
+> recoverable if the key were genuinely lost.
+
+
+
 **Created:** 2026-07-06
 **Trigger:** Workstation migration on 2026-07-06 revealed the **operator age
 private key is lost**. The only age key on the migration backup USB was the

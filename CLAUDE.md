@@ -15,11 +15,20 @@ This pattern extends as IaC coverage grows. New hosts get their own top-level di
 
 For working on this repo with the standing agent team, see [`TEAM.md`](TEAM.md) (roster, roles, notes protocol) and [`PIPELINES.md`](PIPELINES.md) (DEVELOPMENT and DEBUGGING orchestration). Agent notes live under `docs/agent-notes/`; pipeline runs under `docs/pipeline-runs/` are git-ignored by convention (the agent-notes Settled-knowledge sections are the durable record).
 
-`README.md` is the authoritative entry point. `docs/todo.md` tracks operational state. `docs/hyperion-iac-plan.md` and the body of `docs/design/node-image-approach.md` are **archived/obsolete** — do not follow them for current behavior. For current state, **read the code and `Hyperion/docs/runbooks/`**.
+`README.md` is the authoritative entry point. `docs/todo.md` tracks operational state. For current state, **read the code and `Hyperion/docs/runbooks/`**.
+
+**Known-stale documents — do NOT follow them for current behavior:**
+
+- `docs/hyperion-iac-plan.md` and the body of `docs/design/node-image-approach.md` — archived/obsolete.
+- `Hyperion/docs/network-layout.md` and `Heimdall/docs/network-layout.md` — both carry a stale-header now; the live map is in `CLAUDE.md` §Network reference and `README.md` §Network.
+- `Akasha/docs/runbooks/nfs-media-export.md` — documents a **single-export `/data`** design that was never built. The as-built is one export per media category; see the header note in that file and `Hyperion/k8s/apps/media/00-storage/`.
+- `docs/dr-readiness-2026-07-04.md` — a point-in-time audit. Several findings (the six orphan Flux workloads, the komga/nextcloud `.82` collision, ddns-updater capture) have since been fixed.
+
+**Live state was verified end-to-end on 2026-09-05.** 10/10 Pi workers `Ready` on NixOS 25.11 / k3s v1.34.5+k3s1; 31 Flux Kustomizations all `Ready` at `main`; 46 LoadBalancer Services. Deviations found in that sweep are recorded in `README.md` §Status and `docs/todo.md`.
 
 ## Hyperion architecture — NixOS, validated and in production
 
-The single most important thing to know about Hyperion: **it runs NixOS**. The pivot from Debian/Packer to NixOS is complete and hardware-validated — all 10 Pi 5 workers are NixOS-on-NVMe and `Ready` on the k3s control plane (validated 2026-06-01). The legacy Debian/Packer stack still coexists in-tree, but only as a fallback until the 2026-08-15 sunset gate. The pivot was approved by a 6-YAE / 0-NAY vote across 2 iterations of the standing-team DEVELOPMENT pipeline (run `20260523T050133Z-dev-nixos-identity-usb/`, FINAL.md lives in the run folder locally per `.gitignore`).
+The single most important thing to know about Hyperion: **it runs NixOS**. The pivot from Debian/Packer to NixOS is complete and hardware-validated — all 10 Pi 5 workers are NixOS-on-NVMe and `Ready` on the k3s control plane (validated 2026-06-01). The legacy Debian/Packer stack still sits in-tree, but it is **dead**: its 2026-08-15 sunset gate passed with no action, `Hyperion/retired/` was never created, and the `Heimdall/hyperion/` stack that served its images is not running. Treat it as deletable, not as a fallback. The pivot was approved by a 6-YAE / 0-NAY vote across 2 iterations of the standing-team DEVELOPMENT pipeline (run `20260523T050133Z-dev-nixos-identity-usb/`, FINAL.md lives in the run folder locally per `.gitignore`).
 
 ### NixOS architecture (the forward path) — HARDWARE-VALIDATED 2026-06-01
 
@@ -92,7 +101,7 @@ kexec/remote-flash rationale.
 - **Pin `nvmd/nixos-raspberrypi` by tag.** Predecessor `nix-community/raspberry-pi-nix` was archived 2025-03-23 with Pi 5 USB/NVMe boot listed under "What's not working." Current pin: `v1.20260517.0`.
 - **k3s worker-server alignment:** the Heimdall control plane runs `rancher/k3s:v1.34.5-k3s1` (pinned in `Heimdall/k3s-control-plane/docker-compose.yml`), matching what nixpkgs nixos-25.11 ships for workers. Same-minor — no skew workarounds needed. Bump server + workers in lockstep when nixpkgs rolls a newer k3s.
 
-### Debian/Packer architecture (sunsetting 2026-08-15)
+### Debian/Packer architecture (DEAD — sunset gate lapsed 2026-08-15, files not yet removed)
 
 Files: `Hyperion/packer/`, `Hyperion/bootstrap.sh`, `Hyperion/ansible/`, `Hyperion/reimage.sh`, `Hyperion/watch-flash.sh`, `Hyperion/publish-image.sh`.
 
@@ -167,7 +176,7 @@ cd Hyperion
 ./configure-eeprom.sh hyperion-alpha --user pi --boot-order 0xf416 --reboot
 ./configure-eeprom.sh --user owner --reboot               # Debian default 0xf641
 
-# ─── Debian (sunsetting 2026-08-15) ──────────────────────────────────────────
+# ─── Debian (DEAD — sunset gate lapsed 2026-08-15; kept only until deleted) ──
 # Build + publish images locally
 export NODE_SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)"
 ./publish-image.sh node                # builds, zstd -19, creates GitHub Release node-v<EPOCH>
@@ -214,30 +223,50 @@ Single VLAN `192.168.10.0/24`. UCG (`.1`) is the DHCP server.
 
 | Range | Purpose |
 |-------|---------|
-| `.4` | Heimdall (Caddy, Technitium, Authentik, cloudflared, Komodo, Hyperion-flashing-stack, k3s control plane) |
-| `.10–.99` | MetalLB LoadBalancer pool (~30 cluster services) |
+| `.1` | UCG gateway / DHCP server |
+| `.4` | Heimdall (Pi-hole, Technitium, Caddy, ddns-updater, Komodo+mongo, k3s control plane) |
+| `.10–.99` | MetalLB LoadBalancer pool (46 LoadBalancer Services live as of 2026-09-05) |
 | `.101–.110` | Hyperion nodes (alpha → kappa, in Greek-letter order) |
-| `.144` | Thoth (GPU compute host — Ubuntu Server, 2× RTX 6000 Ada; Docker Compose via Komodo Periphery) |
+| `.144` | Thoth (GPU compute host — 2× RTX 6000 Ada; Docker Compose via Komodo Periphery) — **POWERED OFF, services suspended pending hardware changes** |
+| `.147` | Home Assistant (`:8123`) — consumes the `Sensors/` MQTT feed; not IaC-tracked |
 | `.180` | APC AP7900 PDU (switched, 8 outlets; Telnet CLI on `:23`, no SSH/HTTPS) |
-| `.247` | Akasha (TrueNAS Scale; pure-storage role, NFS exports to the cluster) |
+| `.201` | Synology NAS (`:5000`) — not IaC-tracked |
+| `.230` | **owner-thinkpad** — operator workstation. Holds the operator SSH key + nix/sops/colmena. **Use it as the jump box for Heimdall.** |
+| `.231` | HDHomeRun tuner — not IaC-tracked |
+| `.247` | Akasha (TrueNAS Scale 25.04.2; storage + the LAN Jellyfin at NodePort `:30013`) |
 
-Off-VLAN: **Epsilon** (`192.168.0.105`, Pop!_OS workstation, RTX 4080) runs a Tdarr GPU transcode worker on the main home subnet.
+Unidentified but pingable: `.179`, `.191`, `.241`, `.254`.
 
-Heimdall ports: k3s API `:6443`, Flannel VXLAN `:8472/udp`, nginx `:50011` (images), journal-remote `:19532` (upload sink), journal-gatewayd `:19531` (HTML browse). Bootstrap status endpoint `:8080` per-Pi (Debian path only).
+Off-VLAN: **Epsilon** (`192.168.0.105`, hostname `WS-EPSILON`, Ubuntu 26.04, RTX 4080) on the main home subnet. It historically ran a Tdarr GPU worker; that worker is **not running** (no container runtime installed).
+
+**Reaching the lab from `192.168.0.0/24` (e.g. Epsilon):** ICMP, HTTP/80 to the MetalLB pool, DNS to `.4:53`, `.4:443`, `.4:6443`, and SSH to the Pi nodes and Akasha all work. **SSH to Heimdall (`.4:22`) is blocked from that subnet** — go through `owner-thinkpad` (`.230`) as a `ProxyJump`. Akasha's sshd refuses TCP forwarding, so it does not work as a jump host.
+
+**DNS is two-stage:** **Pi-hole owns `0.0.0.0:53`** on Heimdall and does the ad/malware filtering; it conditionally forwards the `.lab` zone to **Technitium** (`server=/lab/127.0.0.1#5353`, in `Heimdall/pihole/etc-dnsmasq.d/02-lan.conf`). Technitium is authoritative for `.lab` only and is bound to localhost (`:5353` DNS, `:5380` UI). Do not describe Technitium as the LAN resolver.
+
+Heimdall ports actually bound: `:22` (SSH, LAN-local), `:53` (Pi-hole), `:80`/`:443`/`:7443` (Caddy), `:6443` (k3s API), `:8472/udp` (Flannel VXLAN), `:8180` (Pi-hole FTL). Localhost-only: `:5380`+`:5353` (Technitium), `:9120` (Komodo), `:8053` (ddns-updater), `:2019` (Caddy admin), `:61209` (glances). **`:50011`, `:19532` and `:19531` are NOT listening** — the `Heimdall/hyperion/` flashing stack is tracked in git but has never been brought up on this host.
+
+**Tracked-but-not-deployed on Heimdall (verified 2026-09-05):** `Heimdall/authentik/`, `Heimdall/cloudflared/`, `Heimdall/hyperion/`. `Heimdall/scripts/deploy.sh` still brings Authentik up unconditionally — reconcile before running it blind.
 
 **k3s control-plane caveat (important):** the control plane runs in a *bridge-networked* Docker container on Heimdall, so its flannel VTEP (`172.19.0.2`) is unreachable from the Pi workers. Consequences (until it's relocated off Heimdall — the planned next step): the control-plane node is tainted `node.homelab/control-plane-only:NoExecute` (**all k8s app workloads must `nodeSelector topology.kubernetes.io/zone=hyperion`**); `kubectl top`/metrics-server is broken; the metallb controller is pinned onto the control-plane node for webhook reachability. Full rationale + the load-bearing `--advertise-address`/`--node-taint` server flags: `docs/design/adr-0002-containerized-control-plane-networking.md` and `Heimdall/k3s-control-plane/README.md`.
 
-GitOps: FluxCD (read-only, no token) reconciles `Hyperion/k8s/`; MetalLB serves the `.10–.99` LoadBalancer pool. See `Hyperion/k8s/README.md`.
+GitOps: FluxCD (read-only, no token) reconciles `Hyperion/k8s/`; MetalLB serves the `.10–.99` LoadBalancer pool. See `Hyperion/k8s/README.md`. All 31 Kustomizations use `prune: true` — so anything applied by hand is **not** cleaned up unless Flux has it in its inventory.
+
+**Live objects with no git source (as of 2026-09-05):**
+- `kube-system/traefik` — k3s's bundled ingress, holds `.10`, unused. The `--disable=traefik,servicelb` server-flag cleanup is still outstanding.
+- `media/orphanarr` — a hand-applied Deployment (`ghcr.io/stevengann/orphanarr:latest`) scaled to **0 replicas**, holding `.89` with no endpoints. Either commit it under `Hyperion/k8s/apps/` or delete it.
+- `hermes/alfred-dashboard` — a LoadBalancer on `.11` fronting the Hermes pod's `:8646`. It carries `kustomize.toolkit.fluxcd.io/*` labels but is **not** in `Hyperion/k8s/apps/hermes/service.yaml`, so Flux never prunes it. It also has **no DNS record**, while the Caddyfile does serve an `alfred.lab` site — that route is unreachable by name until a record is added.
+
+**NixOS channel:** still pinned to `nixos-25.11` in `Hyperion/nixos/flake.nix` (deployed generation 5, 2026-06-05, on every node). Its support window has passed; the bump is tracked in `Hyperion/docs/runbooks/nixos-channel-upgrade.md`.
 
 ## When you change something
 
 - **`Hyperion/nixos/**`** → CI rebuilds the installer image. Push via Colmena for day-2 changes. See `Hyperion/docs/runbooks/deploy-via-colmena.md`.
 - **`Hyperion/nixos/hosts/<hostname>.nix`** → only that host's closure rebuilds. `colmena apply --on <hostname>`.
 - **`Hyperion/.sops.yaml`** → re-encrypt all secrets: `sops updatekeys nixos/secrets/common.yaml`.
-- **`Hyperion/packer/**`** (Debian, still tracked until sunset) → CI rebuilds the relevant Packer image. Same `concurrency: build-images`.
+- **`Hyperion/packer/**`** (Debian, past sunset — do not extend) → CI still rebuilds the relevant Packer image. Same `concurrency: build-images`.
 - **`Hyperion/configure-eeprom.sh`** → re-run against affected nodes; not auto-deployed.
 - **`Heimdall/k3s-control-plane/`** → not auto-deployed. Re-run `bash Heimdall/scripts/deploy.sh` from the workstation (ships both env secrets + restarts the stack). See `Heimdall/k3s-control-plane/README.md`.
-- **`Heimdall/hyperion/`** → same deploy script; see `Heimdall/docs/runbooks/flashing-services.md`.
+- **`Heimdall/hyperion/`** → same deploy script; see `Heimdall/docs/runbooks/flashing-services.md`. **Note: this stack is not currently running on Heimdall** — bringing it up is a deliberate act, not a restore.
 - **k8s manifests under `Hyperion/k8s/`** → reconciled by FluxCD (live since 2026-06-01; read-only, no token). Push to `origin/main` — Flux reads GitHub, not your working tree.
 
 ## Pipeline-run records (decision history)

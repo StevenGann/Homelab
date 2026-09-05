@@ -70,7 +70,7 @@ RECORDS=(
     "speedtest.lab|A|192.168.10.67"       # :80    (speedtest-tracker)
     "uptime.lab|A|192.168.10.51"          # :80    (uptime-kuma)
     "homarr.lab|A|192.168.10.53"          # :7575  (dashboard)
-    "homeassistant.lab|A|192.168.10.4"    # Home Assistant smart home (Caddy → 192.168.10.147:8123)
+    "homeassistant.lab|A|192.168.10.147"  # :8123  (Home Assistant — direct to the HA host; there is NO Caddy block for it, and the live record points here, not at .4)
     "seerr.lab|A|192.168.10.54"           # :5055  (media requests)
     "prowlarr.lab|A|192.168.10.55"        # :9696  (indexer manager)
     "sonarr.lab|A|192.168.10.56"          # :8989  (TV)
@@ -110,7 +110,28 @@ RECORDS=(
     "pihole.lab|A|192.168.10.4"           # :80    (Pi-hole admin, Caddy-fronted)
     "technitium.lab|A|192.168.10.4"       # :5380  (Technitium admin, Caddy-fronted)
     "truenas.lab|A|192.168.10.247"        # alias for akasha.lab (TrueNAS)
+    # ── Backfilled 2026-09-05 (live-vs-git sweep) ──
+    # Both existed in Technitium but not here, so a from-scratch reseed lost them
+    # while their Caddy site blocks stayed in git.
+    "subwave.lab|A|192.168.10.4"          # :443   (AI DJ radio — Caddy TLS → 192.168.10.91:7700-7702)
+    "ignis.lab|A|192.168.10.4"            # :443   (browser Obsidian — Caddy TLS + basic auth → 192.168.10.90:8080)
 )
+
+# ─── Known gaps as of the 2026-09-05 live sweep (NOT seeded — decide first) ──────────
+#
+#   alfred.lab      — the Caddyfile serves an `alfred.lab` site (chat UI + /v1/*
+#                     proxied to the hermes-api NodePort 31646), but NO A record
+#                     exists in Technitium, so the route is unreachable by name.
+#                     Add `"alfred.lab|A|192.168.10.4"` above if the site is meant
+#                     to be live; delete the Caddy block if it is not.
+#   cassandra.lab   — cassandra-dashboard is a live LoadBalancer on 192.168.10.93
+#                     with no name and no Caddy route.
+#   orphanarr.lab   — orphanarr holds 192.168.10.89 but is scaled to 0 replicas and
+#                     has no git source; resolve the workload before naming it.
+#
+# Also note: this script is ADDITIVE — it skips records that already exist and
+# never deletes or corrects a drifted one. A record edited in the Technitium UI
+# will silently survive a reseed with its edited value.
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────────────
 # All helper output goes to stderr so $(get_token) and other command-substitution

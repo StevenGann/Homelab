@@ -1,5 +1,43 @@
 # OPERATOR RUNBOOK — NFS media export on Akasha for the Hyperion *arr stack
 
+> ## ⚠️ THIS DOCUMENT DESCRIBES A DESIGN THAT WAS NOT BUILT
+>
+> **Verified against the live Akasha on 2026-09-05.** This runbook specifies
+> **one dataset, one export, one `/data` mount** so the \*arr apps can hardlink
+> between `torrents/` and `media/`. **That is not what exists.** The as-built
+> model is **one export per media category**:
+>
+> ```
+> /mnt/Media-Storage/Media/Downloads      192.168.10.0/24, 192.168.0.0/24
+> /mnt/Media-Storage/Media/TV-Shows       192.168.10.0/24, 192.168.0.0/24
+> /mnt/Media-Storage/Media/Movies         192.168.10.0/24, 192.168.0.0/24
+> /mnt/Media-Storage/Media/Comics         192.168.10.0/24, 192.168.0.0/24
+> /mnt/Media-Storage/Media/YouTube        192.168.10.0/24, 192.168.0.0/24
+> /mnt/Media-Storage/Media/Music          192.168.10.0/24, 192.168.0.0/24
+> /mnt/Media-Storage/Media/ROMs           192.168.10.0/24, 192.168.0.0/24
+> /mnt/Media-Storage/Media/Audiobooks     192.168.10.0/24, 192.168.0.0/24
+> /mnt/Media-Storage/NextCloud            192.168.10.0/24
+> /mnt/Media-Storage/Application-Storage/immich-library    192.168.10.0/24
+> /mnt/Media-Storage/Application-Storage/immich-postgres   192.168.10.0/24
+> ```
+>
+> …all `sec=sys,rw,anonuid=568,anongid=568,all_squash,no_subtree_check`, plus
+> three older wildcard exports (`Application-Storage`, `Infra-Storage`, and the
+> legacy `App-Storage/Container-Data/k3s-control-plane/netboot-root`).
+>
+> **Operational consequence:** downloads and media are separate filesystems inside
+> the pods, so the hardlink/atomic-move guarantee this runbook exists to protect
+> **does not hold**. Imports fall back to copy-then-delete: double disk usage
+> during the copy, slower imports, and seeding diverges from the library copy.
+> That trade-off is currently accepted, not fixed.
+>
+> **The source of truth for what is deployed** is
+> [`Hyperion/k8s/apps/media/00-storage/`](../../../Hyperion/k8s/apps/media/00-storage/)
+> (`pv-pvc.yaml` + `pv-pvc-extras.yaml`), which matches the export list above.
+> Keep the rest of this file only as the rationale for why a single-export layout
+> would be better — do not follow its `POOL`/`1000:1000` placeholders, and note
+> that the real pool is `Media-Storage` and the real UID:GID is `568:568`.
+
 > **Host:** Akasha (TrueNAS Scale), `192.168.10.247`.
 > **Audience:** the operator, following by hand.
 > **Companion plan (source of truth):** `docs/design/arr-stack-plan-iter2-revision.md`.

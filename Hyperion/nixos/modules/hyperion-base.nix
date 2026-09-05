@@ -9,10 +9,12 @@
   # ── System basics ──────────────────────────────────────────────────────────
   system.stateVersion = "25.11";
 
-  # Hostname is the only piece of identity that comes from the USB at
-  # activation time (via apply-identity.service in hyperion-identity.nix).
-  # We leave networking.hostName unset and let the activation script
-  # `hostnamectl set-hostname` from /var/lib/hyperion-id/identity.env.
+  # Hostname is set per-host in hosts/<hostname>.nix, which is evaluated at
+  # build time — one closure per host. The mkDefault "" here only exists so a
+  # host file that forgets to set it fails loudly rather than inheriting a
+  # neighbour's name. (The old identity-USB model, where apply-identity.service
+  # read /var/lib/hyperion-id/identity.env at activation, is RETIRED — see
+  # ADR-0001. No node mounts that USB; /var/lib/hyperion-id does not exist.)
   networking.hostName = lib.mkDefault "";
 
   time.timeZone = "Etc/UTC";
@@ -35,8 +37,13 @@
   networking.enableIPv6 = false;
 
   # ── Users ──────────────────────────────────────────────────────────────────
-  # SSH-only access as `owner`. Password login disabled; key comes from
-  # the sops-nix-decrypted authorized_keys (see hyperion-identity.nix).
+  # SSH-only access as `owner`. Password login disabled. The authorized key is
+  # the literal below — it is baked into the closure at build time, NOT
+  # sops-decrypted and NOT read from a USB. Rotating it means editing this file
+  # and running `colmena apply`.
+  #
+  # The private half lives on owner-thinkpad (192.168.10.230). Any workstation
+  # that needs to drive these nodes needs a copy, or must proxy through it.
   users.users.owner = {
     isNormalUser = true;
     extraGroups = [ "wheel" ];
@@ -59,8 +66,10 @@
       PermitRootLogin = "no";
       KbdInteractiveAuthentication = false;
     };
-    # SSH host keys persist on the identity USB (see hyperion-identity.nix).
-    # This eliminates known_hosts churn after re-imaging.
+    # SSH host keys are injected onto the NVMe at install time by
+    # setup-hyperion-node.sh via `disko-install --extra-files`, so they survive
+    # a re-image and known_hosts does not churn. (They are NOT on a USB — the
+    # identity-USB model is retired; see ADR-0001.)
     hostKeys = lib.mkForce [
       { path = "/etc/ssh/ssh_host_ed25519_key"; type = "ed25519"; }
     ];

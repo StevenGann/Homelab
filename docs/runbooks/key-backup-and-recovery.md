@@ -1,5 +1,22 @@
 # Key backup & recovery runbook
 
+> # ✅ CORRECTION (2026-09-05): THE OPERATOR KEY WAS FOUND
+>
+> The premise of this runbook — that `age1u8tfm7s…` is unrecoverable — is wrong.
+> The private key is on **owner-thinkpad (`192.168.10.230`)** at
+> `~/.config/sops/age/keys.txt` and was verified working on 2026-09-05
+> (`sops --decrypt Hyperion/nixos/secrets/common.yaml` succeeds). The Flux key is
+> alongside it as `hyperion-flux.txt`.
+>
+> **Do NOT run the "mint a new operator key" procedure below.** Re-keying every
+> `.sops.yaml` is unnecessary and would be a large, risky no-op.
+>
+> **What IS still needed:** the key exists on one machine with no off-site copy.
+> Follow the *"Backing up the key"* half of this runbook and skip the *recovery*
+> half. Treat that half as a contingency plan, not a to-do.
+
+
+
 **Created:** 2026-07-06 (after the operator age key was lost in a workstation
 migration). Companion to [`docs/sops-secret-inventory.md`](../sops-secret-inventory.md)
 (what's encrypted + per-item recoverability) and

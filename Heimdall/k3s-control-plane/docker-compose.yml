@@ -44,7 +44,13 @@ services:
     # the properly-networked Pis. (We keep the embedded agent — kube-proxy/flannel
     # — so the apiserver can still reach webhooks/aggregated APIs on Pi pods,
     # which the control-plane→Pi direction handles fine.)
-    command: server --advertise-address=192.168.10.4 --tls-san=192.168.10.4 --node-taint=node.homelab/control-plane-only=true:NoExecute
+    # --disable servicelb: k3s's bundled klipper LB fights MetalLB and litters
+    # every LoadBalancer Service with svclb-* DaemonSet pods. Added live and
+    # captured into git 2026-09-05 (the running container already had it; this
+    # file did not, so a redeploy would have regressed it). Verified: 0 svclb pods.
+    # NOTE: traefik is still enabled and holds 192.168.10.10 unused — adding it
+    # to this --disable list is an outstanding chore (see docs/todo.md).
+    command: server --disable servicelb --advertise-address=192.168.10.4 --tls-san=192.168.10.4 --node-taint=node.homelab/control-plane-only=true:NoExecute
     privileged: true
     restart: unless-stopped
     environment:
