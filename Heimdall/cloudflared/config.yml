@@ -38,17 +38,31 @@ ingress:
   - hostname: seerr.stevengann.com
     service: http://192.168.10.54         # MetalLB VIP :80
 
-  # ── Navidrome (music) ───────────────────────────────────────────────────────
-  - hostname: music.stevengann.com
-    service: http://192.168.10.66         # MetalLB VIP :80
+  # ── Navidrome (music) — DELIBERATELY NOT EXPOSED (D-2, 2026-09-05) ──────────
+  # Subsonic clients authenticate every request with md5(password + salt), where
+  # the salt is client-chosen per request. To verify that, the server must hold a
+  # RECOVERABLE password — so Navidrome cannot bind to LDAP or consume OIDC for
+  # its native clients, and Cloudflare Access can't gate it either (same reason
+  # Access can't front Jellyfin). Publicly it would be an internet-facing endpoint
+  # with a password outside the directory, no MFA and no central revocation.
+  # Friends use Jellyfin for music. Navidrome stays LAN/VPN.
 
   # ── Homarr (friend landing page) ────────────────────────────────────────────
   - hostname: homarr.stevengann.com
     service: http://192.168.10.53         # MetalLB VIP :80
 
-  # ── Nextcloud — NOT deployed yet. Uncomment + set the VIP when it lands. ─────
-  # - hostname: cloud.stevengann.com
-  #   service: http://<nextcloud-metallb-vip>
+  # ── Nextcloud (files / calendar / contacts) ─────────────────────────────────
+  # Deployed v34.0.3 at 192.168.10.87 (verified 2026-09-05). Desktop/mobile sync
+  # clients authenticate with app-passwords over plain HTTPS, so they traverse the
+  # tunnel fine — but do NOT put Cloudflare Access in front of this hostname or
+  # those clients break.
+  - hostname: cloud.stevengann.com
+    service: http://192.168.10.87         # MetalLB VIP :80
+
+  # ── Immich — DELIBERATELY NOT EXPOSED (D-3, 2026-09-05) ─────────────────────
+  # Technically tunnel-compatible (in-app-browser OAuth, then bearer tokens), but
+  # a first phone backup is tens of GB of uploads and the service may be retired.
+  # Stays LAN/VPN. Wiring notes: docs/design/public-access-plan.md §8.
 
   # Catch-all: anything not matched above is refused (don't proxy the whole host).
   - service: http_status:404

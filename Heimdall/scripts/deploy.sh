@@ -241,18 +241,29 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
         # Same single-root portability rule. Substitution vars come from the
         # shipped .env via --env-file. media/certs/custom-templates are chowned
         # to uid 1000 (the authentik runtime user); postgres/redis self-chown.
-        echo "[remote] Bringing up Authentik (SSO)..."
-        sudo install -d -o root -g root -m 0755 \
-            /opt/Homelab/Heimdall/authentik/database \
-            /opt/Homelab/Heimdall/authentik/redis
-        sudo install -d -o 1000 -g 1000 -m 0755 \
-            /opt/Homelab/Heimdall/authentik/media \
-            /opt/Homelab/Heimdall/authentik/certs \
-            /opt/Homelab/Heimdall/authentik/custom-templates
-        cd /opt/Homelab/Heimdall/authentik
-        docker compose --env-file /opt/Homelab/Heimdall/.env pull
-        docker compose --env-file /opt/Homelab/Heimdall/.env up -d
-        docker compose --env-file /opt/Homelab/Heimdall/.env ps
+        # GATED (2026-09-05): only start Authentik once the AUTHENTIK_* vars are
+        # actually present in the shipped .env. Previously unconditional, which
+        # meant any unrelated deploy (a Caddy or DNS change) would boot Postgres
+        # with an EMPTY password and an Authentik that refuses to start on an
+        # empty AUTHENTIK_SECRET_KEY — leaving a half-configured IdP behind.
+        # Mirrors the k3s-control-plane/.env and cloudflared/credentials.json
+        # gates above. See docs/design/public-access-plan.md Phase 0a.
+        if grep -q '^AUTHENTIK_SECRET_KEY=.' /opt/Homelab/Heimdall/.env 2>/dev/null; then
+            echo "[remote] Bringing up Authentik (SSO)..."
+            sudo install -d -o root -g root -m 0755 \
+                /opt/Homelab/Heimdall/authentik/database \
+                /opt/Homelab/Heimdall/authentik/redis
+            sudo install -d -o 1000 -g 1000 -m 0755 \
+                /opt/Homelab/Heimdall/authentik/media \
+                /opt/Homelab/Heimdall/authentik/certs \
+                /opt/Homelab/Heimdall/authentik/custom-templates
+            cd /opt/Homelab/Heimdall/authentik
+            docker compose --env-file /opt/Homelab/Heimdall/.env pull
+            docker compose --env-file /opt/Homelab/Heimdall/.env up -d
+            docker compose --env-file /opt/Homelab/Heimdall/.env ps
+        else
+            echo "[remote] AUTHENTIK_SECRET_KEY not in .env — skipping Authentik (ship secrets first)."
+        fi
 
         # ─── Cloudflare Tunnel — separate Compose project ────────────────
         # Public web access. Skips until credentials.json is shipped (operator

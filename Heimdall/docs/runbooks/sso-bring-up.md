@@ -1,5 +1,13 @@
 # Runbook — SSO bring-up (Authentik)
 
+> **Execution plan:** [`docs/design/public-access-plan.md`](../../../docs/design/public-access-plan.md)
+> (2026-09-05). That document owns the sequencing, the decisions (D-1…D-14) and
+> the exit tests; this runbook is the hands-on detail for the steps. Where they
+> disagree, the plan wins. Changed since this runbook was written: Navidrome and
+> Immich are **not** exposed; `cloud` (Nextcloud) **is**; `jf` uses a Cloudflare
+> grey-cloud A record via ddns-updater, not the dead NoIP chain; game servers are
+> deferred with Thoth.
+
 Stand up the identity plane and connect the first friend. Plan/rationale:
 [`docs/design/sso-plan.md`](../../../docs/design/sso-plan.md). Stack files:
 [`Heimdall/authentik/`](../../authentik/).
@@ -38,7 +46,8 @@ cd Heimdall && sops -d secrets/env.sops.env | grep AUTHENTIK_BOOTSTRAP_PASSWORD
 
 - Browse `https://auth.lab` (trust Caddy's internal CA, or `http://heimdall.lab/ca.crt`).
 - Log in as `akadmin`. Confirm under **Applications**: Homarr, Nextcloud, LDAP;
-  under **Directory → Groups**: `friends-family`, `media-users`.
+  under **Directory → Groups**: `friends-family` (the only group — it is also
+  the LDAP provider's `search_group`, per D-8).
 - If a blueprint errored, check **System → Tasks** / `docker compose -p authentik logs worker`.
 
 ## 2. LDAP outpost token (one-time paste)
@@ -65,9 +74,14 @@ Jellyfin runs on TrueNAS (`192.168.10.247:30013`); configure in its web UI:
    - **Base DN**: `DC=lab,DC=homelab`  ·  **User search base**: `ou=users,DC=lab,DC=homelab`
    - **User search filter**: `(&(objectClass=user)(cn={username}))`
    - **Bind DN**: a dedicated Authentik service account (create one and add it to
-     `media-users`), or enable per-user bind.
-   - **Username attribute**: `cn`  ·  test with a `media-users` member.
+     `friends-family`), or enable per-user bind. **Never use `akadmin`.**
+   - **Username attribute**: `cn`  ·  test with a `friends-family` member.
 3. Set "Enable user creation" so first LDAP login provisions the Jellyfin user.
+   LDAP-created users must NOT be administrators.
+4. Dashboard → General: enable **login lockout** after N failed attempts. Once
+   `jf.stevengann.com` is public this is the only brute-force control on that path.
+5. Keep one **local** Jellyfin admin outside LDAP (break-glass, D-13) — a Heimdall
+   outage must not lock you out of your own media server.
 
 **Seerr** then just works via its "Sign in with Jellyfin" — no separate config.
 
@@ -114,8 +128,9 @@ Homarr user, role from the `groups` claim.
 
 ## 6. Provision friends (replaces the bot)
 
-- **UI:** Directory → Users → Create; add to `friends-family` (+ `media-users` for
-  Jellyfin); set a password or send an invite.
+- **UI:** Directory → Users → Create; add to `friends-family` — that one group
+  grants both app access and the LDAP bind Jellyfin needs (D-8); set a temporary
+  password and have them change it at `https://auth.stevengann.com`.
 - **IaC:** drop a user blueprint under `Heimdall/authentik/blueprints/` (see the
   [authentik README](../../authentik/README.md)) and redeploy. Note blueprints
   don't prune users — disable/delete in the UI.
@@ -125,26 +140,28 @@ Homarr user, role from the `groups` claim.
 One-time, after you've decided to go live (stack + ingress map:
 [`Heimdall/cloudflared/`](../../cloudflared/)).
 
-1. **Move stevengann.com DNS to Cloudflare** (registrar stays Namecheap):
-   - Create a free Cloudflare account → Add site `stevengann.com` → let it import
-     existing records. **Verify the GitHub Pages records imported** (apex `A` →
-     185.199.108–111.153, `www` CNAME → `stevengann.github.io`); set those to **DNS
-     only / grey-cloud** so GitHub keeps serving the blog + its own cert.
-   - At Namecheap → Domain → Nameservers → **Custom DNS** → enter the two Cloudflare
-     nameservers. Propagates in minutes–hours; the blog keeps working throughout.
+1. ~~**Move stevengann.com DNS to Cloudflare**~~ — **DONE.** Verified 2026-09-05:
+   the zone is live on `melnicoff.ns.cloudflare.com` / `opal.ns.cloudflare.com`
+   and the apex still serves the GitHub Pages blog. **Do** enable **2FA on the
+   Cloudflare account** before going further — it now controls both your DNS and
+   your tunnel.
 2. **Create the tunnel + routes + credentials** — see
    [`Heimdall/cloudflared/README.md`](../../cloudflared/README.md) "Operator setup":
    `cloudflared tunnel login` → `create heimdall` → put the UUID in `config.yml` →
    SOPS-encrypt the JSON to `secrets/cloudflared-credentials.sops` →
-   `tunnel route dns` for `auth jf seerr music homarr`.
+   `tunnel route dns` for `auth seerr homarr cloud` (NOT `jf` — it is direct, and
+   NOT `music` — Navidrome is not exposed).
+   Route **`auth` first and test it alone** before adding the rest.
 3. **Deploy:** `cd Heimdall && ./scripts/deploy.sh` (brings up the tunnel once the
    credentials exist).
 4. **Switch Authentik's default brand/issuer host to public** if needed and confirm
-   `https://jf.stevengann.com` + `https://auth.stevengann.com` load with a valid
-   public cert from off-network.
+   `https://auth.stevengann.com` loads with a valid public cert **from cellular**
+   (not just LAN Wi-Fi — that would test nothing).
 
-WAF/hardening (optional): add a Cloudflare rate-limit rule on `auth.stevengann.com`.
-Never put Cloudflare Access in front of `auth`, `jf`, or `music`.
+WAF/hardening: add a Cloudflare **rate-limit rule on `auth.stevengann.com`**
+(≈10 req/10 s per IP on `/flows/*` and `/api/v3/flows/*`).
+**Do not use Cloudflare Access anywhere** (D-4) — it breaks the OIDC exchange on
+`auth`, breaks Nextcloud's sync clients on `cloud`, and is redundant elsewhere.
 
 ## 8. Direct exposure (NOT via the tunnel) — Jellyfin + game servers
 
@@ -153,7 +170,11 @@ reachable from the WAN, so each relies on its own auth.
 
 **Jellyfin** (kept off the tunnel by choice — heavy video, Cloudflare ToS §2.8):
 
-- DNS: `jf.stevengann.com` → CNAME `monolith.ddns.net`, **DNS only (grey-cloud)**.
+- DNS: `jf.stevengann.com` → a **grey-cloud (DNS-only) `A` record** kept current by
+  **ddns-updater via the Cloudflare API** (D-5). Delete the existing *proxied*
+  record first — as of 2026-09-05 `jf` is orange-clouded and times out. The old
+  NoIP `monolith.ddns.net` chain is dead (container unhealthy, stale IP) and is
+  being retired, so do not CNAME to it.
 - UCG: port-forward **WAN TCP 443 → `192.168.10.4:7443`**. That `:7443` Caddy block
   serves **only** `jf.stevengann.com` (attack-surface isolation — the `.lab` admin
   UIs and `auth` live on `:443`, which is NOT WAN-forwarded, so they stay private).
@@ -164,12 +185,13 @@ reachable from the WAN, so each relies on its own auth.
 - Auth is Jellyfin's own LDAP-backed login. If it's ever attacked/DDoS'd, options
   then: move it behind the tunnel, add fail2ban on Akasha, or a VPS relay.
 
-**Game servers** (raw TCP/UDP — can't use the HTTP tunnel):
+**Game servers** (raw TCP/UDP — can't use the HTTP tunnel) — **DEFERRED (D-14).**
 
-- `mc.stevengann.com` / `se.stevengann.com` → CNAME `monolith.ddns.net` (grey-cloud).
-- UCG: **Minecraft TCP 25565**; **Space Engineers UDP 27016** (confirm against the
-  egg) → the server's host:port (Pterodactyl allocation). Optional Minecraft `SRV`
-  record so players omit the port.
+Both ran on Thoth, which is powered off, so there is nothing to expose and the
+`25565` nftables rules were removed. When Thoth returns: re-add those rules,
+create grey-cloud records, and forward **Minecraft TCP 25565** / **Space Engineers
+UDP 27016** (confirm against the egg) to the Pterodactyl allocation. Optional
+Minecraft `SRV` record so players can omit the port.
 
 To avoid home-IP exposure entirely: paid Cloudflare Spectrum or a VPS relay
 (e.g. playit.gg) — out of scope.

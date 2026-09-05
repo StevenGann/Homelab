@@ -13,13 +13,13 @@
 # secret is credentials.json, SOPS-encrypted in the repo and shipped by deploy.sh.
 # Skips cleanly until credentials.json exists (see deploy.sh).
 #
-# Pin: pin cloudflare/cloudflared to a specific version after the first pull
-# (Cloudflare ships frequently). `latest` is used here for first bring-up.
+# Pin: cloudflare/cloudflared:2026.8.3 (latest as of 2026-09-05). Cloudflare
+# ships frequently; bump deliberately rather than tracking `latest`, so a tunnel
+# (the public entry point) never changes underneath you on a restart.
 
 services:
   cloudflared:
-    image: cloudflare/cloudflared:latest
-    pull_policy: always
+    image: cloudflare/cloudflared:2026.8.3
     restart: unless-stopped
     command: tunnel --config /etc/cloudflared/config.yml --no-autoupdate run
     volumes:

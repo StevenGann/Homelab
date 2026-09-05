@@ -10,7 +10,8 @@
 #   LDAP server      : 192.168.10.4   port 389  (or 636 LDAPS if you add a cert)
 #   Base DN          : DC=lab,DC=homelab
 #   User search base : ou=users,DC=lab,DC=homelab
-#   Bind: a dedicated Authentik service account (create one), or per-user bind.
+#   Bind: a dedicated Authentik service account (create one and add it to
+#          friends-family), or per-user bind. NEVER use akadmin as the bind DN.
 #
 # The outpost token is minted by Authentik when this blueprint creates the
 # outpost. Copy it from the UI into AUTHENTIK_LDAP_OUTPOST_TOKEN, then redeploy
@@ -28,8 +29,9 @@ entries:
       base_dn: "DC=lab,DC=homelab"
       bind_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       unbind_flow: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
-      # Only members of media-users are bindable/searchable over LDAP.
-      search_group: !Find [authentik_core.group, [name, media-users]]
+      # Only members of friends-family are bindable/searchable over LDAP.
+      # (Was media-users; collapsed to one group per D-8 — see 00-groups.yaml.)
+      search_group: !Find [authentik_core.group, [name, friends-family]]
       mfa_support: true
 
   - model: authentik_core.application

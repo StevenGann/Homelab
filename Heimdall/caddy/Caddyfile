@@ -15,7 +15,13 @@
     # Internal CA means no Let's Encrypt rate-limit window to worry about.
     auto_https disable_redirects
 
-    # No `email` directive — internal CA does not need a contact for ACME registration.
+    # ACME contact. The internal CA needs no contact, but jf.stevengann.com:7443
+    # issues a REAL Let's Encrypt cert (TLS-ALPN-01) — set this to get expiry and
+    # problem notices from LE. Left commented deliberately: this repo is PUBLIC,
+    # so the operator should fill it in rather than have an address committed on
+    # their behalf. Uncomment and set before Phase 6 of
+    # docs/design/public-access-plan.md; issuance works without it.
+    # email you@example.com
 }
 
 # ─── LAN-only HTTP listener: distribute the internal-CA root certificate ──────────────

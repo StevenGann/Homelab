@@ -1,9 +1,15 @@
 # Groups — the access tiers friends/family map onto.
 #
-# friends-family : everyone you share public-facing apps with (Jellyfin, Seerr,
-#                  Homarr, Navidrome). Bound to each application below.
-# media-users    : the subset exposed over LDAP (Jellyfin bind/search scope).
-#                  Keep == friends-family unless you want to narrow LDAP exposure.
+# friends-family : everyone you share public-facing apps with. Bound to each
+#                  application, AND used as the LDAP provider's search_group so
+#                  Jellyfin can bind them.
+#
+# D-8 (2026-09-05): the former second group `media-users` was removed. Having the
+# LDAP scope be a DIFFERENT group from the app-access group is a silent-failure
+# trap — add a friend to friends-family, forget media-users, and their Jellyfin
+# login fails with no useful error. One group, one place to add someone. Narrow
+# later only if a non-media friend tier actually exists.
+# See docs/design/public-access-plan.md D-8.
 #
 # Auto-discovered + applied from /blueprints/custom by the worker.
 version: 1
@@ -14,10 +20,5 @@ metadata:
 entries:
   - model: authentik_core.group
     identifiers: { name: friends-family }
-    attrs:
-      is_superuser: false
-
-  - model: authentik_core.group
-    identifiers: { name: media-users }
     attrs:
       is_superuser: false

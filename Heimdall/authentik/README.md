@@ -9,7 +9,7 @@ Bring-up + day-2: [`docs/runbooks/sso-bring-up.md`](../docs/runbooks/sso-bring-u
 | File | Role |
 |------|------|
 | `docker-compose.yml` | postgres + redis + server + worker + LDAP outpost. Separate Compose project under `/opt/Homelab/Heimdall/authentik/`, started by `scripts/deploy.sh`. |
-| `blueprints/00-groups.yaml` | `friends-family` + `media-users` groups. |
+| `blueprints/00-groups.yaml` | The `friends-family` group (single group as of D-8, 2026-09-05 — it is both the app-access group and the LDAP `search_group`). |
 | `blueprints/10-provider-homarr.yaml` | OIDC provider + app for Homarr (client creds via `!Env`, shared with the Homarr k8s Secret). |
 | `blueprints/20-provider-nextcloud.yaml` | OIDC placeholder for Nextcloud (not yet deployed). |
 | `blueprints/30-provider-ldap.yaml` | LDAP provider + outpost — the Jellyfin / native-client path. |
@@ -43,7 +43,7 @@ entries:
       email: jane@example.com
       groups:
         - !Find [authentik_core.group, [name, friends-family]]
-        - !Find [authentik_core.group, [name, media-users]]
+        - !Find [authentik_core.group, [name, friends-family]]
       path: users
 ```
 

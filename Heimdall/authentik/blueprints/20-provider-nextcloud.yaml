@@ -1,9 +1,12 @@
 # Nextcloud — OIDC provider + application (PLACEHOLDER).
 #
-# Nextcloud is NOT deployed yet (see docs/design/sso-plan.md §3). This provider
-# exists so the IdP side is ready the moment Nextcloud lands: install the
-# `user_oidc` app and point it at https://auth.lab/application/o/nextcloud/ with
-# the client_id/secret below.
+# Nextcloud IS deployed (v34.0.3 at 192.168.10.87, verified 2026-09-05) and is on
+# the public allowlist as cloud.stevengann.com. To finish the wiring: install the
+# `user_oidc` app in Nextcloud and point it at the PUBLIC issuer
+# https://auth.stevengann.com/application/o/nextcloud/ with the client_id below
+# and the secret read back from the Authentik UI.
+# Public issuer, not auth.lab: the OIDC issuer must be the same hostname friends
+# reach from the internet, or token validation fails for them.
 #
 # The client secret here is generated INSIDE Authentik on first apply (no !Env),
 # then read back from the UI (Providers → Nextcloud) when you configure
@@ -29,6 +32,8 @@ entries:
       signing_key:
         !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
       redirect_uris:
+        - matching_mode: strict
+          url: "https://cloud.stevengann.com/apps/user_oidc/code"
         - matching_mode: regex
           url: "https?://nextcloud\\.lab/apps/user_oidc/code"
       property_mappings:
@@ -41,8 +46,8 @@ entries:
     attrs:
       name: Nextcloud
       provider: !KeyOf provider-nextcloud
-      meta_launch_url: https://nextcloud.lab
-      meta_description: Files / calendar / contacts (not yet deployed)
+      meta_launch_url: https://cloud.stevengann.com
+      meta_description: Files / calendar / contacts
       group: Productivity
       policy_engine_mode: any
 
