@@ -41,3 +41,16 @@ Heimdall/komodo-data/backups/*
 !Heimdall/komodo-data/backups/.gitkeep
 kubectl
 sops
+
+# ─── Authentik runtime state (created by scripts/deploy.sh on Heimdall) ───────
+# Postgres data, Redis AOF, uploaded media, generated certs and templates. These
+# appear inside the stack root because of the single-root portability rule, so
+# they land in the repo tree on Heimdall and MUST NOT be committed — the postgres
+# dir is root-owned and its presence also breaks `git pull` as the owner user.
+# blueprints/ IS tracked; everything else here is not.
+Heimdall/authentik/database/
+Heimdall/authentik/redis/
+Heimdall/authentik/media/
+Heimdall/authentik/certs/
+Heimdall/authentik/custom-templates/
+Heimdall/cloudflared/credentials.json
