@@ -10,8 +10,9 @@
 #   LDAP server      : 192.168.10.4   port 389  (or 636 LDAPS if you add a cert)
 #   Base DN          : DC=lab,DC=homelab
 #   User search base : ou=users,DC=lab,DC=homelab
-#   Bind: a dedicated Authentik service account (create one and add it to
-#          friends-family), or per-user bind. NEVER use akadmin as the bind DN.
+#   Bind: per-user bind (bind_mode: direct, the default) — Jellyfin passes the
+#          friend's own credentials straight through. No service account needed.
+#          If you do configure one, add it to friends-family; NEVER use akadmin.
 #
 # The outpost token is minted by Authentik when this blueprint creates the
 # outpost. Copy it from the UI into AUTHENTIK_LDAP_OUTPOST_TOKEN, then redeploy
@@ -27,22 +28,29 @@ entries:
     identifiers: { name: LDAP }
     attrs:
       base_dn: "DC=lab,DC=homelab"
-      bind_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-      unbind_flow: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
-      # REQUIRED as of authentik 2026.8.1 (added 2026-09-05). The LDAP provider
-      # inherits authorization_flow/invalidation_flow from the base Provider model
-      # and its serializer rejects the entry without them:
-      #   Serializer errors {'authorization_flow': ['This field is required.'],
-      #                      'invalidation_flow':  ['This field is required.']}
-      # bind_flow/unbind_flow alone are NOT sufficient. Implicit consent is correct
-      # here — an LDAP bind has no browser session to show a consent screen in.
+
+      # ── Flow fields as of authentik 2026.8.1 (corrected 2026-09-05) ──────────
+      # The model was refactored: `bind_flow` -> `authentication_flow`,
+      # `unbind_flow` is GONE, and `search_group` is GONE. Blueprint attrs that
+      # no longer exist on the model are silently ACCEPTED AND DROPPED — the
+      # entry applies "successfully" while doing nothing, which is how this hid.
+      #
+      # Symptom when authentication_flow is unset: every bind fails with
+      #   ldap_bind: Invalid credentials (49)
+      # and the outpost logs "failed to execute flow / Flow does not apply to
+      # current user." — because it falls back to authorization_flow, and the
+      # authorization flows are `authentication = require_authenticated`, which
+      # can never be true for a user who is still trying to authenticate.
+      #
+      # authentication_flow MUST be an `authentication`-designation flow with
+      # authentication = none. authorization/invalidation are both required by
+      # the serializer.
+      authentication_flow:
+        !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow:
         !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow:
         !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-      # Only members of friends-family are bindable/searchable over LDAP.
-      # (Was media-users; collapsed to one group per D-8 — see 00-groups.yaml.)
-      search_group: !Find [authentik_core.group, [name, friends-family]]
       mfa_support: true
 
   - model: authentik_core.application
@@ -52,6 +60,19 @@ entries:
       provider: !KeyOf provider-ldap
       meta_description: LDAP directory for Jellyfin and other native-client apps
       group: Infrastructure
+      policy_engine_mode: any
+
+  # Scope who may bind over LDAP. This REPLACES the provider's old `search_group`
+  # field (removed in 2026.8.1): access is now gated by policy bindings on the
+  # application, the same mechanism Homarr and Nextcloud use. Without this every
+  # authentik user could bind, not just friends-family.
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !Find [authentik_core.application, [slug, ldap]]
+      group: !Find [authentik_core.group, [name, friends-family]]
+      order: 0
+    attrs:
+      enabled: true
 
   - model: authentik_outposts.outpost
     identifiers: { name: LDAP }
