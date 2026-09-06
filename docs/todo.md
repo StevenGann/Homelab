@@ -40,7 +40,19 @@ token for DDNS). Immich is not exposed (may be retired).
       **Still to do here:** enrol TOTP on `akadmin` (D-11) — needs a browser at
       `https://auth.lab` and an authenticator app; it is an operator step, and a
       gate for Phase 4 since `auth` becomes internet-facing there.
-- [ ] Phase 2 — Jellyfin LDAP plugin; test friend logs into the **mobile app**
+- [x] **Phase 2 — DONE 2026-09-05** (API-verified; mobile-app check still worth doing).
+      LDAP-Auth v23 active on Jellyfin 10.11.11. `testfriend` authenticates
+      (HTTP 200, auto-created, non-admin, all folders); wrong password and
+      unknown user both 401. Bind account `svc-jellyfin-ldap` needs the
+      `search_full_directory` permission via a role — without it the bind
+      succeeds but the search returns nothing. `LdapUidAttribute` must be `cn`,
+      **not** `uid` (authentik exposes `uid` as a hash).
+      Bind password stored as `JELLYFIN_LDAP_BIND_PASSWORD` in
+      `Heimdall/secrets/env.sops.env`.
+      **Open:** Jellyfin has **29 pre-existing local users** from the old
+      password-sync bot. LDAP does not migrate them — they keep local passwords.
+      Cutting a person over means creating them in `friends-family` and removing
+      their local account, or they end up with two Jellyfin users. Needs a plan.
 - [ ] Phase 3 — Seerr via Jellyfin; break-glass accounts confirmed
 - [ ] Phase 4 — Cloudflare Tunnel: `auth` first, then `seerr`/`homarr`/`cloud`
 - [ ] Phase 5 — OIDC: Homarr flip, Nextcloud `user_oidc`

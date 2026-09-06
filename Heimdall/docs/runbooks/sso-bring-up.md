@@ -66,24 +66,78 @@ cd Heimdall && sops -d secrets/env.sops.env | grep AUTHENTIK_BOOTSTRAP_PASSWORD
 
 ## 3. Jellyfin LDAP (on Akasha — manual, outside IaC)
 
-Jellyfin runs on TrueNAS (`192.168.10.247:30013`); configure in its web UI:
+Jellyfin runs on TrueNAS (`192.168.10.247:30013`). **As-built and verified
+working 2026-09-05.**
 
-1. Dashboard → Plugins → Catalog → install **LDAP Authentication** → restart.
-2. Configure:
-   - **LDAP Server**: `192.168.10.4`  **Port**: `389` (StartTLS/636 optional)
-   - **Base DN**: `DC=lab,DC=homelab`  ·  **User search base**: `ou=users,DC=lab,DC=homelab`
-   - **User search filter**: `(&(objectClass=user)(cn={username}))`
-   - **Bind DN**: a dedicated Authentik service account (create one and add it to
-     `friends-family`), or enable per-user bind. **Never use `akadmin`.**
-   - **Username attribute**: `cn`  ·  test with a `friends-family` member.
-3. Set "Enable user creation" so first LDAP login provisions the Jellyfin user.
-   LDAP-created users must NOT be administrators.
-4. Dashboard → General: enable **login lockout** after N failed attempts. Once
-   `jf.stevengann.com` is public this is the only brute-force control on that path.
+1. Dashboard → Plugins → Catalog → install **LDAP Authentication** (v23), then
+   **restart Jellyfin** — the plugin sits at `status=Restart` until you do. The
+   least invasive restart is `POST /System/Restart` with an API key, which avoids
+   touching Docker on Akasha at all (see failure-patterns.md Pattern 6).
+
+2. Configure — these exact values:
+
+   | Setting | Value |
+   |---|---|
+   | LDAP Server / Port | `192.168.10.4` / `389` |
+   | Secure / StartTLS | both **off** (plain LDAP on the lab VLAN; `:636` serves a self-signed cert) |
+   | Base DN | `ou=users,dc=lab,dc=homelab` |
+   | Search filter | `(memberOf=cn=friends-family,ou=groups,dc=lab,dc=homelab)` |
+   | Username attribute | `cn` |
+   | **Uid attribute** | **`cn`** — **NOT `uid`** |
+   | Search attributes | `cn, sAMAccountName, mail, displayName` |
+   | Bind DN | `cn=svc-jellyfin-ldap,ou=users,dc=lab,dc=homelab` |
+   | Bind password | `JELLYFIN_LDAP_BIND_PASSWORD` in `Heimdall/secrets/env.sops.env` |
+   | Admin base DN / filter | **both empty** — no LDAP user becomes a Jellyfin admin (D-13) |
+   | Create users from LDAP | on |
+   | Enable all folders | on — friends get library access on first login |
+   | Allow password change | off — passwords live in authentik |
+
+   > ⚠️ **`LdapUidAttribute` must be `cn`, not `uid`.** authentik exposes `uid` as
+   > a 64-character hash, not the login name. The plugin defaults to `uid`, so
+   > this is a silent foot-gun.
+
+3. **The bind account needs an explicit permission.** A plain member of
+   `friends-family` can bind but sees only **itself** in a search, so Jellyfin can
+   never find the user it is authenticating. Grant the service account
+   `authentik_providers_ldap.search_full_directory` on the LDAP provider. In
+   2026.8.1 permissions attach to **roles**, not directly to users:
+
+   ```
+   Authentik → Directory → Roles → create `ldap-search`
+     → assign "Search full LDAP directory" on the LDAP provider
+     → add user `svc-jellyfin-ldap` to the role
+   ```
+
+   Symptom if skipped: bind succeeds, search returns zero rows, every Jellyfin
+   login fails with no useful error.
+
+4. **Brute-force lockout** is already on by default: Jellyfin locks a non-admin
+   account after 3 failed attempts (5 for admins), `LoginAttemptsBeforeLockout: -1`
+   meaning "use the default". Once `jf.stevengann.com` is public this is the only
+   brute-force control on that path — verify it is still `-1` or a small positive
+   number, not `0` (disabled).
+
 5. Keep one **local** Jellyfin admin outside LDAP (break-glass, D-13) — a Heimdall
-   outage must not lock you out of your own media server.
+   outage must not lock you out of your own media server. As of 2026-09-05 there
+   are five local admins; none come from LDAP.
+
+**Verification** (what "working" looks like):
+
+```
+testfriend + correct password  -> HTTP 200, user auto-created, admin=False
+testfriend + wrong password    -> HTTP 401
+nonexistent user               -> HTTP 401
+```
 
 **Seerr** then just works via its "Sign in with Jellyfin" — no separate config.
+
+> **Migration note:** Jellyfin had **29 pre-existing local users** before LDAP was
+> enabled — the accounts the old password-sync bot created. Enabling LDAP does
+> **not** migrate them; they keep working with their local passwords. Moving a
+> person across means creating them in authentik's `friends-family` and having
+> them log in with the new credentials, which creates a *second* Jellyfin user
+> unless the local one is removed first. Plan that cutover explicitly.
+
 
 ## 4. Remote access (two tiers)
 

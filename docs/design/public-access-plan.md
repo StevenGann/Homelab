@@ -236,6 +236,27 @@ Runbook §3, on Akasha's Jellyfin UI:
 UI) against `http://jellyfin.lab:30013` on the LAN, and a Jellyfin user was
 auto-created for them.
 
+**RESULT 2026-09-05 — PASSED at the API level.** `POST /Users/AuthenticateByName`
+as `testfriend` returned HTTP 200 with a session; the Jellyfin user was
+auto-created with `admin=False` and all-folder access. Wrong password → 401,
+unknown user → 401. Five local admins remain, none from LDAP.
+*Still worth doing by hand:* the same login in an actual TV/phone client, since
+that is the case LDAP exists to serve and it exercises a different code path.
+
+**Two things this phase surfaced:**
+
+1. The bind account needs `authentik_providers_ldap.search_full_directory`,
+   granted through a **role** (2026.8.1 has no direct user permission assignment).
+   Without it the bind succeeds and the search silently returns zero rows.
+2. `LdapUidAttribute` must be `cn`. authentik publishes `uid` as a 64-character
+   hash, and the plugin defaults to `uid`.
+
+**Migration debt:** Jellyfin carries **29 pre-existing local users** created by
+the old password-sync bot. Enabling LDAP does not touch them. Retiring the bot
+for real means cutting each person over — create them in `friends-family`, then
+delete their local Jellyfin account, or they end up with two users. This is the
+actual "retire the bot" work and it is not yet planned.
+
 **Rollback:** disable the plugin; local accounts are untouched.
 
 ### Phase 3 — Seerr + local hygiene (LAN)
