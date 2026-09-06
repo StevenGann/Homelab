@@ -20,10 +20,16 @@ Full bring-up: [`docs/runbooks/sso-bring-up.md`](../docs/runbooks/sso-bring-up.m
 | `seerr.stevengann.com` | `192.168.10.54` | Sign in with Jellyfin (LDAP-backed) |
 | `homarr.stevengann.com` | `192.168.10.53` | Authentik OIDC |
 | `cloud.stevengann.com` | `192.168.10.87` (Nextcloud v34) | Authentik OIDC (`user_oidc`) |
+| `komga.stevengann.com` | `192.168.10.82:25600` | Authentik OIDC |
+| `romm.stevengann.com` | `192.168.10.78:8080` | Authentik OIDC |
+| `beszel.stevengann.com` | `192.168.10.68:8090` | Authentik OIDC (PocketBase OAuth2) |
+| `musicseerr.stevengann.com` | `192.168.10.74:8688` | Sign in with Jellyfin (inherits) |
+| `panel.stevengann.com` | `192.168.10.69` (Pterodactyl) | ⚠️ **its own login — no SSO.** Enable Pterodactyl 2FA. |
 
 **Not exposed, deliberately** (see [`public-access-plan.md`](../../docs/design/public-access-plan.md)):
-`music` / Navidrome (D-2 — Subsonic auth can't use the IdP) and Immich (D-3 —
-may be retired).
+Navidrome (D-2 — Subsonic auth can't use the IdP), Immich (D-3 — may be
+retired), and **Uptime-Kuma** (v1.23.16 has no OIDC; exposing the admin UI would
+gate the whole monitoring config behind one password).
 
 **`jf.stevengann.com` (Jellyfin) is NOT here** — kept off the tunnel (video / ToS
 §2.8) and exposed directly via a dedicated isolated Caddy listener + UCG
@@ -46,10 +52,33 @@ cloudflared tunnel create heimdall            # prints a UUID + writes ~/.cloudf
 cd Heimdall && sops --encrypt --input-type json --output-type json \
     ~/.cloudflared/<UUID>.json > secrets/cloudflared-credentials.sops
 # 3) point the public hostnames at the tunnel (creates the proxied CNAMEs):
-for h in auth seerr homarr cloud; do cloudflared tunnel route dns heimdall $h.stevengann.com; done
+for h in auth seerr homarr cloud komga romm beszel musicseerr panel; do
+  cloudflared tunnel route dns heimdall $h.stevengann.com
+done
 # 4) deploy:
 ./scripts/deploy.sh
 ```
+
+## The SECOND tunnel — `cloudflared-stream`
+
+Subwave gets its **own** tunnel ([`Heimdall/cloudflared-stream/`](../cloudflared-stream/)),
+not another hostname here. It streams continuous audio, which is the same CDN-terms
+exposure that kept Jellyfin off Cloudflare entirely. **This** tunnel carries
+`auth.stevengann.com` — if a terms action ever landed on the tunnel serving the
+stream and it were the same tunnel, every OIDC login in the lab would stop at
+once. Separating them bounds the blast radius to Subwave.
+
+```bash
+cloudflared tunnel create heimdall-stream          # a SECOND tunnel
+# UUID -> Heimdall/cloudflared-stream/config.yml (tunnel:)
+cd Heimdall && sops --encrypt --input-type json --output-type json \
+    ~/.cloudflared/<STREAM-UUID>.json > secrets/cloudflared-stream-credentials.sops
+cloudflared tunnel route dns heimdall-stream subwave.stevengann.com
+./scripts/deploy.sh
+```
+
+Killing it stops the radio and nothing else:
+`docker compose -p cloudflared-stream down`.
 
 ## Exposed directly (NOT via this tunnel)
 
