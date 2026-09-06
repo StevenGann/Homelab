@@ -29,6 +29,17 @@ entries:
       base_dn: "DC=lab,DC=homelab"
       bind_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       unbind_flow: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
+      # REQUIRED as of authentik 2026.8.1 (added 2026-09-05). The LDAP provider
+      # inherits authorization_flow/invalidation_flow from the base Provider model
+      # and its serializer rejects the entry without them:
+      #   Serializer errors {'authorization_flow': ['This field is required.'],
+      #                      'invalidation_flow':  ['This field is required.']}
+      # bind_flow/unbind_flow alone are NOT sufficient. Implicit consent is correct
+      # here — an LDAP bind has no browser session to show a consent screen in.
+      authorization_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       # Only members of friends-family are bindable/searchable over LDAP.
       # (Was media-users; collapsed to one group per D-8 — see 00-groups.yaml.)
       search_group: !Find [authentik_core.group, [name, friends-family]]
