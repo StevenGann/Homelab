@@ -62,7 +62,15 @@ token for DDNS). Immich is not exposed (may be retired).
       **Still worth doing by hand:** request a title and confirm it reaches
       Radarr/Sonarr (tests service wiring, not auth).
 - [ ] Phase 4 — Cloudflare Tunnel: `auth` first, then `seerr`/`homarr`/`cloud`
-- [ ] Phase 5 — OIDC: Homarr flip, Nextcloud `user_oidc`
+- [ ] Phase 5 — OIDC: Homarr flip, Nextcloud `user_oidc`, **Komga** (uncomment
+      the staged SPRING_SECURITY_* env), **RomM** (`OIDC_ENABLED` → `true`)
+- [ ] **Decide: Subwave (.91)** — the one service never classified. AI DJ radio,
+      friend-facing content, tunnel-compatible, but no IdP integration and
+      continuous audio raises the same CDN-terms question as Jellyfin. Include
+      or exclude; see the inventory in `docs/design/public-access-plan.md` §2.0.
+- [ ] **Enable Pterodactyl 2FA** on every account before Phase 4. It is the only
+      shared service with no SSO, so its own password is the sole gate once
+      `panel.stevengann.com` is public.
 - [ ] Phase 6 — Jellyfin direct: grey-cloud DDNS via Cloudflare, UCG 443→7443, LE cert
 - [ ] Phase 7 — monitors, Authentik Postgres backup, pins, user-guide "from outside" section
 

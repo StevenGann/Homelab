@@ -64,6 +64,76 @@ host-header-isolated) and the tunnel hostnames (only through Cloudflare). **Neve
 WAN-reachable:** `:22`, `:80`, `:443`, `:6443`, `:389`, every `.lab` name, every
 MetalLB VIP.
 
+### 2.0 Complete service inventory — included vs excluded
+
+**Every service in the lab, classified.** Built from a live sweep of all 43
+LoadBalancer Services plus the non-cluster hosts (2026-09-05). Nothing is
+omitted; if it is not in one of these tables it does not exist.
+
+#### ✅ INCLUDED — reachable by friends
+
+| Service | Public host | Transport | Identity | Status |
+|---|---|---|---|---|
+| **Authentik** | `auth` | Tunnel | *is* the IdP | Phase 4 |
+| **Jellyfin** | `jf` | **Direct `:7443`** | LDAP | ✅ **done** |
+| **Seerr** | `seerr` | Tunnel | inherits Jellyfin | ✅ **done** |
+| **Homarr** | `homarr` | Tunnel | OIDC | Phase 5 (env flip) |
+| **Nextcloud** | `cloud` | Tunnel | OIDC (`user_oidc`) | Phase 5 |
+| **Komga** | `komga` | Tunnel | OIDC | Phase 5 |
+| **RomM** | `romm` | Tunnel | OIDC | Phase 5 |
+| **Pterodactyl** | `panel` | Tunnel | ⚠️ **own login — no SSO** | Phase 4 |
+
+Eight services. Seven ride the tunnel; only Jellyfin takes the single
+port-forward. Six of the eight authenticate against authentik.
+
+> ⚠️ **Pterodactyl is the exception that needs care.** Panel v1.11.11 has no
+> native OIDC/SAML/LDAP, so friends get a *Pterodactyl* account, not an authentik
+> one — a separate credential outside the directory, with no central revocation.
+> Enable its built-in 2FA on every account before it goes public, because its
+> password is then the only gate. Exposing the panel does **not** expose game
+> servers: those speak raw TCP/UDP that an HTTP tunnel cannot carry (D-14).
+
+#### ❌ EXCLUDED — internal only (LAN / VPN)
+
+| Group | Services | Why |
+|---|---|---|
+| **Media automation** | Prowlarr `.55`, Sonarr `.56`, Radarr `.57`, Lidarr `.65`, Kapowarr `.60`, Youtarr `.61`, Trailarr `.63`, SuggestArr `.64`, Cleanuparr `.59`, Listenarr `.73`, Musicseerr `.74`, boxarr `.75`, **Tdarr `.62`** | Admin plane. Friends request through Seerr; they never need these. |
+| **Download clients** | qBittorrent `.58`, `-B .83`, `-C .84` | Admin plane, and they drive the VPN path. |
+| **Admin / ops** | Headlamp `.50`, Uptime-Kuma `.51`, Beszel `.68`, Speedtest `.67`, Jellystat `.76`, Sortarr `.77`, n8n `.71`, MQTT Explorer `.81`, Mosquitto `.72`, MonolithBot `.79` | Operating the lab, not using it. |
+| **AI agents / private data** | Guppi `.52`, Jeeves `.80`, Cassandra `.93`, Alfred `.11`, Caldera `.70`, agent-caldera `.85`, **Ignis `.90`** | Ignis especially: full read/write on the real Obsidian vault. |
+| **Storage tooling** | **ShareDirStat `.92`** | Can delete files on the Akasha shares. |
+| **Excluded on technical grounds** | **Navidrome `.66`** (D-2), **Immich `.88`** (D-3) | Subsonic auth cannot use an IdP; Immich may be retired. |
+| **Other** | ArchiSteamFarm `.86`, orphanarr `.89` | Steam account access; orphanarr is a 0-replica orphan not in git. |
+| **Infrastructure (Heimdall)** | Pi-hole, Technitium, Caddy, Komodo, ddns-updater, k3s control plane | Edge/infra. Never public. |
+| **Offline (Thoth)** | Ollama, OpenWebUI, ComfyUI, Jellyfin-GPU, Tdarr worker, Wings | Host powered off. Revisit when it returns — **OpenWebUI is a plausible future addition.** |
+| **Not IaC-tracked** | Home Assistant `.147`, Synology `.201`, HDHomeRun `.231` | Outside this repo. |
+| **Unused** | Traefik `.10` | k3s's bundled ingress; holds a pool IP for nothing. |
+
+#### ❓ UNDECIDED — the only genuine open question
+
+| Service | Why it is a candidate | Why it is not yet included |
+|---|---|---|
+| **Subwave `.91`** | AI DJ internet radio — friend-facing *content*, browser-based, would traverse the tunnel fine | Never considered when the allowlist was drawn. Continuous audio streaming raises the same CDN-terms question as Navidrome/Jellyfin, and it has no IdP integration, so it would be an open endpoint. **Needs a decision.** |
+
+#### Security note from the sweep
+
+Three excluded services have **no authentication at all** and are protected only
+by being LAN-only. That is an accepted posture (operator decision 2026-09-05),
+and none of them are exposed by this plan — but it is worth stating plainly,
+because it means the LAN is a flat trust zone:
+
+- **ShareDirStat `.92`** — `GET /api/v1/shares` answers unauthenticated, and its
+  config is `readonly: false`, `allow_delete: true` on all nine shares,
+  `confirm_mode: simple`, trash **disabled** (deletes are immediate).
+- **qBittorrent ×3** — `AuthSubnetWhitelist` includes `192.168.10.0/24`, so the
+  whole VLAN bypasses the WebUI login.
+- **Tdarr `.62`** — no built-in auth by design.
+
+Caddy `forward_auth` against authentik would close all three without touching the
+apps. That remains the plan's open question on how far forward-auth extends.
+
+---
+
 ### 2.1 Hostname map
 
 | Hostname | Transport | → Origin | Friend logs in with | Native client? |
