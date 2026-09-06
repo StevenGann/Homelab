@@ -42,13 +42,30 @@ entries:
       # authorization flows are `authentication = require_authenticated`, which
       # can never be true for a user who is still trying to authenticate.
       #
-      # authentication_flow MUST be an `authentication`-designation flow with
-      # authentication = none. authorization/invalidation are both required by
-      # the serializer.
+      # BOTH authentication_flow and authorization_flow must point at
+      # default-authentication-flow. That looks wrong and isn't:
+      #
+      # The LDAP outpost executes the **authorization_flow** to service a bind —
+      # verified in the server log, which shows
+      #   /api/v3/flows/executor/<authorization_flow>/?query=...outpost/ldap=true
+      # on every bind request. So whatever authorization_flow points at must be
+      # enterable by a user who is NOT yet authenticated.
+      #
+      # The stock authorization flows (default-provider-authorization-implicit-
+      # consent / -explicit-consent) are `authentication = require_authenticated`,
+      # which can never be true mid-bind. Pointing authorization_flow at one of
+      # them makes EVERY bind fail with `ldap_bind: Invalid credentials (49)`
+      # while the outpost logs "Flow does not apply to current user." — an error
+      # that looks like a password problem and is not.
+      #
+      # default-authentication-flow is designation=authentication,
+      # authentication=none, so it applies to an unauthenticated user and runs
+      # identification + password headlessly. Verified working 2026-09-05:
+      # correct password returns the user DN, wrong password is rejected.
       authentication_flow:
         !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow:
-        !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+        !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       invalidation_flow:
         !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       mfa_support: true
