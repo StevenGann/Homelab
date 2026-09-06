@@ -1,0 +1,38 @@
+# Cloudflare Tunnel (STREAM) — ingress for continuous-audio services only
+#
+# WHY THIS IS A SECOND TUNNEL, not another hostname on the main one:
+#
+# Subwave streams audio continuously. That is the same "disproportionate
+# non-HTML content" exposure under Cloudflare's CDN terms that kept Jellyfin off
+# Cloudflare altogether (docs/design/public-access-plan.md D-1). The main tunnel
+# carries auth.stevengann.com — the identity plane. If a terms action ever landed
+# on the tunnel serving the stream, and that were the same tunnel, every OIDC
+# login in the lab would stop at the same moment.
+#
+# Separating them bounds the blast radius to Subwave. Killing this tunnel
+# (`docker compose -p cloudflared-stream down`) stops the radio and nothing else.
+#
+# Fill `tunnel:` with the UUID from `cloudflared tunnel create heimdall-stream`.
+# Its credentials.json is SOPS-encrypted at
+# Heimdall/secrets/cloudflared-stream-credentials.sops and shipped by deploy.sh.
+
+tunnel: REPLACE_WITH_STREAM_TUNNEL_UUID
+credentials-file: /etc/cloudflared/credentials.json
+
+originRequest:
+  connectTimeout: 30s
+  noHappyEyeballs: true
+
+ingress:
+  # ── Subwave (AI DJ radio) ───────────────────────────────────────────────────
+  # :7700 is the web player; the stream itself is proxied by the player's origin.
+  # NO auth on the listener surface, BY DESIGN — it is a radio station, anyone
+  # with the URL can listen. Admin control lives on the controller (:7701) behind
+  # ADMIN_USER/ADMIN_PASS and is deliberately NOT routed here.
+  # Never put Cloudflare Access in front of this (D-4): it would break the stream
+  # for any non-browser player.
+  - hostname: subwave.stevengann.com
+    service: http://192.168.10.91:7700
+
+  # Catch-all: anything not matched above is refused.
+  - service: http_status:404

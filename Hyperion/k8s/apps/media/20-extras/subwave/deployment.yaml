@@ -95,7 +95,13 @@ spec:
                   name: subwave-secrets
                   key: admin-pass
             - name: SITE_URL
-              value: https://subwave.lab
+              # PUBLIC hostname, not subwave.lab — SITE_URL is what Subwave puts
+              # into generated links (listen.pls / listen.m3u and the player), so
+              # pointing it inward hands friends URLs that only resolve on the
+              # LAN. Served by the SEPARATE stream tunnel
+              # (Heimdall/cloudflared-stream/), not the main one, so a CDN-terms
+              # action on the audio cannot take auth.stevengann.com down.
+              value: https://subwave.stevengann.com
             - name: NAVIDROME_URL
               value: http://navidrome:4533
             - name: NAVIDROME_USER

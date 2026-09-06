@@ -84,28 +84,34 @@ omitted; if it is not in one of these tables it does not exist.
 | **Pterodactyl** | `panel` | Tunnel | ⚠️ **own login — no SSO** | Phase 4 |
 | **Beszel** | `beszel` | Tunnel | OIDC (PocketBase OAuth2) | Phase 5 |
 | **Musicseerr** | `musicseerr` | Tunnel | inherits Jellyfin | Phase 4 |
-| **Uptime-Kuma** | `status` | Tunnel | ⚠️ **no SSO — use a status page** | Phase 4 |
-| **Subwave** | `subwave` | Tunnel | ⚠️ **none — open by design** | Phase 4 |
+| **Subwave** | `subwave` | **Stream tunnel** (separate) | ⚠️ **none — open by design** | Phase 4 |
 
-Twelve services. Eleven ride the tunnel; only Jellyfin takes the single
-port-forward. **Eight of the twelve authenticate against authentik** (six by
-OIDC, Jellyfin by LDAP, Seerr and Musicseerr by inheriting Jellyfin).
+Eleven services. Nine ride the main tunnel, Subwave rides a **second, separate
+tunnel**, and only Jellyfin takes the single port-forward. **Eight of the eleven
+authenticate against authentik** (six by OIDC, Jellyfin by LDAP, Seerr and
+Musicseerr by inheriting Jellyfin).
+
+**Three tunnels/paths, deliberately separated by blast radius:**
+
+| Path | Carries | Why separate |
+|---|---|---|
+| Main tunnel | `auth`, `seerr`, `homarr`, `cloud`, `komga`, `romm`, `panel`, `beszel`, `musicseerr` | The identity plane lives here |
+| **Stream tunnel** | `subwave` | Continuous audio is the CDN-terms exposure (D-1). A terms action here must not stop every OIDC login in the lab. |
+| Direct `:7443` | `jf` | Video, kept off Cloudflare entirely |
 
 **The three that cannot, and what that means:**
 
 - **Pterodactyl** — Panel v1.11.11 has no native OIDC/SAML/LDAP. Friends get a
   *Pterodactyl* account outside the directory, with no central revocation.
   **Enable its built-in 2FA on every account before it is public.**
-- **Uptime-Kuma** — v1.23.16 has local auth only; v1 never gained OIDC.
-  **Prefer publishing a status page** (public by design, no login) over exposing
-  the admin UI. If you expose the admin UI, its password is the only gate.
 - **Subwave** — the listener surface (`:7700` player, `:7702` stream) has **no
   auth at all, deliberately** — it is a radio station. Admin control is on the
   controller (`:7701`, `ADMIN_USER`/`ADMIN_PASS`) and is not routed publicly.
-  Two follow-ups: its `SITE_URL` is still `https://subwave.lab` and must change,
-  and continuous audio through the tunnel raises the same CDN-terms question that
-  kept Jellyfin off it (D-1) — consider giving Subwave its own tunnel so an
-  action there cannot take `auth` down with it.
+  Both follow-ups are now **done**: `SITE_URL` is `https://subwave.stevengann.com`
+  (pointing it inward would hand friends LAN-only links), and it is served by a
+  dedicated tunnel in `Heimdall/cloudflared-stream/` so a CDN-terms action on the
+  audio cannot take `auth` down with it. Never put Cloudflare Access in front of
+  it — that would break non-browser players.
 
 > ⚠️ **Pterodactyl is the exception that needs care.** Panel v1.11.11 has no
 > native OIDC/SAML/LDAP, so friends get a *Pterodactyl* account, not an authentik
@@ -120,7 +126,7 @@ OIDC, Jellyfin by LDAP, Seerr and Musicseerr by inheriting Jellyfin).
 |---|---|---|
 | **Media automation** | Prowlarr `.55`, Sonarr `.56`, Radarr `.57`, Lidarr `.65`, Kapowarr `.60`, Youtarr `.61`, Trailarr `.63`, SuggestArr `.64`, Cleanuparr `.59`, Listenarr `.73`, boxarr `.75`, **Tdarr `.62`** |  Admin plane. Friends request through Seerr; they never need these. |
 | **Download clients** | qBittorrent `.58`, `-B .83`, `-C .84` | Admin plane, and they drive the VPN path. |
-| **Admin / ops** | Headlamp `.50`, Speedtest `.67`, Jellystat `.76`, Sortarr `.77`, n8n `.71`, MQTT Explorer `.81`, Mosquitto `.72`, MonolithBot `.79` | Operating the lab, not using it. *(Uptime-Kuma and Beszel were promoted to the shared set 2026-09-05.)* |
+| **Admin / ops** | Headlamp `.50`, **Uptime-Kuma `.51`**, Speedtest `.67`, Jellystat `.76`, Sortarr `.77`, n8n `.71`, MQTT Explorer `.81`, Mosquitto `.72`, MonolithBot `.79` | Operating the lab, not using it. *(Beszel was promoted to the shared set 2026-09-05. Uptime-Kuma was briefly promoted and then dropped: v1.23.16 has no OIDC, so exposing the admin UI would gate the whole monitoring config behind one password.)* |
 | **AI agents / private data** | Guppi `.52`, Jeeves `.80`, Cassandra `.93`, Alfred `.11`, Caldera `.70`, agent-caldera `.85`, **Ignis `.90`** | Ignis especially: full read/write on the real Obsidian vault. |
 | **Storage tooling** | **ShareDirStat `.92`** | Can delete files on the Akasha shares. |
 | **Excluded on technical grounds** | **Navidrome `.66`** (D-2), **Immich `.88`** (D-3) | Subsonic auth cannot use an IdP; Immich may be retired. |

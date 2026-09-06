@@ -66,14 +66,15 @@ token for DDNS). Immich is not exposed (may be retired).
       the staged SPRING_SECURITY_* env), **RomM** (`OIDC_ENABLED` → `true`)
 - [x] **Subwave (.91) — INCLUDED** (operator decision 2026-09-05). Every service
       is now explicitly classified; see `docs/design/public-access-plan.md` §2.0.
-- [ ] **Subwave follow-ups before it goes public:** change `SITE_URL` from
-      `https://subwave.lab` to `https://subwave.stevengann.com`, and decide
-      whether it gets its own Cloudflare tunnel — continuous audio raises the
-      same CDN-terms question that kept Jellyfin off the shared tunnel, and a
-      ToS action on the shared one would take `auth` down with it.
-- [ ] **Uptime-Kuma: publish a status page** rather than exposing the admin UI.
-      v1.23.16 has no OIDC, so the admin UI would be gated only by its own
-      password; a status page is public by design and leaks nothing else.
+- [x] **Subwave follow-ups — DONE 2026-09-05.** `SITE_URL` now points at
+      `https://subwave.stevengann.com`, and Subwave is served by a dedicated
+      tunnel (`Heimdall/cloudflared-stream/`) so a CDN-terms action on the audio
+      stream cannot take `auth.stevengann.com` down with it.
+      **Phase 4 now needs TWO `cloudflared tunnel create` runs** — `heimdall`
+      and `heimdall-stream`.
+- [x] **Uptime-Kuma — NOT exposed** (operator decision 2026-09-05). Briefly
+      included, then dropped: v1.23.16 has local auth only, so exposing the admin
+      UI would gate the whole monitoring config behind one password.
 - [ ] **Enable Pterodactyl 2FA** on every account before Phase 4. It is the only
       shared service with no SSO, so its own password is the sole gate once
       `panel.stevengann.com` is public.

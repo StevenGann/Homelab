@@ -96,26 +96,19 @@ ingress:
   - hostname: musicseerr.stevengann.com
     service: http://192.168.10.74:8688
 
-  # ── Uptime-Kuma (service status) ────────────────────────────────────────────
-  # NO SSO. v1.23.16 has local auth only — no OIDC/OAuth2 (v1 never gained it).
-  # PREFERRED for friends: publish a Uptime-Kuma STATUS PAGE, which is
-  # public-by-design and needs no login, rather than sharing the admin UI. If the
-  # admin UI is exposed instead, its own password is the only gate — enable 2FA.
-  - hostname: status.stevengann.com
-    service: http://192.168.10.51:80
+  # ── Uptime-Kuma — NOT EXPOSED (operator decision 2026-09-05) ────────────────
+  # Briefly included, then dropped. v1.23.16 has local auth only (v1 never gained
+  # OIDC), so exposing the admin UI would put the whole monitoring config behind
+  # nothing but its own password. A public status page would have been the safe
+  # alternative, but the admin UI is not worth the surface. Stays LAN/VPN.
 
-  # ── Subwave (AI DJ radio) ───────────────────────────────────────────────────
-  # NO auth on the listener surface, BY DESIGN — :7700 is the web player and
-  # :7702 the stream; anyone with the URL can listen. Admin control lives on the
-  # controller (:7701) behind ADMIN_USER/ADMIN_PASS and is NOT routed here.
-  # Two things to be aware of before this goes live:
-  #   1. Continuous audio through the Cloudflare tunnel is the same CDN-terms
-  #      question that kept Jellyfin off it (D-1). Watch it, or move Subwave to
-  #      its own tunnel so an action there cannot take the identity plane down.
-  #   2. SITE_URL on the controller is still https://subwave.lab and must become
-  #      https://subwave.stevengann.com or generated links will point inward.
-  - hostname: subwave.stevengann.com
-    service: http://192.168.10.91:7700
+  # ── Subwave — SERVED BY A SEPARATE TUNNEL (2026-09-05) ──────────────────────
+  # Deliberately NOT on this tunnel. Subwave streams continuous audio, which is
+  # the same CDN-terms exposure that kept Jellyfin off Cloudflare entirely (D-1).
+  # This tunnel carries the IDENTITY PLANE (auth.stevengann.com) — if a ToS action
+  # landed on it, every OIDC login in the lab would stop at once. Subwave gets its
+  # own tunnel so that blast radius is Subwave alone.
+  # See Heimdall/cloudflared-stream/.
 
   # ── Immich — DELIBERATELY NOT EXPOSED (D-3, 2026-09-05) ─────────────────────
   # Technically tunnel-compatible (in-app-browser OAuth, then bearer tokens), but

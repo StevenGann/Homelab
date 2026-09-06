@@ -30,12 +30,14 @@ ENV_SOPS="${REPO_ROOT}/Heimdall/secrets/env.sops.env"
 PW_SOPS="${REPO_ROOT}/Heimdall/secrets/technitium-admin-pw.sops"
 K3S_ENV_SOPS="${REPO_ROOT}/Heimdall/secrets/k3s-control-plane.sops.env"
 CF_CREDS_SOPS="${REPO_ROOT}/Heimdall/secrets/cloudflared-credentials.sops"
+CF_STREAM_CREDS_SOPS="${REPO_ROOT}/Heimdall/secrets/cloudflared-stream-credentials.sops"
 DDNS_SOPS="${REPO_ROOT}/Heimdall/secrets/ddns-config.json.sops"
 DDNS_REMOTE="/opt/Homelab/Heimdall/ddns-updater/data/config.json"
 ENV_REMOTE="/opt/Homelab/Heimdall/.env"
 PW_REMOTE="/opt/Homelab/Heimdall/secrets/technitium-admin-pw"
 K3S_ENV_REMOTE="/opt/Homelab/Heimdall/k3s-control-plane/.env"
 CF_CREDS_REMOTE="/opt/Homelab/Heimdall/cloudflared/credentials.json"
+CF_STREAM_CREDS_REMOTE="/opt/Homelab/Heimdall/cloudflared-stream/credentials.json"
 
 DO_SECRETS=1
 DO_DEPLOY=1
@@ -144,6 +146,18 @@ if [ "$DO_SECRETS" -eq 1 ]; then
         fi
     else
         warn "cloudflared-credentials.sops not found — skipping tunnel (create it first per Heimdall/cloudflared/README.md)."
+    fi
+
+    # Stream tunnel credentials — separate tunnel so a CDN-terms action on the
+    # audio stream cannot take the identity plane down with it. Same gate.
+    if [ -f "$CF_STREAM_CREDS_SOPS" ]; then
+        log "Shipping cloudflared-stream credentials (decrypted from $CF_STREAM_CREDS_SOPS)..."
+        ssh "$HEIMDALL_HOST" "sudo install -d -o root -g root -m 0755 /opt/Homelab/Heimdall/cloudflared-stream"
+        sops -d "$CF_STREAM_CREDS_SOPS" \
+            | ssh "$HEIMDALL_HOST" "sudo tee $CF_STREAM_CREDS_REMOTE >/dev/null && sudo chmod 600 $CF_STREAM_CREDS_REMOTE" \
+            || die "Failed to ship cloudflared-stream credentials"
+    else
+        warn "cloudflared-stream-credentials.sops not found — skipping stream tunnel."
     fi
 else
     log "Skipping secrets shipment (--no-secrets)"
@@ -276,6 +290,19 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
             docker compose ps
         else
             echo "[remote] cloudflared credentials.json not present — skipping tunnel (create it first)."
+        fi
+
+        # ─── Cloudflare Tunnel (STREAM) — separate Compose project ───────
+        # Isolates continuous-audio traffic (Subwave) from the tunnel carrying
+        # auth.stevengann.com. See Heimdall/cloudflared-stream/config.yml.
+        if [ -f /opt/Homelab/Heimdall/cloudflared-stream/credentials.json ]; then
+            echo "[remote] Bringing up Cloudflare Tunnel (stream)..."
+            cd /opt/Homelab/Heimdall/cloudflared-stream
+            docker compose pull
+            docker compose up -d
+            docker compose ps
+        else
+            echo "[remote] cloudflared-stream credentials.json not present — skipping stream tunnel."
         fi
 
         cd /opt/Homelab/Heimdall

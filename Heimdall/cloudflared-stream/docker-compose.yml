@@ -1,0 +1,21 @@
+# Heimdall — Cloudflare Tunnel (STREAM)
+#
+# SEPARATE Compose project from Heimdall/cloudflared/, on purpose: it isolates
+# continuous-audio traffic from the tunnel that carries the identity plane. See
+# config.yml for the full rationale.
+#
+# Same single-root portability convention as the other Heimdall stacks: all state
+# under /opt/Homelab/Heimdall/cloudflared-stream/.
+#
+# Outbound-only — no inbound ports, home IP never exposed. Skips cleanly until
+# credentials.json exists (see scripts/deploy.sh).
+
+services:
+  cloudflared-stream:
+    image: cloudflare/cloudflared:2026.8.3
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml --no-autoupdate run
+    volumes:
+      - /opt/Homelab/Heimdall/cloudflared-stream/config.yml:/etc/cloudflared/config.yml:ro
+      - /opt/Homelab/Heimdall/cloudflared-stream/credentials.json:/etc/cloudflared/credentials.json:ro
+    logging: { driver: journald }
