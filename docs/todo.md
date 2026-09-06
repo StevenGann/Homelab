@@ -53,7 +53,14 @@ token for DDNS). Immich is not exposed (may be retired).
       password-sync bot. LDAP does not migrate them — they keep local passwords.
       Cutting a person over means creating them in `friends-family` and removing
       their local account, or they end up with two Jellyfin users. Needs a plan.
-- [ ] Phase 3 — Seerr via Jellyfin; break-glass accounts confirmed
+- [x] **Phase 3 — DONE 2026-09-05 (auth chain).** `testfriend` signs into Seerr
+      via "Sign in with Jellyfin" → HTTP 200, Seerr user auto-created with
+      REQUEST-only permissions; wrong password → 401; Seerr `admin` remains as
+      break-glass. Chain proven: authentik → (LDAP) → Jellyfin → Seerr.
+      Seerr's `applicationUrl` and Jellyfin's `externalHostname` deliberately
+      left unset — they point at hosts that don't exist until Phases 4 and 6.
+      **Still worth doing by hand:** request a title and confirm it reaches
+      Radarr/Sonarr (tests service wiring, not auth).
 - [ ] Phase 4 — Cloudflare Tunnel: `auth` first, then `seerr`/`homarr`/`cloud`
 - [ ] Phase 5 — OIDC: Homarr flip, Nextcloud `user_oidc`
 - [ ] Phase 6 — Jellyfin direct: grey-cloud DDNS via Cloudflare, UCG 443→7443, LE cert

@@ -261,13 +261,35 @@ actual "retire the bot" work and it is not yet planned.
 
 ### Phase 3 — Seerr + local hygiene (LAN)
 
-1. Seerr → Settings → Users: **Jellyfin login enabled**, local login kept for
-   the admin only; set `jellyfinExternalHost = https://jf.stevengann.com`
-   (friend-facing links).
-2. Test friend signs into `seerr.lab` with "Sign in with Jellyfin".
+1. Seerr → Settings → Users: **Jellyfin login enabled** (`mediaServerLogin`),
+   local login kept on as the admin break-glass (`localLogin`). Both were already
+   set; Seerr was already pointed at Jellyfin on `192.168.10.247:30013`.
+2. Test friend signs into Seerr with "Sign in with Jellyfin".
 3. Confirm every break-glass account (D-13) exists and is rotated (D-9).
 
+> **Deliberately NOT set yet:** Seerr's `applicationUrl` and the Jellyfin
+> `externalHostname`. Those point at `https://seerr.stevengann.com` and
+> `https://jf.stevengann.com`, which do not work until Phases 4 and 6
+> respectively. Setting them early would have Seerr hand out dead links to
+> friends. Set `applicationUrl` in Phase 4 and `externalHostname` in Phase 6.
+
 **Exit:** test friend requests a title in Seerr; it appears in Radarr/Sonarr.
+
+**RESULT 2026-09-05 — PASSED (auth chain).** `POST /api/v1/auth/jellyfin` as
+`testfriend` returned HTTP 200 and auto-created Seerr user id=2,
+`userType=jellyfin`, `permissions=32` (REQUEST only — not admin). Wrong password
+→ 401. Seerr's `admin` (id=1, `permissions=2`) remains as break-glass.
+
+**The full chain is now proven end to end:**
+
+```
+authentik (friends-family)  --LDAP bind-->  Jellyfin  --Sign in with Jellyfin-->  Seerr
+```
+
+One authentik password, three services, no per-app account. *Still worth doing by
+hand:* actually requesting a title and watching it reach Radarr/Sonarr — that
+exercises Seerr's service wiring rather than its auth, which is what this phase
+was about.
 
 ### Phase 4 — Cloudflare Tunnel (first internet exposure — browser apps only)
 
