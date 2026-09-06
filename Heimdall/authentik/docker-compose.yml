@@ -34,8 +34,22 @@ x-authentik-env: &authentik-env
   AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
   AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
   # Consumed by the blueprints (applied by the worker) via !Env.
+  #
+  # EVERY variable a blueprint reads with !Env must be listed HERE. Compose only
+  # passes through what this block declares — putting a value in .env is not
+  # enough. If it is missing the tag resolves to null and the entry fails with
+  #   Serializer errors {'client_id': ['This field may not be null.']}
+  # which looks like a blueprint bug rather than a plumbing one. (Cost a debug
+  # cycle on 2026-09-05 when Komga/RomM were added.)
+  #
+  # Note also: `docker compose restart` does NOT re-read --env-file. Adding a
+  # variable requires `up -d --force-recreate` on server+worker.
   AUTHENTIK_HOMARR_CLIENT_ID: ${AUTHENTIK_HOMARR_CLIENT_ID}
   AUTHENTIK_HOMARR_CLIENT_SECRET: ${AUTHENTIK_HOMARR_CLIENT_SECRET}
+  AUTHENTIK_KOMGA_CLIENT_ID: ${AUTHENTIK_KOMGA_CLIENT_ID}
+  AUTHENTIK_KOMGA_CLIENT_SECRET: ${AUTHENTIK_KOMGA_CLIENT_SECRET}
+  AUTHENTIK_ROMM_CLIENT_ID: ${AUTHENTIK_ROMM_CLIENT_ID}
+  AUTHENTIK_ROMM_CLIENT_SECRET: ${AUTHENTIK_ROMM_CLIENT_SECRET}
   AUTHENTIK_DISABLE_STARTUP_ANALYTICS: "true"
   AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
   AUTHENTIK_AVATARS: initials
