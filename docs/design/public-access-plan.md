@@ -189,7 +189,30 @@ shipped yet); nftables reload plan reviewed.
    `deploy.sh` again. The `ldap` container goes healthy.
 6. Create **one test friend** in `friends-family` with a known password.
 
-**Exit:** `ldapsearch -H ldap://192.168.10.4 -D "cn=<testfriend>,ou=users,DC=lab,DC=homelab" -w '<pw>' -b "DC=lab,DC=homelab" "(cn=<testfriend>)"` from **Akasha** returns the user. That proves outpost, token, nftables and Akasha reachability in one shot.
+**Exit:** an `ldapsearch` bind as the test friend succeeds, a wrong password is
+rejected, and a user outside `friends-family` is refused. **Run it from a
+throwaway pod on Hyperion**, not from Akasha:
+
+```bash
+kubectl run ldaptest --image=alpine:3.21 --restart=Never \
+  --overrides='{"spec":{"nodeSelector":{"topology.kubernetes.io/zone":"hyperion"}}}' -- \
+  sh -c 'apk add --no-cache openldap-clients && ldapsearch -x -LLL \
+    -H ldap://192.168.10.4:389 -D "cn=testfriend,ou=users,DC=lab,DC=homelab" \
+    -w "$PW" -b "DC=lab,DC=homelab" "(cn=testfriend)"'
+```
+
+> ⚠️ **Do not run diagnostic containers on Akasha.** Doing so on 2026-09-05
+> panicked its kernel and crash-rebooted the storage server three times, taking
+> Jellyfin and every NFS export with it. See
+> [`failure-patterns.md`](../ops/references/failure-patterns.md) Pattern 6.
+> Akasha's reachability to `:389` is covered by the nftables rule and was
+> verified separately with a plain TCP check.
+
+**RESULT 2026-09-05 — PASSED.** `testfriend` bound and returned
+`dn: cn=testfriend,ou=users,dc=lab,dc=homelab`; wrong password →
+`Invalid credentials (49)`; `outsider` (valid password, not in `friends-family`)
+→ `Insufficient access (50)`, confirming the application policy binding correctly
+replaces the removed `search_group` field.
 
 **Rollback:** `docker compose -p authentik down` (volumes kept). No app depends on it yet.
 

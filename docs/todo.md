@@ -24,9 +24,22 @@ port-forward opens in Phase 6. Phase 0 has the repo changes and the operator
 gates (Cloudflare 2FA, rotate the accounts that become reachable, scoped API
 token for DDNS). Immich is not exposed (may be retired).
 
-- [ ] Phase 0a — mechanical repo changes (nftables, deploy.sh gate, pins, blueprints, tunnel map)
-- [ ] Phase 0b — operator gates
-- [ ] Phase 1 — Authentik up on `auth.lab`; outpost token pasted; test friend created
+- [x] **Phase 0a — DONE 2026-09-05.** nftables (+389/636, +7443, 443→RFC1918, −25565),
+      deploy.sh Authentik gate, pins (authentik 2026.8.1 / cloudflared 2026.8.3),
+      blueprints, tunnel map, Caddy ACME email placeholder.
+- [ ] Phase 0b — operator gates (Cloudflare 2FA, rotate exposed accounts, DDNS API token)
+- [x] **Phase 1 — DONE 2026-09-05.** Authentik live on Heimdall: 5 containers
+      healthy, 776 migrations, all 4 custom blueprints `successful`, LDAP outpost
+      connected and listening on `:389`/`:636`, OIDC providers for Homarr +
+      Nextcloud, `friends-family` group, `testfriend` created.
+      **Exit test passed** from a pod on Hyperion: correct password returns the
+      user DN; wrong password → `Invalid credentials (49)`; a user outside
+      `friends-family` → `Insufficient access (50)`.
+      Four real repo bugs found and fixed on the way — see the commits
+      93607f0, 7b45dbc, 71fd71e, 3601656.
+      **Still to do here:** enrol TOTP on `akadmin` (D-11) — needs a browser at
+      `https://auth.lab` and an authenticator app; it is an operator step, and a
+      gate for Phase 4 since `auth` becomes internet-facing there.
 - [ ] Phase 2 — Jellyfin LDAP plugin; test friend logs into the **mobile app**
 - [ ] Phase 3 — Seerr via Jellyfin; break-glass accounts confirmed
 - [ ] Phase 4 — Cloudflare Tunnel: `auth` first, then `seerr`/`homarr`/`cloud`
@@ -92,6 +105,11 @@ token for DDNS). Immich is not exposed (may be retired).
       never prunes it. Separately, the Caddyfile serves an `alfred.lab` site with
       **no A record behind it** — the route is unreachable by name. Commit the
       Service and seed the record, or remove both.
+- [ ] **Never run ad-hoc containers on Akasha.** Throwaway `docker run` on the
+      TrueNAS box panicked its kernel and crash-rebooted it three times on
+      2026-09-05 (`kernel BUG at lib/list_debug.c:29` during Docker veth
+      teardown), taking Jellyfin and all NFS exports down. Use a pod on Hyperion
+      instead. Full write-up: failure-patterns.md Pattern 6.
 - [ ] **Reap 47 dead pods.** `hyperion-eta` had an eviction storm 22–34 days ago
       (≈45 `Evicted` tdarr pods plus `komga`/`youtarr` `Error`/
       `ContainerStatusUnknown`). The current replicas are all healthy (tdarr,

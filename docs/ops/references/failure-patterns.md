@@ -296,6 +296,77 @@ This pattern compounds with Pattern 1 (tcpSocket blind spot) and Pattern 4 (live
 
 ---
 
+## Pattern 6: Docker Container Churn Panics the TrueNAS Kernel (Akasha)
+
+**Observed:** 2026-09-05, during SSO bring-up. **Impact:** Akasha crash-rebooted
+**three times** in 11 minutes (17:22, 17:29, 17:33), taking Jellyfin and all NFS
+exports down with it.
+
+**What triggered it:** running short-lived throwaway `docker run` containers on
+Akasha to get an `ldapsearch` binary — pulling an image, running a bridge-network
+container, letting it exit, repeatedly.
+
+**The failure:**
+
+```
+kernel: docker0: port 1(vethdcdd50e) entered disabled state
+kernel: vethdcdd50e (unregistering): left promiscuous mode
+kernel: list_add corruption. next->prev should be prev (ffff96edb1722788),
+        but was 0000000000000000. (next=ffff96ef333c9650).
+kernel: ------------[ cut here ]------------
+kernel: kernel BUG at lib/list_debug.c:29!
+```
+
+A kernel-level linked-list corruption during Docker **veth / network-namespace
+teardown**, on TrueNAS SCALE 25.04.2.6, kernel `6.12.15-production+truenas`. It
+is a hard `BUG()`, so the box panics and reboots immediately — no graceful
+shutdown, no warning.
+
+**Why it matters more than it looks:** Akasha is the storage tier. A panic there
+takes down every NFS export the cluster mounts *and* the LAN Jellyfin. The k3s
+cluster itself rode it out fine (11/11 nodes stayed `Ready`, media pods stayed
+`Running`, ZFS pools came back healthy with no corruption) — but that is luck
+about timing, not a guarantee.
+
+### The rule
+
+**Do not run ad-hoc containers on Akasha.** TrueNAS's Docker exists to run the
+appliance's own apps; it is not scratch space. If you need a throwaway container
+for a diagnostic tool, run it **on Hyperion** — a `kubectl run` pod, or a pod
+manifest with `nodeSelector: topology.kubernetes.io/zone: hyperion`. That is what
+the cluster is for, and a panic there costs one worker instead of all storage.
+
+```yaml
+# DO: throwaway diagnostic pod on a Pi worker
+apiVersion: v1
+kind: Pod
+metadata: { name: nettest, namespace: default }
+spec:
+  restartPolicy: Never
+  nodeSelector: { topology.kubernetes.io/zone: hyperion }
+  containers:
+    - name: t
+      image: alpine:3.21
+      command: ["sh","-c","apk add --no-cache openldap-clients && ldapsearch ..."]
+```
+
+```bash
+# DON'T: this panicked the storage server three times
+ssh akasha 'sudo docker run --rm debian:stable-slim bash -c "apt-get install ..."'
+```
+
+**If it happens anyway:** confirm the pools (`zpool status -x` → "all pools are
+healthy"), confirm Docker came back (`systemctl is-active docker` — TrueNAS
+starts it via middleware, the unit itself is `disabled` by design), confirm the
+app containers are healthy, and confirm NFS is exporting (`showmount -e
+localhost`). Then check the cluster for pods that lost their NFS mounts. Recovery
+was automatic in this instance; nothing needed manual repair.
+
+**Not fixed, just avoided.** The kernel bug is upstream in TrueNAS's kernel. This
+pattern is a behavioural rule, not a repair.
+
+---
+
 ## Pattern Reference Table
 
 | Pattern | Detectable by tcpSocket? | Detectable by httpGet? | Detectable by watchdog? |
@@ -306,6 +377,7 @@ This pattern compounds with Pattern 1 (tcpSocket blind spot) and Pattern 4 (live
 | Thread pool exhaustion | **NO** | Yes (timeout/error) | Yes (timeout) |
 | Application logic error (5xx) | **NO** | Yes (non-2xx) | Yes (non-2xx) |
 | Port bound but auth required | N/A | Yes (403/401) | Yes (403/401) |
+| Host kernel panic (Pattern 6) | N/A — whole host gone | N/A | Yes (all endpoints on that host) |
 
 **Conclusion:** Every HTTP-based service in this homelab MUST have
 httpGet readiness and liveness probes. tcpSocket is only acceptable
