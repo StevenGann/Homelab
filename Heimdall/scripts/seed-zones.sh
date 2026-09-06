@@ -115,6 +115,8 @@ RECORDS=(
     # while their Caddy site blocks stayed in git.
     "subwave.lab|A|192.168.10.4"          # :443   (AI DJ radio — Caddy TLS → 192.168.10.91:7700-7702)
     "ignis.lab|A|192.168.10.4"            # :443   (browser Obsidian — Caddy TLS + basic auth → 192.168.10.90:8080)
+    # ── Friend-facing set (public twins live on stevengann.com via the tunnel) ──
+    "romm.lab|A|192.168.10.78"            # :8080  (ROM library — was missing; public twin romm.stevengann.com)
 )
 
 # ─── Known gaps as of the 2026-09-05 live sweep (NOT seeded — decide first) ──────────

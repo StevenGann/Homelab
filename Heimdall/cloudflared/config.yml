@@ -59,6 +59,30 @@ ingress:
   - hostname: cloud.stevengann.com
     service: http://192.168.10.87         # MetalLB VIP :80
 
+  # ── Komga (comics / manga) ──────────────────────────────────────────────────
+  # Browser-only + OPDS. Authentik OIDC (Spring Security), scoped to
+  # friends-family. Added 2026-09-05 on operator request.
+  - hostname: komga.stevengann.com
+    service: http://192.168.10.82:25600
+
+  # ── RomM (retro game ROM library) ───────────────────────────────────────────
+  # Browser-only. Authentik OIDC (native, v4.8.1+), scoped to friends-family.
+  # Added 2026-09-05 on operator request.
+  - hostname: romm.stevengann.com
+    service: http://192.168.10.78:8080
+
+  # ── Pterodactyl panel (game-server management) ──────────────────────────────
+  # SHARED BUT NOT SSO-INTEGRATED. Panel v1.11.11 has no native OIDC/SAML/LDAP,
+  # so it keeps its own local login — friends get a Pterodactyl account, not an
+  # authentik one. Enable Pterodactyl's built-in 2FA for every account that can
+  # reach it, since its password is the only gate on a public endpoint.
+  # NOTE: this exposes the PANEL only. The game servers themselves speak raw
+  # TCP/UDP, which a Cloudflare HTTP tunnel cannot carry — those need port
+  # forwards and are deferred with Thoth (D-14). The panel's only Wings host IS
+  # Thoth, so until it returns the panel is reachable but can start nothing.
+  - hostname: panel.stevengann.com
+    service: http://192.168.10.69:80
+
   # ── Immich — DELIBERATELY NOT EXPOSED (D-3, 2026-09-05) ─────────────────────
   # Technically tunnel-compatible (in-app-browser OAuth, then bearer tokens), but
   # a first phone backup is tens of GB of uploads and the service may be retired.

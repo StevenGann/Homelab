@@ -36,6 +36,28 @@ spec:
               value: "0sg29dftcy58wd0c6w7repqv53fbq3"
             - name: IGDB_CLIENT_SECRET
               value: "d9ushhv5hk09y4ymbp3c6yc83q3vwh"
+            # ─── SSO via Authentik (OIDC) — STAGED, DISABLED until Phase 5 ────
+            # RomM 4.8.1 supports OIDC natively (GET /api/heartbeat reports the
+            # OIDC block). Flip OIDC_ENABLED to "true" once the Cloudflare tunnel
+            # is live and https://auth.stevengann.com resolves — until then the
+            # discovery call would fail.
+            # Callback is a FIXED path, not Spring's convention; it must match
+            # Heimdall/authentik/blueprints/50-provider-romm.yaml:
+            #   https://romm.stevengann.com/api/oauth/openid
+            # Leave DISABLE_USERPASS_LOGIN unset so the local admin stays as
+            # break-glass (D-13).
+            - name: OIDC_ENABLED
+              value: "false"                       # → "true" in Phase 5
+            - name: OIDC_PROVIDER
+              value: "authentik"
+            - name: OIDC_REDIRECT_URI
+              value: "https://romm.stevengann.com/api/oauth/openid"
+            - name: OIDC_SERVER_APPLICATION_URL
+              value: "https://auth.stevengann.com/application/o/romm"
+            - name: OIDC_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: romm-oidc, key: OIDC_CLIENT_ID, optional: true } }
+            - name: OIDC_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: romm-oidc, key: OIDC_CLIENT_SECRET, optional: true } }
             - name: ROMM_PORT
               value: ""
             - name: ROMM_PORT_80_TCP

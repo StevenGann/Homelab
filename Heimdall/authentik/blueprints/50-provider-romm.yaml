@@ -1,0 +1,60 @@
+# RomM — OIDC (OAuth2) provider + application, restricted to friends-family.
+#
+# RomM supports OIDC natively. Verified 2026-09-05 against v4.8.1:
+# GET /api/heartbeat reports OIDC {ENABLED:false, PROVIDER:"", AUTOLOGIN:false,
+# RP_INITIATED_LOGOUT:false} — full support, simply switched off.
+#
+# RomM's callback is a fixed path, NOT Spring's convention:
+#     <base>/api/oauth/openid
+#
+# Issuer RomM uses: https://auth.stevengann.com/application/o/romm/
+# (set as OIDC_SERVER_APPLICATION_URL on the Deployment — note RomM wants the
+# application URL, and it appends the discovery path itself).
+#
+# NOTE the !Env SCALAR form — see 10-provider-homarr.yaml for why.
+version: 1
+metadata:
+  name: homelab-provider-romm
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider-romm
+    identifiers: { name: RomM }
+    attrs:
+      client_type: confidential
+      client_id: !Env AUTHENTIK_ROMM_CLIENT_ID
+      client_secret: !Env AUTHENTIK_ROMM_CLIENT_SECRET
+      authorization_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+      invalidation_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key:
+        !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      redirect_uris:
+        - matching_mode: strict
+          url: "https://romm.stevengann.com/api/oauth/openid"
+        - matching_mode: regex
+          url: "https?://romm\\.lab(:8080)?/api/oauth/openid"
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-openid"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-email"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-profile"]]
+
+  - model: authentik_core.application
+    identifiers: { slug: romm }
+    attrs:
+      name: RomM
+      provider: !KeyOf provider-romm
+      meta_launch_url: https://romm.stevengann.com
+      meta_description: Retro game ROM library
+      group: Media
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !Find [authentik_core.application, [slug, romm]]
+      group: !Find [authentik_core.group, [name, friends-family]]
+      order: 0
+    attrs:
+      enabled: true

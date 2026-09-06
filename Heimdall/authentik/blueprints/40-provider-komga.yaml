@@ -1,0 +1,64 @@
+# Komga — OIDC (OAuth2) provider + application, restricted to friends-family.
+#
+# Komga speaks OAuth2/OIDC natively via Spring Security. Verified 2026-09-05:
+# GET /api/v1/oauth2/providers returns 200 with [] (the endpoint exists; no
+# provider configured yet).
+#
+# Komga's redirect URI is Spring's convention:
+#     {baseUrl}/login/oauth2/code/{registrationId}
+# with registrationId = "authentik" (set by the
+# SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_* env vars on the
+# Deployment). Change one and you must change the other.
+#
+# Issuer Komga uses: https://auth.stevengann.com/application/o/komga/
+# The PUBLIC issuer, not auth.lab — the issuer must be the hostname friends
+# actually reach, or token validation fails for them.
+#
+# NOTE the !Env SCALAR form. `!Env [VAR]` raises IndexError on 2026.8.1 and
+# takes the whole blueprints migration down with it — see 10-provider-homarr.yaml.
+version: 1
+metadata:
+  name: homelab-provider-komga
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider-komga
+    identifiers: { name: Komga }
+    attrs:
+      client_type: confidential
+      client_id: !Env AUTHENTIK_KOMGA_CLIENT_ID
+      client_secret: !Env AUTHENTIK_KOMGA_CLIENT_SECRET
+      authorization_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+      invalidation_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key:
+        !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      redirect_uris:
+        - matching_mode: strict
+          url: "https://komga.stevengann.com/login/oauth2/code/authentik"
+        - matching_mode: regex
+          url: "https?://komga\\.lab(:25600)?/login/oauth2/code/authentik"
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-openid"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-email"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-profile"]]
+
+  - model: authentik_core.application
+    identifiers: { slug: komga }
+    attrs:
+      name: Komga
+      provider: !KeyOf provider-komga
+      meta_launch_url: https://komga.stevengann.com
+      meta_description: Comics and manga library
+      group: Media
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !Find [authentik_core.application, [slug, komga]]
+      group: !Find [authentik_core.group, [name, friends-family]]
+      order: 0
+    attrs:
+      enabled: true

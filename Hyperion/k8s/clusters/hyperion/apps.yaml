@@ -193,6 +193,10 @@ spec:
   timeout: 10m
   dependsOn: [ { name: metallb-config } ]
   sourceRef: { kind: GitRepository, name: flux-system }
+  # secret.sops.yaml holds the Authentik OIDC client credentials. Without this
+  # block kustomize-controller applies the SOPS ciphertext verbatim and the
+  # Secret is unusable. Added 2026-09-05 with the RomM OIDC wiring.
+  decryption: { provider: sops, secretRef: { name: sops-age } }
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
