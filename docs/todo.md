@@ -64,10 +64,16 @@ token for DDNS). Immich is not exposed (may be retired).
 - [ ] Phase 4 — Cloudflare Tunnel: `auth` first, then `seerr`/`homarr`/`cloud`
 - [ ] Phase 5 — OIDC: Homarr flip, Nextcloud `user_oidc`, **Komga** (uncomment
       the staged SPRING_SECURITY_* env), **RomM** (`OIDC_ENABLED` → `true`)
-- [ ] **Decide: Subwave (.91)** — the one service never classified. AI DJ radio,
-      friend-facing content, tunnel-compatible, but no IdP integration and
-      continuous audio raises the same CDN-terms question as Jellyfin. Include
-      or exclude; see the inventory in `docs/design/public-access-plan.md` §2.0.
+- [x] **Subwave (.91) — INCLUDED** (operator decision 2026-09-05). Every service
+      is now explicitly classified; see `docs/design/public-access-plan.md` §2.0.
+- [ ] **Subwave follow-ups before it goes public:** change `SITE_URL` from
+      `https://subwave.lab` to `https://subwave.stevengann.com`, and decide
+      whether it gets its own Cloudflare tunnel — continuous audio raises the
+      same CDN-terms question that kept Jellyfin off the shared tunnel, and a
+      ToS action on the shared one would take `auth` down with it.
+- [ ] **Uptime-Kuma: publish a status page** rather than exposing the admin UI.
+      v1.23.16 has no OIDC, so the admin UI would be gated only by its own
+      password; a status page is public by design and leaks nothing else.
 - [ ] **Enable Pterodactyl 2FA** on every account before Phase 4. It is the only
       shared service with no SSO, so its own password is the sole gate once
       `panel.stevengann.com` is public.

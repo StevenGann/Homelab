@@ -83,6 +83,40 @@ ingress:
   - hostname: panel.stevengann.com
     service: http://192.168.10.69:80
 
+  # ── Beszel (host monitoring) ────────────────────────────────────────────────
+  # Authentik OIDC via PocketBase's OAuth2 support, scoped to friends-family.
+  # Redirect is PocketBase's fixed /api/oauth2-redirect.
+  - hostname: beszel.stevengann.com
+    service: http://192.168.10.68:8090
+
+  # ── Musicseerr (music requests) ─────────────────────────────────────────────
+  # A Jellyseerr fork: /api/v1/auth/jellyfin exists (returns 401, not 404), so it
+  # inherits the LDAP-backed Jellyfin accounts exactly as Seerr does. No separate
+  # authentik provider is needed — enable "Sign in with Jellyfin" in its settings.
+  - hostname: musicseerr.stevengann.com
+    service: http://192.168.10.74:8688
+
+  # ── Uptime-Kuma (service status) ────────────────────────────────────────────
+  # NO SSO. v1.23.16 has local auth only — no OIDC/OAuth2 (v1 never gained it).
+  # PREFERRED for friends: publish a Uptime-Kuma STATUS PAGE, which is
+  # public-by-design and needs no login, rather than sharing the admin UI. If the
+  # admin UI is exposed instead, its own password is the only gate — enable 2FA.
+  - hostname: status.stevengann.com
+    service: http://192.168.10.51:80
+
+  # ── Subwave (AI DJ radio) ───────────────────────────────────────────────────
+  # NO auth on the listener surface, BY DESIGN — :7700 is the web player and
+  # :7702 the stream; anyone with the URL can listen. Admin control lives on the
+  # controller (:7701) behind ADMIN_USER/ADMIN_PASS and is NOT routed here.
+  # Two things to be aware of before this goes live:
+  #   1. Continuous audio through the Cloudflare tunnel is the same CDN-terms
+  #      question that kept Jellyfin off it (D-1). Watch it, or move Subwave to
+  #      its own tunnel so an action there cannot take the identity plane down.
+  #   2. SITE_URL on the controller is still https://subwave.lab and must become
+  #      https://subwave.stevengann.com or generated links will point inward.
+  - hostname: subwave.stevengann.com
+    service: http://192.168.10.91:7700
+
   # ── Immich — DELIBERATELY NOT EXPOSED (D-3, 2026-09-05) ─────────────────────
   # Technically tunnel-compatible (in-app-browser OAuth, then bearer tokens), but
   # a first phone backup is tens of GB of uploads and the service may be retired.

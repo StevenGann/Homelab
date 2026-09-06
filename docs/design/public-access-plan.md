@@ -82,9 +82,30 @@ omitted; if it is not in one of these tables it does not exist.
 | **Komga** | `komga` | Tunnel | OIDC | Phase 5 |
 | **RomM** | `romm` | Tunnel | OIDC | Phase 5 |
 | **Pterodactyl** | `panel` | Tunnel | ⚠️ **own login — no SSO** | Phase 4 |
+| **Beszel** | `beszel` | Tunnel | OIDC (PocketBase OAuth2) | Phase 5 |
+| **Musicseerr** | `musicseerr` | Tunnel | inherits Jellyfin | Phase 4 |
+| **Uptime-Kuma** | `status` | Tunnel | ⚠️ **no SSO — use a status page** | Phase 4 |
+| **Subwave** | `subwave` | Tunnel | ⚠️ **none — open by design** | Phase 4 |
 
-Eight services. Seven ride the tunnel; only Jellyfin takes the single
-port-forward. Six of the eight authenticate against authentik.
+Twelve services. Eleven ride the tunnel; only Jellyfin takes the single
+port-forward. **Eight of the twelve authenticate against authentik** (six by
+OIDC, Jellyfin by LDAP, Seerr and Musicseerr by inheriting Jellyfin).
+
+**The three that cannot, and what that means:**
+
+- **Pterodactyl** — Panel v1.11.11 has no native OIDC/SAML/LDAP. Friends get a
+  *Pterodactyl* account outside the directory, with no central revocation.
+  **Enable its built-in 2FA on every account before it is public.**
+- **Uptime-Kuma** — v1.23.16 has local auth only; v1 never gained OIDC.
+  **Prefer publishing a status page** (public by design, no login) over exposing
+  the admin UI. If you expose the admin UI, its password is the only gate.
+- **Subwave** — the listener surface (`:7700` player, `:7702` stream) has **no
+  auth at all, deliberately** — it is a radio station. Admin control is on the
+  controller (`:7701`, `ADMIN_USER`/`ADMIN_PASS`) and is not routed publicly.
+  Two follow-ups: its `SITE_URL` is still `https://subwave.lab` and must change,
+  and continuous audio through the tunnel raises the same CDN-terms question that
+  kept Jellyfin off it (D-1) — consider giving Subwave its own tunnel so an
+  action there cannot take `auth` down with it.
 
 > ⚠️ **Pterodactyl is the exception that needs care.** Panel v1.11.11 has no
 > native OIDC/SAML/LDAP, so friends get a *Pterodactyl* account, not an authentik
@@ -97,9 +118,9 @@ port-forward. Six of the eight authenticate against authentik.
 
 | Group | Services | Why |
 |---|---|---|
-| **Media automation** | Prowlarr `.55`, Sonarr `.56`, Radarr `.57`, Lidarr `.65`, Kapowarr `.60`, Youtarr `.61`, Trailarr `.63`, SuggestArr `.64`, Cleanuparr `.59`, Listenarr `.73`, Musicseerr `.74`, boxarr `.75`, **Tdarr `.62`** | Admin plane. Friends request through Seerr; they never need these. |
+| **Media automation** | Prowlarr `.55`, Sonarr `.56`, Radarr `.57`, Lidarr `.65`, Kapowarr `.60`, Youtarr `.61`, Trailarr `.63`, SuggestArr `.64`, Cleanuparr `.59`, Listenarr `.73`, boxarr `.75`, **Tdarr `.62`** |  Admin plane. Friends request through Seerr; they never need these. |
 | **Download clients** | qBittorrent `.58`, `-B .83`, `-C .84` | Admin plane, and they drive the VPN path. |
-| **Admin / ops** | Headlamp `.50`, Uptime-Kuma `.51`, Beszel `.68`, Speedtest `.67`, Jellystat `.76`, Sortarr `.77`, n8n `.71`, MQTT Explorer `.81`, Mosquitto `.72`, MonolithBot `.79` | Operating the lab, not using it. |
+| **Admin / ops** | Headlamp `.50`, Speedtest `.67`, Jellystat `.76`, Sortarr `.77`, n8n `.71`, MQTT Explorer `.81`, Mosquitto `.72`, MonolithBot `.79` | Operating the lab, not using it. *(Uptime-Kuma and Beszel were promoted to the shared set 2026-09-05.)* |
 | **AI agents / private data** | Guppi `.52`, Jeeves `.80`, Cassandra `.93`, Alfred `.11`, Caldera `.70`, agent-caldera `.85`, **Ignis `.90`** | Ignis especially: full read/write on the real Obsidian vault. |
 | **Storage tooling** | **ShareDirStat `.92`** | Can delete files on the Akasha shares. |
 | **Excluded on technical grounds** | **Navidrome `.66`** (D-2), **Immich `.88`** (D-3) | Subsonic auth cannot use an IdP; Immich may be retired. |
@@ -109,11 +130,11 @@ port-forward. Six of the eight authenticate against authentik.
 | **Not IaC-tracked** | Home Assistant `.147`, Synology `.201`, HDHomeRun `.231` | Outside this repo. |
 | **Unused** | Traefik `.10` | k3s's bundled ingress; holds a pool IP for nothing. |
 
-#### ❓ UNDECIDED — the only genuine open question
+#### ❓ UNDECIDED
 
-| Service | Why it is a candidate | Why it is not yet included |
-|---|---|---|
-| **Subwave `.91`** | AI DJ internet radio — friend-facing *content*, browser-based, would traverse the tunnel fine | Never considered when the allowlist was drawn. Continuous audio streaming raises the same CDN-terms question as Navidrome/Jellyfin, and it has no IdP integration, so it would be an open endpoint. **Needs a decision.** |
+**None.** Every service in the lab is now explicitly included or excluded.
+Subwave — previously the one open question — was **included** by operator
+decision on 2026-09-05.
 
 #### Security note from the sweep
 

@@ -1,0 +1,62 @@
+# Beszel — OIDC (OAuth2) provider + application, restricted to friends-family.
+#
+# Beszel is built on PocketBase, which supports OAuth2 providers. Verified
+# 2026-09-05 against the live instance:
+#   GET /api/collections/users/auth-methods
+#   -> {"oauth2":{"providers":[],"enabled":false}, "password":{"enabled":true}, ...}
+# i.e. OAuth2 is supported and simply has no provider configured yet.
+#
+# PocketBase's redirect URI is a fixed path:
+#   <base>/api/oauth2-redirect
+#
+# The Beszel side is configured in its own admin UI (or PocketBase API), NOT via
+# env vars — that is a Phase 5 step, see docs/design/public-access-plan.md.
+#
+# NOTE the !Env SCALAR form — `!Env [VAR]` takes the blueprints migration down on
+# 2026.8.1; see 10-provider-homarr.yaml.
+version: 1
+metadata:
+  name: homelab-provider-beszel
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider-beszel
+    identifiers: { name: Beszel }
+    attrs:
+      client_type: confidential
+      client_id: !Env AUTHENTIK_BESZEL_CLIENT_ID
+      client_secret: !Env AUTHENTIK_BESZEL_CLIENT_SECRET
+      authorization_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+      invalidation_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key:
+        !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      redirect_uris:
+        - matching_mode: strict
+          url: "https://beszel.stevengann.com/api/oauth2-redirect"
+        - matching_mode: regex
+          url: "https?://beszel\\.lab(:8090)?/api/oauth2-redirect"
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-openid"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-email"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-profile"]]
+
+  - model: authentik_core.application
+    identifiers: { slug: beszel }
+    attrs:
+      name: Beszel
+      provider: !KeyOf provider-beszel
+      meta_launch_url: https://beszel.stevengann.com
+      meta_description: Server and host monitoring
+      group: Infrastructure
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !Find [authentik_core.application, [slug, beszel]]
+      group: !Find [authentik_core.group, [name, friends-family]]
+      order: 0
+    attrs:
+      enabled: true
