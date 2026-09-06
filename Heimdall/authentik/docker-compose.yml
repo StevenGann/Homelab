@@ -123,14 +123,18 @@ services:
     depends_on:
       postgresql: { condition: service_healthy }
       redis:      { condition: service_healthy }
-      # MUST wait for the server, not just the database (added 2026-09-05).
-      # BOTH images run run_migrations() on start. On a fresh DB they raced:
-      # the server began `migrate_schemas` at 23:52:14, the worker acquired the
-      # advisory lock at 23:52:28 and started its own pass, and Django aborted
-      # with InconsistentMigrationHistory (authentik_core.0034 applied before its
-      # authentik_tenants.0002 dependency) — leaving an unusable database that
-      # had to be wiped. The lock does not cover the Django migration phase, so
-      # serialise it here: the server is only healthy once migrations finish.
+      # Defensive serialisation (added 2026-09-05): both images run
+      # run_migrations() on start, and depending only on the database let them
+      # start together. The server is only healthy once migrations finish, so
+      # gating the worker on it guarantees exactly one migrating process.
+      #
+      # NOTE ON HISTORY: this was FIRST added on the theory that a server/worker
+      # race caused the InconsistentMigrationHistory seen on first boot. That
+      # theory was WRONG — the real cause was a malformed `!Env [VAR]` tag in
+      # blueprints/10-provider-homarr.yaml crashing the
+      # authentik_blueprints.0001_initial migration mid-way (see that file).
+      # The dependency is kept because it is correct practice regardless, not
+      # because it fixed that bug.
       server:     { condition: service_healthy }
     logging: { driver: journald }
 

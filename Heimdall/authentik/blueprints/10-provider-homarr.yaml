@@ -19,8 +19,18 @@ entries:
     identifiers: { name: Homarr }
     attrs:
       client_type: confidential
-      client_id: !Env [AUTHENTIK_HOMARR_CLIENT_ID]
-      client_secret: !Env [AUTHENTIK_HOMARR_CLIENT_SECRET]
+      # SCALAR form, not !Env [VAR]. authentik 2026.8.1's Env tag constructor does
+      # an unguarded node.value[1] for the default when given a SequenceNode, so a
+      # single-element !Env [VAR] raises IndexError. That exception is thrown while
+      # the authentik_blueprints.0001_initial MIGRATION scans /blueprints/custom,
+      # which aborts migrate_schemas half-way and leaves the database in a state
+      # where the next boot fails with a misleading
+      #   InconsistentMigrationHistory: authentik_core.0034 ... before its
+      #   dependency authentik_tenants.0002 ...
+      # Verified against 2026.8.1: `!Env [VAR]` FAILS; `!Env VAR` and
+      # `!Env [VAR, default]` both parse. (Cost a full DB wipe to find — 2026-09-05.)
+      client_id: !Env AUTHENTIK_HOMARR_CLIENT_ID
+      client_secret: !Env AUTHENTIK_HOMARR_CLIENT_SECRET
       authorization_flow:
         !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
       invalidation_flow:
