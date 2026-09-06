@@ -30,7 +30,7 @@ spec:
         # ---------------------------------------------------------------
         - name: broadcast
           image: ghcr.io/perminder-klair/subwave-broadcast:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: TZ
               value: America/Los_Angeles
@@ -77,7 +77,7 @@ spec:
         # ---------------------------------------------------------------
         - name: controller
           image: ghcr.io/perminder-klair/subwave-controller:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: NODE_ENV
               value: production
@@ -173,7 +173,7 @@ spec:
         # ---------------------------------------------------------------
         - name: web
           image: ghcr.io/perminder-klair/subwave-web:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: NODE_ENV
               value: production
@@ -217,7 +217,7 @@ spec:
         # ---------------------------------------------------------------
         - name: analyzer
           image: ghcr.io/perminder-klair/subwave-analyzer:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: TZ
               value: America/Los_Angeles
