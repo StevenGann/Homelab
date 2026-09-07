@@ -52,6 +52,11 @@ if [ "$DO_SECRETS" -eq 1 ]; then
     fi
 fi
 
+log "Shipping ARM config (arm.yaml + abcde.conf)..."
+# MAKEMKV_PERMA_KEY in arm.yaml is the public monthly beta key, not a secret.
+ssh "$THOTH_HOST" 'install -d -m 0755 -o 1000 -g 1000 /opt/Homelab/Thoth/arm/config'
+scp -q "$REPO_ROOT/Thoth/arm/arm.yaml" "$REPO_ROOT/Thoth/arm/abcde.conf" "$THOTH_HOST:/opt/Homelab/Thoth/arm/config/"
+
 log "Shipping compose..."
 scp -q "$COMPOSE" "$THOTH_HOST:$COMPOSE_REMOTE"
 

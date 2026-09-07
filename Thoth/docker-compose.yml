@@ -83,3 +83,35 @@ services:
       - /var/lib/pterodactyl/3ad8a9e9-2984-4ed3-bc2f-beb5a6279f7c/world:/world:ro
       - /opt/bluemap/bluemap-5.17-cli.jar:/opt/bluemap/bluemap-5.17-cli.jar:ro
     logging: { driver: journald }
+
+  # ─── Automatic Ripping Machine (ARM) — optical disc ripper ─────────────────
+  # Binds the host's SATA optical drive (/dev/sr0 + SCSI generic /dev/sg4) and
+  # auto-rips whatever disc is inserted: audio CDs → FLAC (abcde/MusicBrainz),
+  # DVDs/BDs → MakeMKV remux (SKIP_TRANSCODE=true, no re-encode). Music lands in
+  # Akasha Music/, video in Akasha Movies/ (both NFS). Deployed 2026-09-07.
+  # NOTE: /dev/sg4 must match the optical drive's SCSI generic node — verify with
+  # `lsscsi -g` if the drive ever re-enumerates after adding/removing disks.
+  # UID/GID 1000 (owner) deliberately — ARM's arm_user_files_setup.sh fails its
+  # /home/arm ownership check for any non-1000 UID (it chowns /opt/arm but not
+  # /home/arm), so a remapped UID crash-loops the container.
+  arm:
+    image: automaticrippingmachine/automatic-ripping-machine:latest
+    restart: unless-stopped
+    privileged: true
+    environment:
+      ARM_UID: "1000"
+      ARM_GID: "1000"
+      TZ: "America/Los_Angeles"
+    volumes:
+      - /opt/Homelab/Thoth/arm/config:/etc/arm/config
+      - /opt/Homelab/Thoth/arm/logs:/home/arm/logs
+      - /mnt/Media-Storage/Media/Music:/home/arm/music
+      - /fast/arm/raw:/home/arm/media/raw
+      - /fast/arm/transcode:/home/arm/media/transcode
+      - /mnt/Media-Storage/Media/Movies:/home/arm/media/completed
+    devices:
+      - /dev/sr0:/dev/sr0
+      - /dev/sg4:/dev/sg4
+    ports:
+      - "8081:8080"
+    logging: { driver: journald }
