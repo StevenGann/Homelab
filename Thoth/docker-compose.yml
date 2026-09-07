@@ -1,4 +1,4 @@
-# Thoth — GPU compute host Compose stack
+# Thoth — Compose stack
 #
 # Consistent with Heimdall's pattern (compose + SOPS-secrets-shipped-by deploy.sh
 # + host bootstrap in scripts/setup.sh). State root: /opt/Homelab/Thoth/ for the
@@ -6,74 +6,12 @@
 #   /tank  (raidz1, 4× HDD) → models           /fast (Samsung SSD) → game servers
 #   Docker data-root → Intel SSD (ext4 @ /var/lib/docker)
 #
-# GPU: 2× RTX 6000 Ada via the NVIDIA Container Toolkit. Per-service device
-# reservations (count: all = both GPUs). Driver 580 / CUDA 13.2 on the host.
+# GPU services retired 2026-09-06 — the 2× RTX 6000 Ada cards were physically
+# removed from the host. Ollama / OpenWebUI / ComfyUI / Tdarr-node were taken out
+# of the stack; their data persists on /tank (ollama, comfyui) and /fast
+# (open-webui) + /var/lib/tdarr-node in case GPUs ever return.
 
 services:
-
-  # ─── Ollama (LLM inference — both GPUs) ─────────────────────────────────────
-  ollama:
-    image: ollama/ollama:latest          # TODO: pin a digest after first pull
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      OLLAMA_HOST: "0.0.0.0"             # bind all interfaces (Service/LAN/Caddy reach it)
-      OLLAMA_KEEP_ALIVE: "24h"          # keep models resident between requests
-      # Allow the Caddy front (ollama.lab) + direct LAN past Ollama's origin guard.
-      OLLAMA_ORIGINS: "http://ollama.lab,https://ollama.lab,http://192.168.10.144:11434"
-    ports:
-      - "11434:11434"                   # LAN — Heimdall Caddy proxies ollama.lab here
-    volumes:
-      - /tank/ollama:/root/.ollama       # models on the HDD pool (zfs tank/ollama)
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all                 # both RTX 6000 Ada (operator decision)
-              capabilities: [gpu]
-    logging: { driver: journald }
-
-  # ─── OpenWebUI (chat UI for Ollama) ─────────────────────────────────────────
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:latest
-    pull_policy: always
-    restart: unless-stopped
-    depends_on: [ollama]
-    environment:
-      OLLAMA_BASE_URL: "http://ollama:11434"   # same compose network
-      WEBUI_SECRET_KEY: ${OPENWEBUI_SECRET}    # from /opt/Homelab/Thoth/.env (SOPS)
-      WEBUI_URL: "http://openwebui.lab"
-    ports:
-      - "3000:8080"                            # Caddy fronts openwebui.lab here
-    volumes:
-      - /fast/open-webui:/app/backend/data      # users/chats/settings (SSD)
-    logging: { driver: journald }
-
-  # ─── ComfyUI (Stable Diffusion / image gen — GPU) ───────────────────────────
-  # ai-dock image: ComfyUI on :8188, persistent /workspace. Models start EMPTY
-  # (the old 329 GB ComfyUI pool was wiped) — add checkpoints under
-  # /tank/comfyui/ComfyUI/models. No native auth; LAN/Caddy only.
-  comfyui:
-    image: ghcr.io/ai-dock/comfyui:latest-cuda
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      WORKSPACE: "/workspace"
-      WEB_ENABLE_AUTH: "false"                 # rely on LAN/Caddy, not ai-dock's portal
-      COMFYUI_ARGS: "--listen 0.0.0.0"
-    ports:
-      - "8188:8188"
-    volumes:
-      - /tank/comfyui:/workspace                # models + outputs + custom_nodes (HDD pool)
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    logging: { driver: journald }
 
   # ─── Komodo Periphery (manage Thoth's containers from komodo.lab) ───────────
   # v2: Core/Periphery auto-generate keypairs; onboard from the Komodo panel with
@@ -90,35 +28,6 @@ services:
       - /opt/Homelab/Thoth/periphery:/config   # config + persistent keypair (/config/keys)
     ports:
       - "8120:8120"                            # Komodo Core (Heimdall) dials this
-    logging: { driver: journald }
-
-  # ─── Tdarr worker/node (hardware transcode — GPU) ───────────────────────────
-  # 2026-06-04: Deployed and verified by Guppy. Connects to Tdarr server on
-  # Hyperion (192.168.10.62:8266). NVENC working after driver switch to 580.
-  # Media mounted via NFS from Akasha TrueNAS.
-  tdarr-node:
-    image: haveagitgat/tdarr_node:latest
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      serverIP: "192.168.10.62"
-      serverPort: "8266"
-      nodeName: "thoth-gpu"
-      TZ: "America/Los_Angeles"
-    network_mode: host
-    volumes:
-      - /var/lib/tdarr-node/configs:/app/configs
-      - /var/lib/tdarr-node/logs:/app/logs
-      - /mnt/Media-Storage/Media/Movies:/mnt/Media-Storage/Media/Movies:ro
-      - /mnt/Media-Storage/Media/TV-Shows:/mnt/Media-Storage/Media/TV-Shows:ro
-      - /mnt/Media-Storage/Media/Downloads:/mnt/Media-Storage/Media/Downloads:rw
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     logging: { driver: journald }
 
   # ─── Pterodactyl Wings (Minecraft game-server daemon) — deployed 2026-06-07 ──
