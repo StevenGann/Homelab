@@ -284,3 +284,9 @@ http://sharedirstat.lab {
         flush_interval -1
     }
 }
+
+# ─── ARM (Automatic Ripping Machine — optical disc ripper) ──────────────────
+arm.lab {
+    tls internal
+    reverse_proxy http://192.168.10.144:8081
+}
