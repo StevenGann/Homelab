@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: subwave-discord-bot
+  namespace: subwave-discord-bot
+data:
+  DISCORD_CLIENT_ID: "1546936361095794781"
+  SUBWAVE_BASE_URL: http://subwave.lab
+  STATION_NAME: Subwave

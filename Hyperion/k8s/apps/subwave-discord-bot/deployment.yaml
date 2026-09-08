@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subwave-discord-bot
+  namespace: subwave-discord-bot
+  labels: { app: subwave-discord-bot }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: subwave-discord-bot } }
+  template:
+    metadata: { labels: { app: subwave-discord-bot } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext: { seccompProfile: { type: RuntimeDefault } }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: bot
+          image: ghcr.io/foggymtndrifter/subwave-discord-bot:latest
+          imagePullPolicy: Always
+          env:
+            - name: AUTO_DEPLOY_COMMANDS
+              value: "true"
+          envFrom:
+            - configMapRef: { name: subwave-discord-bot }
+            - secretRef: { name: subwave-discord-bot }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: "50m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
