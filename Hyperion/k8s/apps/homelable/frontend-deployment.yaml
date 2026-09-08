@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: homelable
+  labels: { app: homelable-frontend }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: homelable-frontend } }
+  template:
+    metadata: { labels: { app: homelable-frontend } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext: { seccompProfile: { type: RuntimeDefault } }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: frontend
+          image: ghcr.io/pouzor/homelable-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - { name: http, containerPort: 80 }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 30

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homelable-config
+  namespace: homelable
+data:
+  SQLITE_PATH: /app/data/homelab.db
+  AUTH_MODE: local
+  AUTH_USERNAME: admin
+  SCANNER_RANGES: '["192.168.10.0/24","192.168.0.0/24"]'
+  STATUS_CHECKER_INTERVAL: "60"
+  CORS_ORIGINS: '["https://homelable.lab","http://homelable.lab"]'

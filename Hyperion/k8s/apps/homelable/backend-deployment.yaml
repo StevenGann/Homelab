@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: homelable
+  labels: { app: homelable-backend }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: homelable-backend } }
+  template:
+    metadata: { labels: { app: homelable-backend } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext: { seccompProfile: { type: RuntimeDefault } }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: backend
+          image: ghcr.io/pouzor/homelable-backend:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef: { name: homelable-config }
+            - secretRef: { name: homelable-secret }
+          ports:
+            - { name: http, containerPort: 8000 }
+          securityContext:
+            capabilities: { add: [NET_RAW] }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "1000m", memory: "1Gi" }
+          startupProbe:
+            httpGet: { path: /api/v1/health, port: http }
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /api/v1/health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/v1/health, port: http }
+            periodSeconds: 30
+          volumeMounts:
+            - { name: data, mountPath: /app/data }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: homelable-data }
