@@ -46,6 +46,7 @@ RECORDS=(
     "openwebui.lab|A|192.168.10.4"    # OpenWebUI (chat for Ollama) on Thoth, via Caddy
     "comfyui.lab|A|192.168.10.4"      # ComfyUI (image gen) on Thoth, via Caddy
     "arm.lab|A|192.168.10.4"         # ARM (Automatic Ripping Machine) on Thoth, via Caddy
+    "homelable.lab|A|192.168.10.4"   # Homelable (network/rack mapper) on Hyperion k3s, via Caddy
     "jellyfin.lab|A|192.168.10.247"   # alias for Akasha; Jellyfin UI is at :30013 (NodePort)
 
     # ─── Hyperion k3s nodes (.101..110, Greek-letter order) ──────────────────

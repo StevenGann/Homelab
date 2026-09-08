@@ -290,3 +290,9 @@ arm.lab {
     tls internal
     reverse_proxy http://192.168.10.144:8081
 }
+
+# ─── Homelable (visual homelab mapper) ──────────────────────────────────────
+homelable.lab {
+    tls internal
+    reverse_proxy http://192.168.10.94:80
+}
