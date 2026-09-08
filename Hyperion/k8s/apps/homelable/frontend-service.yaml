@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: homelable
   namespace: homelable
-  annotations: { metallb.io/loadBalancerIPs: 192.168.10.89 }
+  annotations: { metallb.io/loadBalancerIPs: 192.168.10.94 }
 spec:
   type: LoadBalancer
   selector: { app: homelable-frontend }
