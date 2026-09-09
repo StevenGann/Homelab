@@ -7,7 +7,6 @@ resources:
   - cleanuparr
   - suggestarr
   - trailarr
-  - tdarr
   - kapowarr
   - youtarr
   - immich
