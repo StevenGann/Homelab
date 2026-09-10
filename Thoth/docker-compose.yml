@@ -7,9 +7,9 @@
 #   Docker data-root → Intel SSD (ext4 @ /var/lib/docker)
 #
 # GPU services retired 2026-09-06 — the 2× RTX 6000 Ada cards were physically
-# removed from the host. Ollama / OpenWebUI / ComfyUI / Tdarr-node were taken out
+# removed from the host. Ollama / OpenWebUI / ComfyUI were taken out
 # of the stack; their data persists on /tank (ollama, comfyui) and /fast
-# (open-webui) + /var/lib/tdarr-node in case GPUs ever return.
+# (open-webui) in case GPUs ever return.
 
 services:
 

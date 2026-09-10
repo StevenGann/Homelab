@@ -18,7 +18,7 @@ apps/
   media/                                        *arr stack, tiered 00-storage → 10-core → 20-extras
     00-storage/     Akasha NFS PV/PVC + canary probe Job
     10-core/        prowlarr, sonarr, radarr, lidarr, qbittorrent (ProtonVPN/WireGuard)
-    20-extras/      seerr, cleanuparr, suggestarr, kapowarr, youtarr, trailarr, homarr, tdarr, navidrome
+    20-extras/      seerr, cleanuparr, suggestarr, kapowarr, youtarr, trailarr, homarr, navidrome
   listenarr/  musicseerr/  boxarr/  sortarr/  jellystat/   media-adjacent
   beszel/  speedtest-tracker/                   monitoring
   romm/  pterodactyl/  n8n/  monolithbot/        misc workloads

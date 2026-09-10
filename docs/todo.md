@@ -144,10 +144,11 @@ token for DDNS). Immich is not exposed (may be retired).
       2026-09-05 (`kernel BUG at lib/list_debug.c:29` during Docker veth
       teardown), taking Jellyfin and all NFS exports down. Use a pod on Hyperion
       instead. Full write-up: failure-patterns.md Pattern 6.
-- [ ] **Reap 47 dead pods.** `hyperion-eta` had an eviction storm 22–34 days ago
-      (≈45 `Evicted` tdarr pods plus `komga`/`youtarr` `Error`/
-      `ContainerStatusUnknown`). The current replicas are all healthy (tdarr,
-      komga, youtarr each 1/1) — this is stale garbage, not an active fault, but
+- [ ] **Reap dead pods.** `hyperion-eta` had an eviction storm 22–34 days ago
+      (`komga`/`youtarr` `Error`/`ContainerStatusUnknown`; the ≈45 evicted
+      Tdarr pods were reaped when Tdarr was retired 2026-09). The current
+      replicas are healthy (komga, youtarr each 1/1) — stale garbage, not an
+      active fault, but
       it should be cleared and the eviction cause confirmed as addressed by the
       weekly Nix GC added in `30b9111`.
 - [ ] **Flux controllers are restarting often** — `helm-controller` 65,
@@ -212,13 +213,12 @@ fixed; ddns-updater has been captured into git.)*
 
 **Powered off pending hardware changes; all resident services suspended** until
 it returns. That covers Ollama (`deepseek-r1:70b`), OpenWebUI, ComfyUI, the
-GPU Jellyfin at `:8096`, the Tdarr GPU worker, the Beszel agent, and Pterodactyl
+GPU Jellyfin at `:8096`, the Beszel agent, and Pterodactyl
 Wings. The `thoth.lab` / `ollama.lab` / `openwebui.lab` / `comfyui.lab` DNS
 records and Caddy routes still exist and fail.
 
 - [ ] On return: re-verify NVENC (the 595 data-center → 580 production driver
-      switch), reconnect the Tdarr worker to the server at `.62:8266`, and
-      re-onboard Komodo Periphery.
+      switch) and re-onboard Komodo Periphery.
 - [ ] **Space Engineers Pterodactyl server** — blocked and now moot while Thoth
       is down. Prior diagnosis: the install container
       (`ghcr.io/parkervcp/installers:debian`) never starts on Wings — 0 disk
@@ -226,15 +226,12 @@ records and Caddy routes still exist and fail.
       `ghcr.io/pterodactyl/*`) works. Suspected image-pull failure on Thoth.
       Wings is also outdated (1.11.13 vs 1.13.0).
 
-### Epsilon (`192.168.0.105`) — Tdarr worker not running
+### Epsilon (`192.168.0.105`)
 
 Hostname `WS-EPSILON`, **Ubuntu 26.04** (the docs said Pop!_OS), RTX 4080, on the
-main home subnet. It is documented as running a Tdarr GPU transcode worker via
-Docker Compose, but **no container runtime is installed on the host**. With Thoth
-also down, Tdarr currently has **no GPU workers at all**.
-
-- [ ] Decide whether Epsilon rejoins the transcode fleet, and if so capture its
-      config in the repo (it is currently unmanaged).
+main home subnet. Historically ran a Tdarr GPU transcode worker, but **Tdarr has
+been fully retired (2026-09)** — the worker is gone and no container runtime is
+needed.
 
 ---
 

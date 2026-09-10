@@ -83,7 +83,6 @@ RECORDS=(
     "cleanuparr.lab|A|192.168.10.59"      # :11011 (download cleanup)
     "kapowarr.lab|A|192.168.10.60"        # :5656  (comics/manga)
     "youtarr.lab|A|192.168.10.61"         # :3087  (youtube archival)
-    "tdarr.lab|A|192.168.10.62"           # :8265  (transcoding)
     "trailarr.lab|A|192.168.10.63"        # :7889  (trailers)
     "suggestarr.lab|A|192.168.10.64"      # :5000  (content suggestions)
     "lidarr.lab|A|192.168.10.65"          # :8686  (music)

@@ -32,7 +32,6 @@ SERVICES = [
     ("Cleanuparr",        "http://192.168.10.59",       (200,302,307), "media", "app=cleanuparr"),
     ("Kapowarr",          "http://192.168.10.60",       (200,302,307), "media", "app=kapowarr"),
     ("Youtarr",           "http://192.168.10.61",       (200,302,307), "media", "app=youtarr"),
-    ("Tdarr",             "http://192.168.10.62",       (200,302,307), "media", "app=tdarr"),
     ("Trailarr",          "http://192.168.10.63",       (200,302,307), "media", "app=trailarr"),
     ("SuggestArr",        "http://192.168.10.64",       (200,302,307), "media", "app=suggestarr"),
     ("Lidarr",            "http://192.168.10.65",       (200,302,307), "media", "app=lidarr"),

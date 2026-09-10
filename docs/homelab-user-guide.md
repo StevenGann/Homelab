@@ -5,8 +5,7 @@ the live lab 2026-09-05.*
 
 > 🔌 **Thoth, the GPU server, is powered off** pending hardware changes. Anything
 > listed below at `192.168.10.144` — the GPU Jellyfin, Ollama, OpenWebUI, ComfyUI —
-> **will not load** until it comes back, and the Tdarr GPU workers are offline with
-> it. Everything else in this guide is up.
+> **will not load** until it comes back. Everything else in this guide is up.
 
 All services below run on the home network (`192.168.10.0/24`) — open the links
 while connected to the LAN (or through the remote-access method the administrator
@@ -63,7 +62,6 @@ usually never need to touch these. Admin/power-user territory.
 | **Youtarr** | [youtarr.lab](http://youtarr.lab) | [192.168.10.61:3087](http://192.168.10.61:3087) | Archives YouTube channels/videos into the library. |
 | **Prowlarr** | [prowlarr.lab](http://prowlarr.lab) | [192.168.10.55:9696](http://192.168.10.55:9696) | Indexer manager — the search sources the *arr apps use. Central config. |
 | **Trailarr** | [trailarr.lab](http://trailarr.lab) | [192.168.10.63:7889](http://192.168.10.63:7889) | Downloads trailers for the movie/TV library. |
-| **Tdarr** | [tdarr.lab](http://tdarr.lab) | [192.168.10.62:8265](http://192.168.10.62:8265) | Transcoding & library health. The server is up, but ⚠️ **both GPU workers are offline** (Thoth powered off; Epsilon's worker not running), so nothing is being transcoded. |
 | **Listenarr** | [listenarr.lab](http://listenarr.lab) | [192.168.10.73](http://192.168.10.73) | Audiobook manager — like Sonarr but for audiobooks. Searches, downloads, and organizes your audiobook library. |
 
 ---
@@ -144,8 +142,8 @@ usually never need to touch these. Admin/power-user territory.
 | System | Link | Direct (IP:port) | What it's for |
 |---|---|---|---|
 | **TrueNAS (Akasha)** | [akasha.lab](https://akasha.lab) | [192.168.10.247](https://192.168.10.247) | The storage server — all media + app data lives here. FTP access enabled on port 21 (`truenas_admin` with admin password) for direct file management; NFS exports accessible from both homelab VLAN (.10.x) and main subnet (.0.x). |
-| **Thoth** (GPU compute) | — | `192.168.10.144` | ⚠️ **POWERED OFF** pending hardware changes. GPU server (2× RTX 6000 Ada, 96 GB VRAM) — normally runs **Ollama**, **OpenWebUI**, **ComfyUI**, a GPU **Jellyfin** at `:8096`, the **Tdarr** worker and Pterodactyl **Wings**. All suspended until it returns. |
-| **Epsilon** (workstation) | — | `192.168.0.105` | Desktop workstation `WS-EPSILON` (Ubuntu 26.04, RTX 4080 16 GB). Historically ran a **Tdarr** GPU worker; ⚠️ **that worker is not running** (no container runtime installed). On the main home subnet — not the homelab VLAN. |
+| **Thoth** (GPU compute) | — | `192.168.10.144` | ⚠️ **POWERED OFF** pending hardware changes. GPU server (2× RTX 6000 Ada, 96 GB VRAM) — normally runs **Ollama**, **OpenWebUI**, **ComfyUI**, a GPU **Jellyfin** at `:8096`, and Pterodactyl **Wings**. All suspended until it returns. |
+| **Epsilon** (workstation) | — | `192.168.0.105` | Desktop workstation `WS-EPSILON` (Ubuntu 26.04, RTX 4080 16 GB). Formerly ran a **Tdarr** GPU worker — **Tdarr has been fully retired**. On the main home subnet — not the homelab VLAN. |
 | **Home Assistant** | [homeassistant.lab:8123](http://homeassistant.lab:8123) | [192.168.10.147:8123](http://192.168.10.147:8123) | Smart-home hub. Consumes the ESPHome room-temperature sensors via the MQTT broker. Not managed from the IaC repo. |
 | **DNS / Container manager / Reverse proxy** | on **[heimdall.lab](http://heimdall.lab)** (`192.168.10.4`) | `192.168.10.4` | **Pi-hole** ([pihole.lab](http://pihole.lab)) is the DNS server your device actually talks to — it does the ad-blocking and hands `.lab` names to **Technitium** ([technitium.lab](http://technitium.lab)) behind it. Also **Komodo** ([komodo.lab](http://komodo.lab), containers) and **Caddy** (reverse proxy). **Ask the administrator for the admin URLs.** |
 | **APC PDU** | — (Telnet CLI) | `192.168.10.180:23` | Switched Rack PDU (APC AP7900, 8 outlets). Controls power to Monolith, Compute, Synology and 5 other devices. Admin access via Telnet CLI — not a web service. **No HTTPS/SSH** (non-B hardware). |
