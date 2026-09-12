@@ -27,7 +27,7 @@ spec:
             capabilities: { add: [NET_RAW] }
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
-            limits: { cpu: "1000m", memory: "1Gi" }
+            limits: { cpu: "1000m", memory: "4Gi" }
           startupProbe:
             httpGet: { path: /api/v1/health, port: http }
             failureThreshold: 30
