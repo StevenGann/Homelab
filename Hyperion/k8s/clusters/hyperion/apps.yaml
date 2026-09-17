@@ -369,6 +369,25 @@ spec:
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
+  name: bindarr
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/bindarr
+  prune: true
+  wait: true
+  timeout: 10m                 # arm64 image pull + first-boot scan-model download
+  dependsOn:
+    - name: metallb-config     # LoadBalancer IP for the frontend
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  # No decryption block: bindarr needs no SOPS secret (MTG/Scryfall is keyless;
+  # admin password is auto-generated on first boot and read from pod logs).
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
   name: jeeves
   namespace: flux-system
 spec:

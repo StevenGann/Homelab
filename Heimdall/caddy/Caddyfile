@@ -296,3 +296,12 @@ homelable.lab {
     tls internal
     reverse_proxy http://192.168.10.94:80
 }
+
+# ─── Bindarr (trading-card catalog — MTG/Pokémon/Lorcana) ──────────────────
+# Camera scanning needs a secure context, so this is HTTPS-only via Caddy
+# (internal CA). The app itself also serves self-signed HTTPS on :3443 for
+# direct use, but behind Caddy we proxy plain HTTP :3001 and terminate TLS here.
+bindarr.lab {
+    tls internal
+    reverse_proxy 192.168.10.95:3001
+}

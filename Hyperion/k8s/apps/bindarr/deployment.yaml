@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bindarr
+  namespace: bindarr
+  labels: { app: bindarr }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: bindarr }
+  template:
+    metadata:
+      labels: { app: bindarr }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      # The image runs as the non-root `node` user (uid/gid 1000). fsGroup
+      # makes the local-path PVC group-writable so the entrypoint can create
+      # bindarr.db + download the (AGPL) scan models into /app/database.
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: bindarr
+          image: ghcr.io/thenotoriousjeremy/bindarr:1.8.5
+          env:
+            # Behind Caddy (tls internal) — one TLS-terminating hop, so TRUST_PROXY
+            # makes rate limiting see the real client IP from X-Forwarded-For.
+            - { name: PUBLIC_BASE_URL, value: "https://bindarr.lab" }
+            - { name: CORS_ORIGIN, value: "https://bindarr.lab" }
+            - { name: TRUST_PROXY, value: "1" }
+            # No DEFAULT_ADMIN_PASSWORD: a random one is generated and printed to
+            # the pod logs on first boot (retrieve + change after first login).
+            # Registration stays invite-only (ALLOW_REGISTRATION unset).
+          ports:
+            - { name: http, containerPort: 3001 }
+          volumeMounts:
+            - { name: data, mountPath: /app/database }
+          startupProbe:
+            tcpSocket: { port: 3001 }
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /, port: 3001 }
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "1000m", memory: "2Gi" }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: bindarr-data

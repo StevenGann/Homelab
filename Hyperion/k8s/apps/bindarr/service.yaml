@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bindarr
+  namespace: bindarr
+  annotations: { metallb.io/loadBalancerIPs: 192.168.10.95 }
+spec:
+  type: LoadBalancer
+  selector: { app: bindarr }
+  ports:
+    - { name: http, port: 3001, targetPort: 3001 }
+    - { name: web, port: 80, targetPort: 3001 }
