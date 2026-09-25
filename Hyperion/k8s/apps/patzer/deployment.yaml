@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patzer
+  namespace: patzer
+  labels: { app: patzer }
+spec:
+  replicas: 1                            # single-writer SQLite — do NOT scale
+  strategy: { type: Recreate }           # RWO local-path; no two pods on the DB
+  selector:
+    matchLabels: { app: patzer }
+  template:
+    metadata: { labels: { app: patzer } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000                  # node (node:20-bookworm-slim)
+        runAsGroup: 1000
+        fsGroup: 1000                    # PVC writable by node (UID/GID 1000)
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: patzer
+          # multi-arch (amd64+arm64) — Hyperion is Pi 5 arm64.
+          image: ghcr.io/SikamikanikoBG/patzer:7.14.0
+          imagePullPolicy: IfNotPresent
+          env:
+            # PORT/HOST/DB_PATH/STOCKFISH_PATH are baked into the image
+            # (8800 / 0.0.0.0 / /app/data/chess.db / /usr/games/stockfish).
+            - { name: TZ, value: "America/Los_Angeles" }
+            # COOKIE_SECURE stays unset: we serve plain HTTP on :80 (no TLS
+            # proxy in front), so cookies must not be flagged Secure.
+          ports:
+            - { name: http, containerPort: 8800 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /app/data }
+          startupProbe:
+            httpGet: { path: /, port: http }
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "50m", memory: "128Mi" }
+            limits:   { cpu: "1000m", memory: "512Mi" }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: patzer-data } }

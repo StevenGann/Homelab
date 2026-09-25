@@ -1,0 +1,9 @@
+# patzer-data : single SQLite file (chess.db) + auto-generated session secret.
+# RWO local-path (single-writer app; replicas:1 + Recreate).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: patzer-data, namespace: patzer }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 1Gi } }

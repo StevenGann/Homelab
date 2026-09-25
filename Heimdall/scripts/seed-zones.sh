@@ -104,6 +104,7 @@ RECORDS=(
     "asf.lab|A|192.168.10.86"             # :1242  (ArchiSteamFarm — Steam card farmer)
     "sharedirstat.lab|A|192.168.10.4"     # :443   (disk usage analyser — Caddy TLS → 192.168.10.92:80)
     "bifrost.lab|A|192.168.10.20"         # :11434 (Ollama-compatible LLM gateway → DeepSeek; no Caddy, raw API)
+    "patzer.lab|A|192.168.10.21"          # :80    (self-hosted chess app — AI coach via Bifrost)
     # ── Backfilled 2026-07-04 (were operator-UI-added / missing from git) ──
     "komga.lab|A|192.168.10.82"           # :25600 (comic/manga server — holds .82)
     "agent-caldera.lab|A|192.168.10.85"   # :8000  (agent shared-knowledge Caldera)

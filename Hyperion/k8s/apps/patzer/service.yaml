@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: patzer
+  namespace: patzer
+  annotations: { metallb.io/loadBalancerIPs: 192.168.10.21 }
+spec:
+  type: LoadBalancer
+  selector: { app: patzer }
+  ports:
+    - { name: http, port: 80, targetPort: 8800 }

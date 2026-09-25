@@ -502,4 +502,18 @@ spec:
   dependsOn: [ { name: metallb-config } ]   # LoadBalancer IP :11434
   sourceRef: { kind: GitRepository, name: flux-system }
   decryption: { provider: sops, secretRef: { name: sops-age } }   # UPSTREAM_API_KEY
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: patzer, namespace: flux-system }
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/patzer
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn: [ { name: metallb-config } ]   # LoadBalancer IP :80
+  sourceRef: { kind: GitRepository, name: flux-system }
+  # No decryption block: Patzer needs no SOPS secret (admin account + session
+  # secret auto-generate on first boot; coach URL is set in Admin → System).
 
