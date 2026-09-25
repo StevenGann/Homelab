@@ -4,5 +4,5 @@ metadata:
   name: bifrost
   namespace: bifrost
 data:
-  UPSTREAM_BASE_URL: "https://api.deepseek.com"
-  MODELS: "deepseek-v4-flash,deepseek-v4-pro,coach=deepseek-v4-flash"
+  BACKENDS: '[{"name":"deepseek","base_url":"https://api.deepseek.com","api_key_env":"UPSTREAM_API_KEY"}]'
+  ROUTES: '{"coach":"deepseek/deepseek-v4-flash","deepseek-v4-flash":"deepseek/deepseek-v4-flash","deepseek-v4-pro":"deepseek/deepseek-v4-pro"}'
