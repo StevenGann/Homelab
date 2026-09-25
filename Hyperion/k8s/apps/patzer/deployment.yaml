@@ -23,7 +23,9 @@ spec:
       containers:
         - name: patzer
           # multi-arch (amd64+arm64) — Hyperion is Pi 5 arm64.
-          image: ghcr.io/SikamikanikoBG/patzer:7.14.0
+          # NOTE: repo name must be all-lowercase (containerd rejects the
+          # upstream's "SikamikanikoBG" casing as InvalidImageName on pull).
+          image: ghcr.io/sikamikanikobg/patzer:7.14.0
           imagePullPolicy: IfNotPresent
           env:
             # PORT/HOST/DB_PATH/STOCKFISH_PATH are baked into the image
