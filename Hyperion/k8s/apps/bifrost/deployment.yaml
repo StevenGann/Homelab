@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bifrost
+  namespace: bifrost
+  labels: { app: bifrost }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: bifrost } }
+  template:
+    metadata: { labels: { app: bifrost } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: bifrost
+          image: ghcr.io/stevengann/bifrost:79f0a8377f03fae46227ff402c42719d506a54e7
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: bifrost }
+            - secretRef: { name: bifrost-secrets }
+          ports:
+            - { name: http, containerPort: 11434 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: "50m", memory: "32Mi" }
+            limits:   { cpu: "1000m", memory: "128Mi" }
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 30

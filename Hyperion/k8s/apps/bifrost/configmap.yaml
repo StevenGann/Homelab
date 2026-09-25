@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bifrost
+  namespace: bifrost
+data:
+  UPSTREAM_BASE_URL: "https://api.deepseek.com"
+  MODELS: "deepseek-v4-flash,deepseek-v4-pro,coach=deepseek-v4-flash"
