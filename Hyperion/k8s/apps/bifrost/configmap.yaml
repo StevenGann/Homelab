@@ -8,4 +8,5 @@ data:
   ROUTES: '{"coach":"deepseek/deepseek-v4-flash","deepseek-v4-flash":"deepseek/deepseek-v4-flash","deepseek-v4-pro":"deepseek/deepseek-v4-pro","private:local":"epsilon/qwen2.5:7b","embed":"epsilon/nomic-embed-text"}'
   FALLBACKS: '{"deepseek-v4-pro":"deepseek-v4-flash"}'
   LEDGER_FILE: /data/spend.jsonl
+  INDEX_FILE: /data/index.json
   BUDGET: "20"
