@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: bifrost
 resources:
   - namespace.yaml
+  - pvc.yaml
   - configmap.yaml
   - secret.sops.yaml
   - deployment.yaml

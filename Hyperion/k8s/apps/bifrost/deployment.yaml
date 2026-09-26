@@ -16,11 +16,12 @@ spec:
         runAsNonRoot: true
         runAsUser: 65534
         runAsGroup: 65534
+        fsGroup: 65534                    # ledger PVC writable by nobody (65534)
         seccompProfile: { type: RuntimeDefault }
       terminationGracePeriodSeconds: 30
       containers:
         - name: bifrost
-          image: ghcr.io/stevengann/bifrost:a225a02210428b2ea18585e6d5f4ce4a812ff2fc
+          image: ghcr.io/stevengann/bifrost:7044a9c0c4242495959802b879b6c2749b943ffa
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef: { name: bifrost }
@@ -31,6 +32,8 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
           resources:
             requests: { cpu: "50m", memory: "32Mi" }
             limits:   { cpu: "1000m", memory: "128Mi" }
@@ -44,3 +47,5 @@ spec:
           livenessProbe:
             httpGet: { path: /healthz, port: http }
             periodSeconds: 30
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: bifrost-data } }

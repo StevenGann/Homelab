@@ -1,0 +1,9 @@
+# bifrost-data : durable JSONL spend ledger (spend.jsonl) so monthly budgets
+# survive pod restarts. RWO local-path (replicas:1 + Recreate).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: bifrost-data, namespace: bifrost }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 1Gi } }
