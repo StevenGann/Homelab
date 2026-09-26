@@ -4,8 +4,8 @@ metadata:
   name: bifrost
   namespace: bifrost
 data:
-  BACKENDS: '[{"name":"deepseek","base_url":"https://api.deepseek.com","api_key_env":"UPSTREAM_API_KEY"}]'
-  ROUTES: '{"coach":"deepseek/deepseek-v4-flash","deepseek-v4-flash":"deepseek/deepseek-v4-flash","deepseek-v4-pro":"deepseek/deepseek-v4-pro"}'
+  BACKENDS: '[{"name":"deepseek","base_url":"https://api.deepseek.com","api_key_env":"UPSTREAM_API_KEY"},{"name":"epsilon","base_url":"http://192.168.0.105:11434","local":true}]'
+  ROUTES: '{"coach":"deepseek/deepseek-v4-flash","deepseek-v4-flash":"deepseek/deepseek-v4-flash","deepseek-v4-pro":"deepseek/deepseek-v4-pro","private:local":"epsilon/qwen2.5:7b","embed":"epsilon/nomic-embed-text"}'
   FALLBACKS: '{"deepseek-v4-pro":"deepseek-v4-flash"}'
   LEDGER_FILE: /data/spend.jsonl
   BUDGET: "20"
