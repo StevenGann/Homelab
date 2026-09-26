@@ -21,7 +21,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: bifrost
-          image: ghcr.io/stevengann/bifrost:38d70dcb7e4990a92409a3416fff6281123bf345
+          image: ghcr.io/stevengann/bifrost:e8f1169d9eea076b1b3e77d2b0596ca0aab281aa
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef: { name: bifrost }
