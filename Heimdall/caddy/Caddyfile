@@ -197,12 +197,6 @@ alfred.lab {
 # and adding-a-route.md for the JSON config form (or use the Caddyfile `layer4` directive
 # if the syntax has stabilized in your pinned plugin version).
 
-# ─── Immich (Photo/Video Management) ─────────────────────────────────────────────────
-immich.lab {
-    tls internal
-    reverse_proxy 192.168.10.88:2283
-}
-
 # ─── Ignis (browser-based Obsidian) ──────────────────────────────────────────────
 # Ignis has NO built-in auth and serves full read/write vault access, so basic auth
 # is mandatory. WebSocket (live sync) is proxied by Caddy automatically.

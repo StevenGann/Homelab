@@ -9,7 +9,6 @@ resources:
   - trailarr
   - kapowarr
   - youtarr
-  - immich
   - komga
   - navidrome
   - subwave
