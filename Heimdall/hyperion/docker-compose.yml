@@ -100,10 +100,15 @@ services:
       - "19531:19531"   # gatewayd UI
       - "19532:19532"   # journal-remote receiver
     healthcheck:
-      # Either daemon up is enough to keep the container healthy; the supervisor
-      # exits non-zero if EITHER dies, so this check is only ever wrong during
-      # the ~2s window between supervisor-exit and Compose-recreate.
-      test: ["CMD-SHELL", "wget -qO /dev/null --tries=1 --timeout=3 http://127.0.0.1:19532/ 2>&1 | grep -q '404\\|400' || exit 1"]
+      # Both daemons must be up. NOTE: this image is Debian slim + minimal
+      # packages — neither `wget` nor `curl` is installed, so the original
+      # `wget -qO ...` check exited 127 and could NEVER pass; the container
+      # reported `unhealthy` for its entire life. Probe TCP liveness with
+      # python3 (stdlib, already present for the supervisor) instead of
+      # depending on an HTTP client that isn't in the image. Ports, not URLs:
+      # each daemon answers a bare GET with a 4xx, so HTTP semantics are a
+      # poor liveness signal here.
+      test: ["CMD-SHELL", "python3 -c \"import socket; [socket.create_connection(('127.0.0.1', p), timeout=3).close() for p in (19531, 19532)]\""]
       interval: 30s
       timeout: 5s
       retries: 3
