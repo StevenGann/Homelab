@@ -208,8 +208,8 @@ step_05_journal_upload() {
 
     install -d -m 0755 /etc/systemd/journal-upload.conf.d
     install -m 0644 \
-        "${HEIMDALL_DIR}/hostconf/journal-upload-akasha.conf" \
-        /etc/systemd/journal-upload.conf.d/akasha.conf
+        "${HEIMDALL_DIR}/hostconf/journal-upload-heimdall.conf" \
+        /etc/systemd/journal-upload.conf.d/heimdall.conf
 
     # Persistent local journal (so we have local buffering when Akasha is unreachable).
     install -d -m 0755 /var/log/journal

@@ -92,6 +92,10 @@ services:
     restart: unless-stopped
     volumes:
       - /opt/Homelab/Heimdall/hyperion/journal:/var/log/journal/remote
+      # Retention policy for the sink. This dir is the only unbounded writer in
+      # the stack, so its cap is pinned in git rather than left at journald's
+      # implicit default.
+      - /opt/Homelab/Heimdall/hyperion/journal-remote.conf:/etc/systemd/journal-remote.conf:ro
     ports:
       - "19531:19531"   # gatewayd UI
       - "19532:19532"   # journal-remote receiver

@@ -222,8 +222,18 @@ if [ "$DO_DEPLOY" -eq 1 ]; then
         # change one IP + redeploy`. Do not add bind-mounts that escape this
         # root.
         echo "[remote] Bringing up Hyperion flashing stack..."
+        # `images` is served by nginx (which runs as root inside its container),
+        # so root:root is correct there.
         sudo install -d -o root -g root -m 0755 \
-            /opt/Homelab/Heimdall/hyperion/images \
+            /opt/Homelab/Heimdall/hyperion/images
+        # `journal` is a bind mount over the journal-remote image's output dir,
+        # and a bind mount REPLACES the container's own directory ownership. The
+        # container runs as uid/gid 997 (systemd-journal-remote) and the image
+        # creates this dir 2755, so the host dir must match or every node's
+        # upload fails with "Permission denied" -> HTTP 500 and all Hyperion
+        # logs are silently dropped. Do NOT fold this back into the root:root
+        # install above; that regression cost ~3 weeks of cluster logs.
+        sudo install -d -o 997 -g 997 -m 2775 \
             /opt/Homelab/Heimdall/hyperion/journal
         cd /opt/Homelab/Heimdall/hyperion
         docker compose pull
