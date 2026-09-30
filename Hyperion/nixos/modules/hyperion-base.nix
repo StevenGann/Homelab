@@ -52,6 +52,15 @@
       # truth. Same value as NODE_SSH_PUBLIC_KEY GitHub Actions secret.
       # Rotated by editing this file and `colmena apply`.
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPRlnV15+a4pjzB8BqGq33LaOk9sBtLyaaE+WqWLxUIy owner@owner-thinkpad"
+
+      # Guppy — the Hermes agent that operates this homelab. Having the agent's
+      # key in the closure means it reaches every worker directly instead of
+      # proxying through owner-thinkpad, which keeps routine inspection from
+      # depending on one workstation being awake. Public half only: the private
+      # key lives in the Hermes pod at /opt/data/home/.ssh/id_ed25519 and never
+      # enters this repo or the Nix store. Rotate the same way as the operator
+      # key (edit here, `colmena apply`).
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGeAJHrXaf0ofNiEimygJWEp3GlwTJFe7Dl0Cwb3kzFb hermes@monolith"
     ];
   };
 
