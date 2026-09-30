@@ -83,7 +83,7 @@ usually never need to touch these. Admin/power-user territory.
 
 | App | Link | Direct (IP:port) | What it is for |
 |---|---|---|---|
-| ~~**Immich**~~ | — | — | **Decommissioned 2026-09-30.** Library retained at `Akasha:/mnt/Media-Storage/Application-Storage/immich-library`. |
+| ~~**Immich**~~ | — | — | **Decommissioned and purged 2026-09-30.** Datasets and NFS exports removed; the original photos were rescued to `Akasha:/mnt/Media-Storage/Media/Photos/immich-rescue-2026-09-30/`. |
 | **NextCloud** | [nextcloud.lab](http://nextcloud.lab) | [192.168.10.87](http://192.168.10.87) | Files, calendar and contacts. Data on Akasha NFS. **Own login.** |
 | **ShareDirStat** | [sharedirstat.lab](https://sharedirstat.lab) | [192.168.10.92](http://192.168.10.92) | Disk-usage analyser for the Akasha shares — find what's eating the 60 TB. Deletion is **enabled**, so tread carefully. |
 

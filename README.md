@@ -127,10 +127,8 @@ on a pure-storage role. Pools: `Media-Storage` (60 TB, 78% full), `App-Storage`,
 lab's primary media server.
 
 **As-built NFS model — one export per media category, not one shared `/data`.**
-The cluster mounts eleven separate exports (`Media/Downloads`, `TV-Shows`,
-`Movies`, `Comics`, `YouTube`, `Music`, `ROMs`, `Audiobooks`, `NextCloud`, and
-the two `Application-Storage/immich-*` datasets — Immich was **decommissioned
-2026-09-30**, so those two now hold only its retained library), all
+The cluster mounts nine separate exports (`Media/Downloads`, `TV-Shows`,
+`Movies`, `Comics`, `YouTube`, `Music`, `ROMs`, `Audiobooks`, `NextCloud`), all
 `sec=sys,rw,anonuid=568,anongid=568,all_squash` and exported to **both**
 `192.168.10.0/24` and `192.168.0.0/24`. Three older wildcard exports
 (`Application-Storage`, `Infra-Storage`, and the legacy
@@ -259,7 +257,7 @@ and reconciled by FluxCD. A representative slice of what's deployed:
 
 - **Media automation** — Prowlarr, Sonarr, Radarr, Lidarr, **three** qBittorrent+gluetun instances (`.58`/`.83`/`.84`, ProtonVPN WireGuard), plus Seerr, Cleanuparr, SuggestArr, Kapowarr, Youtarr, Trailarr, Listenarr, Musicseerr, boxarr, Sortarr, FlareSolverr, and a Tdarr server. *(Tdarr's GPU workers lived on Thoth and Epsilon and are both offline.)*
 - **Streaming & libraries** — Navidrome (music), Komga (comics/manga), Subwave (AI DJ radio), Jellystat. Jellyfin itself runs on Akasha (`.247:30013`), not in the cluster.
-- ~~**Photos** — Immich~~ — **decommissioned 2026-09-30**. Library retained at `Akasha:/mnt/Media-Storage/Application-Storage/immich-library` (originals + nightly pg_dump).
+- ~~**Photos** — Immich~~ — **decommissioned and fully purged 2026-09-30.** Both ZFS datasets (`immich-library`, `immich-postgres`) and their two NFS exports are gone. The original photos were **rescued rather than deleted** — copied to `Akasha:/mnt/Media-Storage/Media/Photos/immich-rescue-2026-09-30/` (331 files, 1.88 GB, verified byte-for-byte) because they were the only copy. Delete that directory when it is no longer wanted.
 - **Dashboards & monitoring** — Homarr (home page), Uptime-Kuma, Headlamp (k8s dashboard), Beszel (+ a `beszel-agent` DaemonSet on every node), Speedtest-Tracker.
 - **AI** — Guppi/Hermes (`.52`), Jeeves (`.80`), Cassandra (`.93`), the Alfred dashboard (`.11`), Caldera (`.70`) and agent-caldera (`.85`) Obsidian-vault APIs, plus Ignis (browser Obsidian, `.90`). *(Ollama/OpenWebUI/ComfyUI live on the offline Thoth.)*
 - **Other** — RomM (ROM manager), NextCloud, ShareDirStat (disk-usage analyser), Pterodactyl (game-server panel — its Wings host is the offline Thoth), n8n (automation), Mosquitto MQTT + MQTT Explorer, MonolithBot (Discord bot), and ArchiSteamFarm.

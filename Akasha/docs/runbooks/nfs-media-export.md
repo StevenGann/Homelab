@@ -17,8 +17,6 @@
 > /mnt/Media-Storage/Media/ROMs           192.168.10.0/24, 192.168.0.0/24
 > /mnt/Media-Storage/Media/Audiobooks     192.168.10.0/24, 192.168.0.0/24
 > /mnt/Media-Storage/NextCloud            192.168.10.0/24
-> /mnt/Media-Storage/Application-Storage/immich-library    192.168.10.0/24
-> /mnt/Media-Storage/Application-Storage/immich-postgres   192.168.10.0/24
 > ```
 >
 > …all `sec=sys,rw,anonuid=568,anongid=568,all_squash,no_subtree_check`, plus
