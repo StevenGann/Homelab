@@ -176,23 +176,27 @@ If the NVMe gets flashed (rapid LED + version stamp updated), **H2 is confirmed*
 
 ## Networked log collection
 
-A `journal-remote` service runs on Monolith (`docker compose up -d journal-remote`). All Hyperion nodes ship their journals to it via `systemd-journal-upload`. Logs land at `/mnt/Media-Storage/Infra-Storage/journal-remote/remote-<hostname>.journal` on Monolith.
+A `journal-remote` service runs on **Heimdall** (`Heimdall/hyperion/`; `docker compose up -d journal-remote`). All Hyperion nodes ship their journals to it via `systemd-journal-upload`, as does Heimdall itself. Logs land at `/opt/Homelab/Heimdall/hyperion/journal/remote-<host>.journal`.
+
+**If logs stop arriving, check the bind-mount ownership first.** The output directory is bind-mounted over the container's own, so the *host* directory must be owned by uid 997 (`systemd-journal-remote`). If it is `root:root`, every upload returns HTTP 500 `Permission denied` and logs are dropped silently — nothing surfaces in `docker compose ps`, because the container itself stays "up". `deploy.sh` sets the ownership; a regression there is the prime suspect.
 
 Operator query examples:
 
 ```bash
-ssh truenas_admin@192.168.10.247
-sudo journalctl --directory=/mnt/Media-Storage/Infra-Storage/journal-remote/ \
+ssh owner@192.168.10.4
+sudo journalctl --directory=/opt/Homelab/Heimdall/hyperion/journal/ \
     --unit=hyperion-bootstrap.service --no-pager | tail -200
 
 # All journals, last 1 hour
-sudo journalctl --directory=/mnt/Media-Storage/Infra-Storage/journal-remote/ \
+sudo journalctl --directory=/opt/Homelab/Heimdall/hyperion/journal/ \
     --since='1 hour ago'
 
 # Specific node
-sudo journalctl --directory=/mnt/Media-Storage/Infra-Storage/journal-remote/ \
+sudo journalctl --directory=/opt/Homelab/Heimdall/hyperion/journal/ \
     _HOSTNAME=hyperion-alpha
 ```
+
+The same journals are browsable in a browser at `http://192.168.10.4:19531/browse`.
 
 The bootstrap-time `:8080/log` HTTP route covers the early-boot window before `systemd-journal-upload` has network connectivity.
 

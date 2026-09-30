@@ -81,4 +81,4 @@ is k3s-managed.
 | `192.168.10.4:6443` | k3s API — agent registration |
 | `192.168.10.4:8472/udp` | Flannel VXLAN — pod network |
 | `192.168.10.247:2049` | Akasha NFS — the media/app exports |
-| `192.168.10.4:19532` | `systemd-journal-upload` sink — **the sink is not running**, so this unit restarts continuously on every node. Either start the `Heimdall/hyperion/` stack or disable the unit. |
+| `192.168.10.4:19532` | `systemd-journal-upload` sink — live (`Heimdall/hyperion/` compose project). Journals are browsable at `http://192.168.10.4:19531/browse`; retention is capped at 4 GB by `Heimdall/hyperion/journal-remote.conf`. |

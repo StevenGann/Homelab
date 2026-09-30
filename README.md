@@ -25,10 +25,9 @@ recoverable from scratch.
 > - **Thoth (`.144`) is powered off** pending hardware changes; every service it
 >   hosted (Ollama, OpenWebUI, ComfyUI, Jellyfin-GPU, Tdarr worker, Pterodactyl
 >   Wings) is suspended until it returns.
-> - **The Hyperion flashing stack on Heimdall is not running** (`Heimdall/hyperion/`
->   image server `:50011`, `ci-deploy`, `journal-remote` `:19532`/`:19531`). It is
->   still tracked in git but the compose project has not been brought up; node
->   `systemd-journal-upload` therefore has no sink.
+> - **The Hyperion flashing stack on Heimdall is running** (`Heimdall/hyperion/`
+>   image server `:50011`, `ci-deploy`, `journal-remote` `:19532`/`:19531`). The
+>   log sink is live, so the Pi workers and Heimdall itself ship journals to it.
 > - **Authentik and cloudflared are tracked in the repo but are not deployed** —
 >   no containers, and neither appears in `Heimdall/docker-compose.yml`.
 > - **NixOS is still pinned to 25.11**, whose upstream support window has passed.
@@ -102,9 +101,11 @@ retire-vs-restore before relying on any of it):
   forwarding instead.
 - **Hyperion flashing services** — [`Heimdall/hyperion/`](Heimdall/hyperion/)
   defines the image server (`:50011`), the `ci-deploy` GitHub-release poller and
-  the `journal-remote` log sink (`:19532` / `:19531`), but the compose project has
-  never been started on this host. Consequence: the Pi workers' and Heimdall's own
-  `systemd-journal-upload` units have no sink and restart continuously.
+  the `journal-remote` log sink (`:19532` / `:19531`); all three run. The sink's
+  output directory is a bind mount over the container's own, so it must stay
+  owned by **uid 997** (`systemd-journal-remote`). `deploy.sh` enforces that —
+  see the comment there, because getting it wrong makes every node's upload
+  return HTTP 500 and the cluster's logs are dropped silently.
 
 Deploy from the workstation with `bash Heimdall/scripts/deploy.sh`. Full manual:
 [`Heimdall/docs/manual/`](Heimdall/docs/manual/README.md).
