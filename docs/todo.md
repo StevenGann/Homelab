@@ -22,7 +22,8 @@ plans that used to live in this file have been removed. The per-node procedure i
 Seven phases; nothing is internet-reachable until Phase 4, Jellyfin's single
 port-forward opens in Phase 6. Phase 0 has the repo changes and the operator
 gates (Cloudflare 2FA, rotate the accounts that become reachable, scoped API
-token for DDNS). Immich is not exposed (may be retired).
+token for DDNS). Immich was **decommissioned 2026-09-30** (app + Caddy route +
+DNS record removed; library retained on Akasha under `Application-Storage/`).
 
 - [x] **Phase 0a — DONE 2026-09-05.** nftables (+389/636, +7443, 443→RFC1918, −25565),
       deploy.sh Authentik gate, pins (authentik 2026.8.1 / cloudflared 2026.8.3),

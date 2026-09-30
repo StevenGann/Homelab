@@ -83,7 +83,7 @@ usually never need to touch these. Admin/power-user territory.
 
 | App | Link | Direct (IP:port) | What it is for |
 |---|---|---|---|
-| **Immich** | [immich.lab](https://immich.lab) | [192.168.10.88:2283](http://192.168.10.88:2283) | Self-hosted Google Photos alternative — automatic phone backup, face recognition, albums, search. Photo library stored on Akasha (TrueNAS NFS). |
+| ~~**Immich**~~ | — | — | **Decommissioned 2026-09-30.** Library retained at `Akasha:/mnt/Media-Storage/Application-Storage/immich-library`. |
 | **NextCloud** | [nextcloud.lab](http://nextcloud.lab) | [192.168.10.87](http://192.168.10.87) | Files, calendar and contacts. Data on Akasha NFS. **Own login.** |
 | **ShareDirStat** | [sharedirstat.lab](https://sharedirstat.lab) | [192.168.10.92](http://192.168.10.92) | Disk-usage analyser for the Akasha shares — find what's eating the 60 TB. Deletion is **enabled**, so tread carefully. |
 
@@ -184,9 +184,9 @@ a value edited in the Technitium UI survives a reseed.
 Most apps' LoadBalancers also listen on **port 80** (in addition to their native
 port) so the bare `http://<app>.lab` works without a port suffix — defined
 per-service in `Hyperion/k8s/apps/**/service.yaml`. The exceptions, which need
-their native port or a Caddy route, are **Immich** (`:2283`), **Subwave**
+their native port or a Caddy route, are **Subwave**
 (`:7700–7702`), **agent-caldera** (`:8000`) and **Mosquitto** (`:1883`). The
-`https://` links in this guide (`immich.lab`, `ignis.lab`, `subwave.lab`,
+`https://` links in this guide (`ignis.lab`, `subwave.lab`,
 `sharedirstat.lab`) go through Caddy with its internal CA — your browser will
 warn unless the lab root CA is installed (see
 `Heimdall/docs/runbooks/trust-store-distribution.md`).

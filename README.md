@@ -129,7 +129,8 @@ lab's primary media server.
 **As-built NFS model — one export per media category, not one shared `/data`.**
 The cluster mounts eleven separate exports (`Media/Downloads`, `TV-Shows`,
 `Movies`, `Comics`, `YouTube`, `Music`, `ROMs`, `Audiobooks`, `NextCloud`, and
-the two `Application-Storage/immich-*` datasets), all
+the two `Application-Storage/immich-*` datasets — Immich was **decommissioned
+2026-09-30**, so those two now hold only its retained library), all
 `sec=sys,rw,anonuid=568,anongid=568,all_squash` and exported to **both**
 `192.168.10.0/24` and `192.168.0.0/24`. Three older wildcard exports
 (`Application-Storage`, `Infra-Storage`, and the legacy
@@ -243,7 +244,7 @@ listening** — that stack is not running.
 `*.lab` hostnames resolve through **Pi-hole**, which forwards the `.lab` zone to
 Technitium; records are seeded declaratively from
 `Heimdall/scripts/seed-zones.sh`. Most cluster services also publish port 80 so
-the bare `http://<app>.lab` works — the exceptions are `immich` (`:2283`),
+the bare `http://<app>.lab` works — the exceptions are
 `subwave` (`:7700–7702`), `orphanarr` (`:8790`), `agent-caldera` (`:8000`) and
 `mosquitto` (`:1883`/`:9001`), which are reached on their native ports or through
 a Caddy route. See the [user guide](docs/homelab-user-guide.md) for the complete
@@ -258,7 +259,7 @@ and reconciled by FluxCD. A representative slice of what's deployed:
 
 - **Media automation** — Prowlarr, Sonarr, Radarr, Lidarr, **three** qBittorrent+gluetun instances (`.58`/`.83`/`.84`, ProtonVPN WireGuard), plus Seerr, Cleanuparr, SuggestArr, Kapowarr, Youtarr, Trailarr, Listenarr, Musicseerr, boxarr, Sortarr, FlareSolverr, and a Tdarr server. *(Tdarr's GPU workers lived on Thoth and Epsilon and are both offline.)*
 - **Streaming & libraries** — Navidrome (music), Komga (comics/manga), Subwave (AI DJ radio), Jellystat. Jellyfin itself runs on Akasha (`.247:30013`), not in the cluster.
-- **Photos** — Immich (`.88:2283`, `immich.lab` via Caddy), library on Akasha NFS.
+- ~~**Photos** — Immich~~ — **decommissioned 2026-09-30**. Library retained at `Akasha:/mnt/Media-Storage/Application-Storage/immich-library` (originals + nightly pg_dump).
 - **Dashboards & monitoring** — Homarr (home page), Uptime-Kuma, Headlamp (k8s dashboard), Beszel (+ a `beszel-agent` DaemonSet on every node), Speedtest-Tracker.
 - **AI** — Guppi/Hermes (`.52`), Jeeves (`.80`), Cassandra (`.93`), the Alfred dashboard (`.11`), Caldera (`.70`) and agent-caldera (`.85`) Obsidian-vault APIs, plus Ignis (browser Obsidian, `.90`). *(Ollama/OpenWebUI/ComfyUI live on the offline Thoth.)*
 - **Other** — RomM (ROM manager), NextCloud, ShareDirStat (disk-usage analyser), Pterodactyl (game-server panel — its Wings host is the offline Thoth), n8n (automation), Mosquitto MQTT + MQTT Explorer, MonolithBot (Discord bot), and ArchiSteamFarm.
