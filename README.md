@@ -244,7 +244,7 @@ listening** — that stack is not running.
 Technitium; records are seeded declaratively from
 `Heimdall/scripts/seed-zones.sh`. Most cluster services also publish port 80 so
 the bare `http://<app>.lab` works — the exceptions are
-`subwave` (`:7700–7702`), `orphanarr` (`:8790`), `agent-caldera` (`:8000`) and
+`subwave` (`:7700–7702`), `agent-caldera` (`:8000`) and
 `mosquitto` (`:1883`/`:9001`), which are reached on their native ports or through
 a Caddy route. See the [user guide](docs/homelab-user-guide.md) for the complete
 name/IP/port table.
@@ -263,10 +263,9 @@ and reconciled by FluxCD. A representative slice of what's deployed:
 - **AI** — Guppi/Hermes (`.52`), Jeeves (`.80`), Cassandra (`.93`), the Alfred dashboard (`.11`), Caldera (`.70`) and agent-caldera (`.85`) Obsidian-vault APIs, plus Ignis (browser Obsidian, `.90`). *(Ollama/OpenWebUI/ComfyUI live on the offline Thoth.)*
 - **Other** — RomM (ROM manager), NextCloud, ShareDirStat (disk-usage analyser), Pterodactyl (game-server panel — its Wings host is the offline Thoth), n8n (automation), Mosquitto MQTT + MQTT Explorer, MonolithBot (Discord bot), and ArchiSteamFarm.
 
-Two live objects hold pool addresses without being useful:
+One live object holds a pool address without being useful:
 `kube-system/traefik` (`.10` — k3s's bundled ingress, unused; the
-`--disable=traefik,servicelb` cleanup is still outstanding) and `media/orphanarr`
-(`.89` — hand-applied, scaled to 0 replicas, **not in git**).
+`--disable=traefik,servicelb` cleanup is still outstanding).
 
 The authoritative, always-current list (with URLs and what each is for) is the
 [user guide](docs/homelab-user-guide.md).
@@ -372,7 +371,7 @@ Aspirations, with the 2026-09-05 verification result against each:
 - [x] **Hyperion nodes rebuildable from `Hyperion/nixos/`.** Live matches git 1:1; the flake is pinned and per-node age keys are committed.
 - [ ] **Thoth GPU stack restored from `bash Thoth/scripts/deploy.sh`** (host bootstrap via `Thoth/scripts/setup.sh`). Unverifiable while the host is powered off.
 - [ ] Dead Hyperion node replaced per [`replace-dead-node.md`](Hyperion/docs/runbooks/replace-dead-node.md).
-- [ ] **Every cluster workload defined in `Hyperion/k8s/` and reconciled by Flux.** ⚠️ Two exceptions: `media/orphanarr` and `hermes/alfred-dashboard` are live with no git source.
+- [ ] **Every cluster workload defined in `Hyperion/k8s/` and reconciled by Flux.** ⚠️ One exception: `hermes/alfred-dashboard` is live with no git source.
 - [ ] **All secrets SOPS-encrypted or stored outside the repo.** ⚠️ Two are committed in plaintext. The operator key needed to re-encrypt them exists (on owner-thinkpad) but has no off-site backup.
 - [ ] **Persistent data recoverable.** ❌ No backup exists for any `local-path` PVC, and Akasha has no snapshot or replication schedule.
 

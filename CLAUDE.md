@@ -253,7 +253,6 @@ GitOps: FluxCD (read-only, no token) reconciles `Hyperion/k8s/`; MetalLB serves 
 
 **Live objects with no git source (as of 2026-09-05):**
 - `kube-system/traefik` — k3s's bundled ingress, holds `.10`, unused. The `--disable=traefik,servicelb` server-flag cleanup is still outstanding.
-- `media/orphanarr` — a hand-applied Deployment (`ghcr.io/stevengann/orphanarr:latest`) scaled to **0 replicas**, holding `.89` with no endpoints. Either commit it under `Hyperion/k8s/apps/` or delete it.
 - `hermes/alfred-dashboard` — a LoadBalancer on `.11` fronting the Hermes pod's `:8646`. It carries `kustomize.toolkit.fluxcd.io/*` labels but is **not** in `Hyperion/k8s/apps/hermes/service.yaml`, so Flux never prunes it. It also has **no DNS record**, while the Caddyfile does serve an `alfred.lab` site — that route is unreachable by name until a record is added.
 
 **NixOS channel:** still pinned to `nixos-25.11` in `Hyperion/nixos/flake.nix` (deployed generation 5, 2026-06-05, on every node). Its support window has passed; the bump is tracked in `Hyperion/docs/runbooks/nixos-channel-upgrade.md`.

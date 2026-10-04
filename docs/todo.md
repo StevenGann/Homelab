@@ -130,10 +130,13 @@ DNS record removed; library retained on Akasha under `Application-Storage/`).
       is unused but holds `192.168.10.10`. (`--disable servicelb` is already
       applied and, as of 2026-09-05, captured in
       `Heimdall/k3s-control-plane/docker-compose.yml`.)
-- [ ] **Resolve `media/orphanarr`.** Hand-applied Deployment
-      (`ghcr.io/stevengann/orphanarr:latest`), **scaled to 0 replicas**, holding
-      `192.168.10.89` with no endpoints and **no git source**. Commit it under
-      `Hyperion/k8s/apps/` or delete it.
+- [x] **`media/orphanarr` removed 2026-10-04.** Deployment
+      (`ghcr.io/stevengann/orphanarr:latest`), LoadBalancer (`192.168.10.89`) and
+      the `orphanarr-config` PVC (local-path, single 540 KB `orphanarr.db` on
+      hyperion-epsilon) are deleted. Orphanarr is a **shelved project** and this
+      was an abandoned prototype, not a service — `.89` returns to the free
+      MetalLB pool. Manifests + config DB archived outside the repo at
+      `/opt/data/archive/orphanarr-prototype-2026-10-04/`.
 - [ ] **Resolve `hermes/alfred-dashboard`.** A LoadBalancer on `192.168.10.11`
       fronting the Hermes pod's `:8646`. It carries `kustomize.toolkit.fluxcd.io/*`
       labels but is **not** in `Hyperion/k8s/apps/hermes/service.yaml`, so Flux

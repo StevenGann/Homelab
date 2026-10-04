@@ -130,7 +130,7 @@ Musicseerr by inheriting Jellyfin).
 | **AI agents / private data** | Guppi `.52`, Jeeves `.80`, Cassandra `.93`, Alfred `.11`, Caldera `.70`, agent-caldera `.85`, **Ignis `.90`** | Ignis especially: full read/write on the real Obsidian vault. |
 | **Storage tooling** | **ShareDirStat `.92`** | Can delete files on the Akasha shares. |
 | **Excluded on technical grounds** | **Navidrome `.66`** (D-2), **Immich `.88`** (D-3) | Subsonic auth cannot use an IdP; Immich may be retired. |
-| **Other** | ArchiSteamFarm `.86`, orphanarr `.89` | Steam account access; orphanarr is a 0-replica orphan not in git. |
+| **Other** | ArchiSteamFarm `.86` | Steam account access. |
 | **Infrastructure (Heimdall)** | Pi-hole, Technitium, Caddy, Komodo, ddns-updater, k3s control plane | Edge/infra. Never public. |
 | **Offline (Thoth)** | Ollama, OpenWebUI, ComfyUI, Jellyfin-GPU, Tdarr worker, Wings | Host powered off. Revisit when it returns — **OpenWebUI is a plausible future addition.** |
 | **Not IaC-tracked** | Home Assistant `.147`, Synology `.201`, HDHomeRun `.231` | Outside this repo. |

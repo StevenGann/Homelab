@@ -131,8 +131,6 @@ RECORDS=(
 #                     to be live; delete the Caddy block if it is not.
 #   cassandra.lab   — cassandra-dashboard is a live LoadBalancer on 192.168.10.93
 #                     with no name and no Caddy route.
-#   orphanarr.lab   — orphanarr holds 192.168.10.89 but is scaled to 0 replicas and
-#                     has no git source; resolve the workload before naming it.
 #
 # Also note: this script is ADDITIVE — it skips records that already exist and
 # never deletes or corrects a drifted one. A record edited in the Technitium UI
