@@ -72,7 +72,6 @@ RECORDS=(
     "pterodactyl.lab|A|192.168.10.69"     # :80    (game-server panel)
     "speedtest.lab|A|192.168.10.67"       # :80    (speedtest-tracker)
     "uptime.lab|A|192.168.10.51"          # :80    (uptime-kuma)
-    "homarr.lab|A|192.168.10.53"          # :7575  (dashboard)
     "homeassistant.lab|A|192.168.10.147"  # :8123  (Home Assistant — direct to the HA host; there is NO Caddy block for it, and the live record points here, not at .4)
     "seerr.lab|A|192.168.10.54"           # :5055  (media requests)
     "prowlarr.lab|A|192.168.10.55"        # :9696  (indexer manager)
@@ -102,6 +101,7 @@ RECORDS=(
     "nextcloud.lab|A|192.168.10.87"       # :80    (NextCloud — moved off .82 which komga took)
     "asf.lab|A|192.168.10.86"             # :1242  (ArchiSteamFarm — Steam card farmer)
     "sharedirstat.lab|A|192.168.10.4"     # :443   (disk usage analyser — Caddy TLS → 192.168.10.92:80)
+    "homarr.lab|A|192.168.10.4"           # :443   (dashboard — Caddy TLS → 192.168.10.53:7575). Caddy-fronted, NOT the port-in-URL .53 form; the live record was repointed by hand on 2026-10-04, and this script is additive-only so it cannot correct a drifted record by itself.
     "bifrost.lab|A|192.168.10.20"         # :11434 (Ollama-compatible LLM gateway → DeepSeek; no Caddy, raw API)
     "patzer.lab|A|192.168.10.21"          # :80    (self-hosted chess app — AI coach via Bifrost)
     # ── Backfilled 2026-07-04 (were operator-UI-added / missing from git) ──

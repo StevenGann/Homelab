@@ -299,3 +299,15 @@ bindarr.lab {
     tls internal
     reverse_proxy 192.168.10.95:3001
 }
+
+# ─── Homarr (service dashboard) ──────────────────────────────────────────────
+# Gives homarr.lab the portless https:// route the rest of the lab uses. Homarr
+# serves plain HTTP on :7575 behind the media LoadBalancer (.53); TLS terminates
+# here. Live widgets use WebSockets, which Caddy proxies automatically.
+# NOTE: the Technitium A record must therefore point at .4 (Caddy), not at .53 —
+# this name is Caddy-fronted, unlike the port-in-URL MetalLB entries.
+
+homarr.lab {
+    tls internal
+    reverse_proxy 192.168.10.53:7575
+}
