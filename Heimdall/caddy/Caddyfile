@@ -311,3 +311,10 @@ homarr.lab {
     tls internal
     reverse_proxy 192.168.10.53:7575
 }
+
+# homarr.lab used to be a direct-to-app record, so plain http://homarr.lab/ hit
+# Homarr's own :80 and worked. Now that the A record points at Caddy, the shared
+# :80 file_server would 404 it — redirect instead, so both forms land on https.
+http://homarr.lab {
+    redir https://{host}{uri} permanent
+}
