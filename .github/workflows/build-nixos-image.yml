@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Nix (Determinate flake-enabled installer)
         uses: DeterminateSystems/nix-installer-action@v22
