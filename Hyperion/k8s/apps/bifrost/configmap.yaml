@@ -16,3 +16,10 @@ data:
   TTS_COST_PER_CHAR: "0"
   LEDGER_FILE: /data/spend.jsonl
   BUDGET: "20"
+  # Tenant keys are minted into the same PVC as the ledger. ANON=open during
+  # rollout so existing callers keep working; flip to "closed" once every
+  # client has a key.
+  KEYS_FILE: /data/keys.json
+  ANON: "open"
+  ANON_RATE_LIMIT: "60"
+  ANON_BUDGET: "2"
