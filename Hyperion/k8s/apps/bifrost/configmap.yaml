@@ -20,6 +20,6 @@ data:
   # rollout so existing callers keep working; flip to "closed" once every
   # client has a key.
   KEYS_FILE: /data/keys.json
-  ANON: "open"
+  ANON: "closed"
   ANON_RATE_LIMIT: "60"
   ANON_BUDGET: "2"
