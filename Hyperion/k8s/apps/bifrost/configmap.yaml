@@ -15,10 +15,11 @@ data:
   TTS_VOICE: "pNInz6obpgDQGcFmaJgB"
   TTS_COST_PER_CHAR: "0"
   LEDGER_FILE: /data/spend.jsonl
-  BUDGET: "20"
-  # Tenant keys are minted into the same PVC as the ledger. ANON=open during
-  # rollout so existing callers keep working; flip to "closed" once every
-  # client has a key.
+  # Monthly spend ceiling, USD. Raised from 20 on 2026-10-29 after the gateway
+  # legitimately hit it mid-session; 0 disables the limit entirely.
+  BUDGET: "500"
+  # Tenant keys are minted into the same PVC as the ledger. ANON=closed since
+  # 2026-10-29: every caller holds a key and anonymous traffic is refused.
   KEYS_FILE: /data/keys.json
   ANON: "closed"
   ANON_RATE_LIMIT: "60"
