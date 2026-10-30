@@ -25,7 +25,15 @@ data:
   config.yaml: |
     model:
       provider: custom:bifrost
-      default: deepseek-chat
+      # live value; the seed drifted to 'deepseek-chat', which is not a
+      # Bifrost route, so a rebuilt PVC would have failed every call.
+      default: deepseek-v4-flash
+    # The one deliberate exception to "everything through Bifrost": if the
+    # gateway itself is down, this agent keeps answering on a direct DeepSeek
+    # path. Every other agent has an empty fallback list.
+    fallback_providers:
+      - provider: deepseek
+        model: deepseek-flash
     # Inference goes through Bifrost so every agent's spend lands in one ledger.
     # The key arrives as BIFROST_API_KEY from a SOPS secret, not from this file.
     providers:

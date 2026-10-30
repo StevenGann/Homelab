@@ -9,6 +9,10 @@ data:
     model:
       provider: custom:bifrost
       default: deepseek-v4-pro
+    # No direct upstream fallback on purpose: only the operator's own agent
+    # keeps a path that bypasses Bifrost. If the gateway is down this agent
+    # fails closed rather than quietly spending against the vendor key.
+    fallback_providers: []
     # Inference goes through Bifrost so every agent's spend lands in one ledger.
     # The key arrives as BIFROST_API_KEY from a SOPS secret, not from this file.
     providers:

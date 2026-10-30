@@ -4,8 +4,11 @@ metadata:
   name: bifrost
   namespace: bifrost
 data:
-  BACKENDS: '[{"name":"deepseek","base_url":"https://api.deepseek.com","api_key_env":"UPSTREAM_API_KEY"},{"name":"epsilon","base_url":"http://192.168.0.105:11434","local":true},{"name":"elevenlabs","base_url":"https://api.elevenlabs.io","kind":"elevenlabs","api_key_env":"ELEVENLABS_API_KEY"}]'
-  ROUTES: '{"coach":"deepseek/deepseek-v4-flash","deepseek-v4-flash":"deepseek/deepseek-v4-flash","deepseek-v4-pro":"deepseek/deepseek-v4-pro","private:local":"epsilon/qwen2.5:7b","embed":"epsilon/nomic-embed-text"}'
+  BACKENDS: '[{"name":"deepseek","base_url":"https://api.deepseek.com","api_key_env":"UPSTREAM_API_KEY"},{"name":"epsilon","base_url":"http://192.168.0.105:11434","local":true},{"name":"elevenlabs","base_url":"https://api.elevenlabs.io","kind":"elevenlabs","api_key_env":"ELEVENLABS_API_KEY"},{"name":"anthropic","base_url":"https://api.anthropic.com","kind":"anthropic","api_key_env":"ANTHROPIC_API_KEY"}]'
+  ROUTES: '{"coach":"deepseek/deepseek-v4-flash","deepseek-v4-flash":"deepseek/deepseek-v4-flash","deepseek-v4-pro":"deepseek/deepseek-v4-pro","private:local":"epsilon/qwen2.5:7b","embed":"epsilon/nomic-embed-text","claude":"anthropic/claude-sonnet-5-5","claude-sonnet":"anthropic/claude-sonnet-5-5","claude-opus":"anthropic/claude-opus-5-5","claude-haiku":"anthropic/claude-haiku-5-5","claude-sonnet-5-5":"anthropic/claude-sonnet-5-5","claude-opus-5-5":"anthropic/claude-opus-5-5","claude-haiku-5-5":"anthropic/claude-haiku-5-5"}'
+  # Claude list prices, USD per 1M tokens. Haiku's rate is the under-100k-token
+  # tier; above it Anthropic charges 0.50/2.50 and this understates the cost.
+  PRICING: '{"claude-haiku-5-5":{"input":0.10,"output":0.50},"claude-sonnet-5-5":{"input":2,"output":10},"claude-opus-5-5":{"input":4,"output":20}}'
   FALLBACKS: '{"deepseek-v4-pro":"deepseek-v4-flash"}'
   # Speech. Audio routes stay out of ROUTES so they are never advertised as
   # chat models. TTS_COST_PER_CHAR is the blended rate of the ElevenLabs
