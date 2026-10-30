@@ -8,12 +8,15 @@ data:
   ROUTES: '{"coach":"deepseek/deepseek-v4-flash","deepseek-v4-flash":"deepseek/deepseek-v4-flash","deepseek-v4-pro":"deepseek/deepseek-v4-pro","private:local":"epsilon/qwen2.5:7b","embed":"epsilon/nomic-embed-text"}'
   FALLBACKS: '{"deepseek-v4-pro":"deepseek-v4-flash"}'
   # Speech. Audio routes stay out of ROUTES so they are never advertised as
-  # chat models. TTS_COST_PER_CHAR is 0 until the ElevenLabs plan's real
-  # per-character rate is known — characters are still booked to the ledger.
+  # chat models. TTS_COST_PER_CHAR is the blended rate of the ElevenLabs
+  # Creator annual plan: $220/year for 100k characters a month, i.e.
+  # 220 / 1,200,000 = 0.00018333 per character. Marginal cost while inside the
+  # plan is zero, but a rate that reads zero hides spend, so the plan's own
+  # average is what gets booked. Recheck if the tier changes.
   AUDIO_ROUTES: '{"tts":"elevenlabs/eleven_multilingual_v2"}'
   TTS_VOICES: '{"alloy":"pNInz6obpgDQGcFmaJgB"}'
   TTS_VOICE: "pNInz6obpgDQGcFmaJgB"
-  TTS_COST_PER_CHAR: "0"
+  TTS_COST_PER_CHAR: "0.0001833"
   LEDGER_FILE: /data/spend.jsonl
   # Monthly spend ceiling, USD. Raised from 20 on 2026-10-29 after the gateway
   # legitimately hit it mid-session; 0 disables the limit entirely.
