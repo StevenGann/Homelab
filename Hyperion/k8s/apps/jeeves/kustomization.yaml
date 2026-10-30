@@ -11,4 +11,5 @@ resources:
   - dashboard-auth.sops.yaml
   - shared.sops.yaml
   - deepseek.sops.yaml
+  - bifrost.sops.yaml
   # - discord.yaml  # disabled until token provided

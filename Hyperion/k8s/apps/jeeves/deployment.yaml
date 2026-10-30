@@ -47,6 +47,11 @@ spec:
                 secretKeyRef:
                   name: jeeves-deepseek
                   key: DEEPSEEK_API_KEY
+            - name: BIFROST_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jeeves-bifrost
+                  key: BIFROST_API_KEY
             # Discord — disabled until token provided
             # Shared tokens (from Hermes .env)
             - name: GITHUB_TOKEN

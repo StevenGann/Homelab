@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: jeeves-bifrost
+    namespace: jeeves
+type: Opaque
+stringData:
+    BIFROST_API_KEY: ENC[AES256_GCM,data:p3cTLKHwZUd7Al8u1JKWwkioAJw7HO4TNXttPeRyPV/+36h3g1M3ln/d6jHh5WmjciG1Ow5mJEaeikSvtp7x0bMV9wVURBmxMnkBwA==,iv:yj+zB0EuTiFvPqO6Yxn+qhDSwRlO/C225RSvABNIiR8=,tag:AFvrq4xD5OuXBEAcdEpz2Q==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBiRUxtRTRUUVhpaVByeUwr
+            ZkNUeGNwd2JLMkxHYnkvQjJCZVozTHZZRVZjCmZRemtuKzN2T2RNRTYva08zdHgz
+            UFE0eUxvcmJmZkZQdFRobGxhUTRvWmcKLS0tIGpOamNIRUtaMzI4S0NKQnArQ21w
+            WGNSNFRQamxrYzVzVVg0cGtSNTkrVk0KuIem1nR+EAwXIgmW7z94h6KgWdKK+94l
+            HqO7jpKClj4WvtVegShpasxFF55t7YBu3j0DT073ynsUesIi50JPSg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrd29kUDhtb0Jid1pMckw3
+            eDkyM0dOY1hBbXY2OTRHbHZFNm1KVkpTbjE0CjB4dTBMNVp3Sk42YmhZSk9UMFdV
+            WlczUk9NWFZBb0hCNTk2N1JHRU8vSTAKLS0tIGh5azJZZnRheHdmMkRZck13aFU3
+            aGtpbUg4V1VHVW5PMWNVSktHN1NiamcKfg/kdZK69Nfh+P0zlKcuwir5Rm9bufUz
+            MeenJwSChBGdsj0hbu+15odoCatwgJaKArvDYsNBch4I5ADM3phGBg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1wjvfq7kt5z04q3r04k9l2exjxuql0y8n0tq7qxylrjs5vn8ss5pqkv9x59
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-30T00:28:19Z"
+    mac: ENC[AES256_GCM,data:Dec/YMSyn9KvWPOEhqL/x4bRN3VDclrkzcZmHe+TRLoeWPSxk7IBqakWCsi7M//mEpJphmrdIiDYj1nM8wZj8qLlI5vLde9WxV+JyOt9++lK98Ovxzm3cfBcEHuoKMQuueTK2NSh/DLyayCT6+770HsSe7D++TwTe0vcNNvQ+0w=,iv:N0FAyi/B7p/sBJ1eWd+0aMsdWUBLwC9ab2J61TIYvFk=,tag:pSSZ1JYdlRB8LxYyK6ELyg==,type:str]
+    version: 3.13.3

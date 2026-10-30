@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: hermes-bifrost
+    namespace: hermes
+type: Opaque
+stringData:
+    BIFROST_API_KEY: ENC[AES256_GCM,data:G7dn5uJNPw8CbH8EfZ43zkE5GCOm9cHQKsC4vN77dZoCdvRSNyPspW9vKoOXSJ+KRaL8OVxbW0WKixHKKz0RqZ75+BgQEE1eidSHoA==,iv:ZtEHP6qQkuEFm69wmX7gIvMOw/A3m2GUfe7vKkqFw1o=,tag:/v1k5xNZ91LA0ywdf4Oa6g==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB4NmtrenJYMjA5aTBTcmtw
+            cFZLZEo4bWk5aUlTNisweEx4QTZCRzFaZ3dJClJBYXp1WXhBclIxV0ZGOFdyTlVE
+            eUplKzBpSnhiaXU1b1VwSW9JRUVIcTAKLS0tIGJVV25LTENTdmNMVHdGc3JwZkRi
+            d3RvQmpRemtvRi9TOFJXcTRTUGF6UDQKtQ3fEc6MB0Yy3Sl+ZLcF0yOykPVW8I3C
+            xGYWV7+/rCH5jR1q9Mw+L5FfEfpgK95xj6qC8NGTfeNYH+U81qU7iw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvOHlaRUFmY0FOY1BZOVFm
+            NnI1SC9ESWVzZ3Yxam9uLzJNNHRmODE2SnlvCnhqVktiOEdLYXloam9uTWFLa0c4
+            c0JiYTUwSFpKRm1oWjNGRGNXbmR0VHMKLS0tIGdZelBZYXZFWUdvQ0QvbmFkMEZW
+            VHBlTWo5UVVNVDZUa1EwdGNaWStTSFUKpp40Td/WplJOjqxcIOGZUyXNtGoO+k4t
+            YduoZytsZF88ZfeS8VEeHJ/hWP3I+dVluyyUDhX2ndLGkSVaa137QA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1wjvfq7kt5z04q3r04k9l2exjxuql0y8n0tq7qxylrjs5vn8ss5pqkv9x59
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-30T00:28:13Z"
+    mac: ENC[AES256_GCM,data:FmEiNxeiNbbt2/lLKkVc8/oURyNOZgLdnvPbU1V32+2Ru5T4hlQ1S8pF1DZrjy3+vh7X5WVEKEL2Z1S+ZVK7E/M3GnyUgEWJbF2nLvxN0g+Og1iX9Z/XhWUp1rd767rmuylQCfTrC+OYoBZ9FcfhL/jQcpWisNBCX75HW7ZwYsM=,iv:HvrxzCINmx6dASiXHtKou98YDuu/L6f/hhWtoy47ZhI=,tag:qOZErJQL9wjJ+EBg9V3Weg==,type:str]
+    version: 3.13.3

@@ -9,5 +9,6 @@ resources:
   - config.yaml
   - nginx-proxy.yaml
   - deepseek.sops.yaml
+  - bifrost.sops.yaml
   - dashboard-auth.sops.yaml
   - cassandra-discord.sops.yaml

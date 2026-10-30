@@ -47,6 +47,11 @@ spec:
                 secretKeyRef:
                   name: cassandra-deepseek
                   key: DEEPSEEK_API_KEY
+            - name: BIFROST_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cassandra-bifrost
+                  key: BIFROST_API_KEY
             # Discord — activated via DISCORD_BOT_TOKEN env (below) + discord config section
             - name: DISCORD_BOT_TOKEN
               valueFrom:

@@ -7,8 +7,14 @@ metadata:
 data:
   config.yaml: |
     model:
-      provider: deepseek
+      provider: custom:bifrost
       default: deepseek-v4-pro
+    # Inference goes through Bifrost so every agent's spend lands in one ledger.
+    # The key arrives as BIFROST_API_KEY from a SOPS secret, not from this file.
+    providers:
+      bifrost:
+        base_url: http://bifrost.bifrost.svc.cluster.local:11434/v1
+        key_env: BIFROST_API_KEY
     # ── Approvals: bypass every prompt ──────────────────────────────────────
     approvals:
       mode: 'off'

@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: cassandra-bifrost
+    namespace: cassandra
+type: Opaque
+stringData:
+    BIFROST_API_KEY: ENC[AES256_GCM,data:wbIOBVlAqO5u6DkOrXHpaweZptAyGxSfvianJ/jrjkT1Rrgxkgy61uUH1ZYN82W2VQMV1JH2uwgsElCECFWFHZ1dgns2oQ+nbmNOrA==,iv:rXkfHAgHvMHFVO3aYr2mJMJy94q2s7cfVFQ17tCjirM=,tag:8ybdekqAx/0bp5l6I4pzyA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBTZXN4dFpCeEhOLzJ1QXBx
+            NmMvQkdHdFNlRWlQNS93YzU0OHZRYytHeUhJCndhdXFDTUZnUHYzZEFqLzFSSGpx
+            Q2tMclAxYXNIc0hvM0NvSEZ3QStaR1kKLS0tIHJWRUtKZmtCQXpaZS9LUEhsVmRO
+            amRuMFRwNCsyY2pzVkVCRHBpM1VuTjgKv3oQqxLzPSi0Qm0NK6k4y1H1WZ6kc5Iv
+            pkvdMrO8kZtTH3sF4U0Q2yeQxmIfTakcN4CPX9gqQs9KsZZOHFabow==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBkMjNYT1pmT3dzNDlxL1Nt
+            TXFWUWxrR3NzNkpLeTRCbVpaZ1M4a1hWRTJjCnNHay9LcXJab0xlbUZySUs2SGdS
+            TTBHZENBZktJdlE4UUQzajFQcWYvOUEKLS0tIGdyL0lWb0NjTG1obVNmbXVQRUFx
+            NkhLbllybmJTS1V3RjRrSG8zd0MvMTQKfUp6Scgk4Hmv/sPRiYV7BTkeN0crIbdw
+            tQmpd0J+KtYrRhYMOyTjYsGZuaFTDr2MAKCxjHJdJmEtbY2lFQ9v8w==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1wjvfq7kt5z04q3r04k9l2exjxuql0y8n0tq7qxylrjs5vn8ss5pqkv9x59
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-30T00:28:19Z"
+    mac: ENC[AES256_GCM,data:9BnGh+QjcTkhNmC9SCu+2mMDeqnuz8lj1MBrZFs7enCK1ITiiG5v2qkqkV5CZ0LG2o4+JLwPa9eFhwoaKCdVKSuuE4mcJBpqdCpt8qycVqpLrU76a7MX6ltK+jZzfrZ3CefvYjxVx/yi/OO+5oXQWDWzGV2oAEFcXsL6PfNdZF4=,iv:moYoUFhUAJAG7jKJydsaxrU4m4L/gK9Uk2RNZu6F4Qs=,tag:HlW0Xw6z9WRXocy5fDw4Pw==,type:str]
+    version: 3.13.3

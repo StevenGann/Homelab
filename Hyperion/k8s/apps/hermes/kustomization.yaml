@@ -3,7 +3,8 @@ kind: Kustomization
 namespace: hermes
 resources:
   - namespace.yaml
-  - deepseek.sops.yaml        # SOPS-encrypted — decrypted by kustomize-controller
+  - deepseek.sops.yaml
+  - bifrost.sops.yaml        # SOPS-encrypted — decrypted by kustomize-controller
   - dashboard-auth.sops.yaml  # SOPS-encrypted — decrypted by kustomize-controller
   - config.yaml               # ConfigMap: config.yaml seed
   - nginx-proxy.yaml          # ConfigMap: basic-auth proxy

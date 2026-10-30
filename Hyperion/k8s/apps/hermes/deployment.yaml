@@ -52,6 +52,11 @@ spec:
                 secretKeyRef:
                   name: hermes-deepseek
                   key: DEEPSEEK_API_KEY
+            - name: BIFROST_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-bifrost
+                  key: BIFROST_API_KEY
           volumeMounts:
             - { name: data, mountPath: /opt/data }
           resources:
