@@ -14,7 +14,7 @@ data:
   # plan is zero, but a rate that reads zero hides spend, so the plan's own
   # average is what gets booked. Recheck if the tier changes.
   AUDIO_ROUTES: '{"tts":"elevenlabs/eleven_multilingual_v2","tts-v4":"elevenlabs/eleven_v4"}'
-  TTS_VOICES: '{"alloy":"pNInz6obpgDQGcFmaJgB","brian":"nPczCjzI2devNBz1zQrb"}'
+  TTS_VOICES: '{"alloy":"pNInz6obpgDQGcFmaJgB","brian":"nPczCjzI2devNBz1zQrb","victor":"cPoqAvGWCPfCfyPMwe4z"}'
   TTS_VOICE: "pNInz6obpgDQGcFmaJgB"
   TTS_COST_PER_CHAR: "0.0001833"
   LEDGER_FILE: /data/spend.jsonl
