@@ -13,7 +13,7 @@ data:
   # 220 / 1,200,000 = 0.00018333 per character. Marginal cost while inside the
   # plan is zero, but a rate that reads zero hides spend, so the plan's own
   # average is what gets booked. Recheck if the tier changes.
-  AUDIO_ROUTES: '{"tts":"elevenlabs/eleven_multilingual_v2"}'
+  AUDIO_ROUTES: '{"tts":"elevenlabs/eleven_multilingual_v2","tts-v4":"elevenlabs/eleven_v4"}'
   TTS_VOICES: '{"alloy":"pNInz6obpgDQGcFmaJgB"}'
   TTS_VOICE: "pNInz6obpgDQGcFmaJgB"
   TTS_COST_PER_CHAR: "0.0001833"
