@@ -124,8 +124,13 @@ change will be reverted by Flux on the next reconcile. Fix the repo instead.
 
 ## 4. Restore from backup
 
+> **Path note:** the share is `Infra-Storage`, not `Backups`. There is no
+> `/mnt/Media-Storage/Backups` export on Akasha — mounting it fails with exit 32,
+> and `showmount -e <akasha-ip>` is the authority on what is actually exported.
+
+
 Backups are taken nightly at 03:17 UTC by `hermes-backup` (CronJob) into
-`/mnt/Media-Storage/Backups/hermes/<UTC timestamp>/` on Akasha, each containing:
+`/mnt/Media-Storage/Infra-Storage/hermes/<UTC timestamp>/` on Akasha, each containing:
 
 - `state.db.gz` — a consistent SQLite `.backup` snapshot
 - `home.tgz` — `config.yaml`, `SOUL.md`, `memories/`, `skills/`, `cron/`, `.env`
@@ -141,8 +146,8 @@ Backups are taken nightly at 03:17 UTC by `hermes-backup` (CronJob) into
    ```bash
    SNAP=<timestamp>            # e.g. 20261031T031700Z
    mkdir -p /mnt/akasha-backups
-   mount -t nfs <akasha-ip>:/mnt/Media-Storage/Backups /mnt/akasha-backups
-   cd /mnt/akasha-backups/hermes/$SNAP && sha256sum -c SHA256SUMS
+   mount -t nfs -o nfsvers=4.1 <akasha-ip>:/mnt/Media-Storage/Infra-Storage /mnt/akasha-backups
+   cd /mnt/akasha-backups/hermes/$SNAP && sha256sum -c SHA256SUMS   # must print OK for both files
    ```
 3. **Move, never delete, the current data.** It may be the only copy of the last
    few hours.
@@ -247,7 +252,7 @@ loop that scales forever hides the underlying fault.
 kubectl -n hermes create job --from=cronjob/hermes-backup backup-drill-$(date +%s)
 
 # 2. Confirm the artifact landed and verifies
-#    (mount Akasha's Backups share, cd into the newest dir, sha256sum -c SHA256SUMS)
+#    (mount Akasha's Infra-Storage share, cd into the newest dir, sha256sum -c SHA256SUMS)
 
 # 3. Restore it somewhere harmless and boot it
 #    Restore into /mnt/node-storage/drill/ and start a throwaway pod mounting it.
