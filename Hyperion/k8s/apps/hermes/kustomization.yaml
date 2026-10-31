@@ -6,8 +6,11 @@ resources:
   - deepseek.sops.yaml
   - bifrost.sops.yaml        # SOPS-encrypted — decrypted by kustomize-controller
   - dashboard-auth.sops.yaml  # SOPS-encrypted — decrypted by kustomize-controller
+  - discord.sops.yaml         # SOPS-encrypted — Discord bot token (git is the only source)
   - config.yaml               # ConfigMap: config.yaml seed
   - nginx-proxy.yaml          # ConfigMap: basic-auth proxy
   - pvc.yaml
   - deployment.yaml
   - service.yaml
+  - backup-cronjob.yaml      # nightly home -> Akasha, runs on the node's hostPath
+  - rescue-rbac.yaml         # Jeeves' break-glass access to this namespace
