@@ -13,5 +13,4 @@ resources:
   - deployment.yaml
   - service.yaml
   - backup-cronjob.yaml      # nightly home -> Akasha, runs on the node's hostPath
-  - rbac                     # Jeeves' break-glass access (sub-kustomization: no namespace transform)
 

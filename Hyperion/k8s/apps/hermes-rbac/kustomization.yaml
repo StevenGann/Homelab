@@ -1,0 +1,14 @@
+# A separate Flux Kustomization root, on purpose.
+#
+# The `hermes` Kustomization sets `namespace: hermes`, and kustomize's namespace
+# transformer rewrites RoleBinding subjects — including an explicit one pointing
+# at another namespace. It runs after JSON6902 patches, so patching the subject
+# back does not survive, and nesting this under the hermes root inherits the
+# transformer regardless.
+#
+# A root without `namespace:` leaves the subject alone. Everything here sets its
+# namespace explicitly instead.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - rescue-rbac.yaml
