@@ -13,17 +13,5 @@ resources:
   - deployment.yaml
   - service.yaml
   - backup-cronjob.yaml      # nightly home -> Akasha, runs on the node's hostPath
-  - rescue-rbac.yaml         # Jeeves' break-glass access to this namespace
+  - rbac                     # Jeeves' break-glass access (sub-kustomization: no namespace transform)
 
-# The Kustomization sets `namespace: hermes`, and that transformer rewrites
-# RoleBinding subjects too — which silently re-pointed the rescue binding at a
-# nonexistent ServiceAccount in the wrong namespace. Jeeves lives in `jeeves`;
-# put the subject back after the transformer runs.
-patches:
-  - target:
-      kind: RoleBinding
-      name: guppy-rescuer
-    patch: |-
-      - op: replace
-        path: /subjects/0/namespace
-        value: jeeves

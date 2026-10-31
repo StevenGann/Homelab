@@ -86,4 +86,5 @@ spec:
             - name: backups
               nfs:
                 server: 192.168.10.247
-                path: /mnt/Media-Storage/Backups
+                readOnly: false
+                path: /mnt/Media-Storage/Infra-Storage
