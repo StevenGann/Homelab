@@ -1,0 +1,48 @@
+# Emergency access for Guppy.
+#
+# On 2026-10-30 Guppy's pod went down and nobody could bring it back: the user
+# had to wait until he was home from work to start a different agent with the
+# right credentials. Jeeves (namespace `jeeves`, service account `default`) was
+# asked at the time and could not help — it had no kubectl credentials and no
+# permission in the `hermes` namespace.
+#
+# This grants exactly the capability needed to diagnose and restart Guppy, and
+# nothing more. It cannot read secrets, cannot exec into pods, cannot delete
+# anything, and cannot touch any other workload.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: guppy-rescuer
+  namespace: hermes
+rules:
+  # Find out what is wrong.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # See whether the desired state is sane (replicas, image, last transition).
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  # The one write permission: bring the replica count back up.
+  # `deployments/scale` is a subresource, so this cannot edit the pod template,
+  # the image, the env, or the volumes — only the number of replicas.
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: guppy-rescuer
+  namespace: hermes
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: jeeves
+roleRef:
+  kind: Role
+  name: guppy-rescuer
+  apiGroup: rbac.authorization.k8s.io

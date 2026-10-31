@@ -1,0 +1,89 @@
+# Nightly backup of Guppy's home directory to Akasha.
+#
+# Why this exists: on 2026-10-30 the entire agent home (state.db, config, SOUL,
+# skills, memories) lived in a single local-path PVC on kappa's 32 GB root
+# partition with no copy anywhere. A botched migration took the pod down and the
+# only intact copy was one that happened to be sitting on the big partition.
+# That was luck, not design. This job makes the copy routine.
+#
+# It reads the data directory directly from the node (hostPath) rather than
+# through the PVC, so it runs whether or not Guppy's pod is alive — a backup
+# that requires the thing it backs up to be healthy is not a backup.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hermes-backup
+  namespace: hermes
+spec:
+  schedule: "17 3 * * *"          # 03:17 UTC, off the hour so it never races other jobs
+  timeZone: "Etc/UTC"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          nodeSelector:
+            kubernetes.io/hostname: hyperion-kappa
+          containers:
+            - name: backup
+              image: alpine:3.20
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  apk add -q sqlite >/dev/null 2>&1
+
+                  TS=$(date -u +%Y%m%dT%H%M%SZ)
+                  OUT="/backups/hermes/$TS"
+                  mkdir -p "$OUT"
+
+                  # .backup is the only safe way to copy a live SQLite database;
+                  # a plain file copy can capture a torn page.
+                  sqlite3 /data/state.db ".backup /tmp/state.db"
+                  gzip -9 -c /tmp/state.db > "$OUT/state.db.gz"
+                  rm -f /tmp/state.db
+
+                  # Everything that makes Guppy Guppy. Caches and logs are
+                  # rebuildable and would multiply the archive size.
+                  tar -czf "$OUT/home.tgz" -C /data \
+                    --exclude='./state.db*' \
+                    --exclude='./cache' \
+                    --exclude='./logs' \
+                    --exclude='./forensics' \
+                    --exclude='./.gitwork' \
+                    --exclude='./home/.cache' \
+                    --exclude='./home/.npm-global' \
+                    .
+
+                  ( cd "$OUT" && find . -type f -exec sha256sum {} \; | sort -k2 > SHA256SUMS )
+
+                  du -sh "$OUT"/* | sed "s|^|  |"
+                  date -u +%s > /backups/hermes/last-success
+                  echo "backup complete: $TS"
+
+                  # Retention: newest 14. Each run is ~2 GB, so this is ~28 GB on
+                  # a 970 GB share. Raise the number if you want more history.
+                  ls -1d /backups/hermes/2*/ 2>/dev/null | sort | head -n -14 | xargs -r rm -rf
+                  echo "retention applied"
+              resources:
+                requests: { cpu: "200m", memory: "256Mi" }
+                limits:   { cpu: "2",    memory: "1Gi" }
+              volumeMounts:
+                - { name: data,    mountPath: /data,    readOnly: true }
+                - { name: backups, mountPath: /backups }
+          volumes:
+            - name: data
+              hostPath:
+                path: /mnt/node-storage/hermes-data
+                type: Directory
+            # Akasha. Internal IP, so it is safe to keep in this (public) repo.
+            - name: backups
+              nfs:
+                server: 192.168.10.247
+                path: /mnt/Media-Storage/Backups
