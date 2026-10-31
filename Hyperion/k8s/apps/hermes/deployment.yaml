@@ -57,6 +57,26 @@ spec:
                 secretKeyRef:
                   name: hermes-bifrost
                   key: BIFROST_API_KEY
+            # Discord bot token (GUPPI#6222). Presence of this env is what
+            # activates the Discord platform (check_discord_tool_requirements →
+            # _get_bot_token). The `hermes-discord` Secret is created out-of-band
+            # (sops isn't available on the edge workstation); re-encrypt it into
+            # git as hermes-discord.sops.yaml from owner-thinkpad to make it
+            # reproducible. Lost in the 2026-10-30 migration; restored 2026-10-30.
+            - name: DISCORD_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-discord
+                  key: DISCORD_BOT_TOKEN
+            # Discord access policy (comma-separated snowflake IDs; NOT secret).
+            # The adapter reads these env vars directly (_get_allowed_* →
+            # _gate_raw); allowed_users OR allowed_roles grants access, and
+            # allowed_channels scopes where. Kept in git (not live config.yaml)
+            # so they survive a PVC wipe — the original policy was lost that way
+            # in the 2026-10-30 migration. Role gating is guild-scoped.
+            - { name: DISCORD_ALLOWED_USERS,    value: "906694539476078612" }
+            - { name: DISCORD_ALLOWED_CHANNELS, value: "1377044338994839654" }
+            - { name: DISCORD_ALLOWED_ROLES,    value: "1551060962222538872" }
           volumeMounts:
             - { name: data, mountPath: /opt/data }
           resources:

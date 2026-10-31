@@ -65,3 +65,21 @@ data:
       timeout: 1800
     agent:
       disabled_toolsets: []
+    # ── Discord ──────────────────────────────────────────────────────────────
+    # The bot (GUPPI#6222) activates via the DISCORD_BOT_TOKEN env (see the
+    # deployment + the out-of-band hermes-discord Secret), not from this file.
+    # require_mention keeps Guppy responsive-not-proactive per the agent rules.
+    # The allowlists (user / channel / role) are set as DISCORD_ALLOWED_* env in
+    # the deployment, NOT here: the adapter reads those env vars directly
+    # (_gate_raw), the config key for users is the non-obvious `allow_from`, and
+    # env is git-durable across a PVC wipe — which is exactly how the original
+    # "specific channels and roles" config was lost in the 2026-10-30 migration.
+    # NOTE: this seed block only governs a FRESH PVC; the env vars govern both.
+    discord:
+      require_mention: true
+    # ── Platforms ──────────────────────────────────────────────────────────
+    platforms:
+      api_server:
+        extra:
+          host: 0.0.0.0
+          port: 8646
