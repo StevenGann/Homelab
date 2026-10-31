@@ -18,10 +18,15 @@ spec:
       labels:
         app: hermes
     spec:
-      # Schedule on a Pi worker, not the containerized control-plane node
-      # (its pods are unreachable — ADR-0002).
+      # Pinned to hyperion-kappa: Guppy's home now lives on kappa's 206 GB
+      # node-storage partition via the hostPath `data` volume below — the proper,
+      # declarative version of the 2026-10-30 "migrate to the big partition" that
+      # the live-symlink migrate.sh botched. hostPath is node-local, so the pod
+      # must stay on kappa. zone=hyperion also keeps it off the tainted control
+      # plane (ADR-0002).
       nodeSelector:
         topology.kubernetes.io/zone: hyperion
+        kubernetes.io/hostname: hyperion-kappa
       initContainers:
         # Seed config.yaml onto the PVC only if absent (preserves dashboard edits).
         - name: seed-config
@@ -99,8 +104,16 @@ spec:
             limits:   { cpu: "200m", memory: "64Mi" }
       volumes:
         - name: data
-          persistentVolumeClaim:
-            claimName: hermes-data
+          # Guppy's HERMES_HOME on kappa's 206 GB ext4 node-storage partition
+          # (nvme0n1p3), NOT the 32 GB root local-path PVC that hit DiskPressure
+          # and could only hold a pruned subset. The full ~13 GB home (clean
+          # state.db = 6124 sessions/150247 msgs, real config.yaml with Bifrost/
+          # TTS/webhook, kubectl, k3s.yaml, .gitwork, memories) lives here;
+          # recovered + restored 2026-10-31. The old `hermes-data` PVC is left
+          # defined (pvc.yaml) but unmounted, for rollback.
+          hostPath:
+            path: /mnt/node-storage/hermes-data
+            type: Directory
         - name: config-seed
           configMap:
             name: hermes-config-seed
