@@ -532,8 +532,9 @@ spec:
   path: ./Hyperion/k8s/apps/hermes-rbac
   prune: true
   wait: true
-  dependsOn:
-    - name: hermes
+  # No dependsOn: the RBAC only needs the `hermes` namespace, which exists.
+  # Depending on the app meant a stalled app blocked the very access needed to
+  # repair it — the failure mode this whole mechanism exists to remove.
   sourceRef:
     kind: GitRepository
     name: flux-system
