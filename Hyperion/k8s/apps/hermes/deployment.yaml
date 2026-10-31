@@ -82,6 +82,8 @@ spec:
             - { name: DISCORD_ALLOWED_USERS,    value: "906694539476078612" }
             - { name: DISCORD_ALLOWED_CHANNELS, value: "1377044338994839654" }
             - { name: DISCORD_ALLOWED_ROLES,    value: "1551060962222538872" }
+            - { name: DISCORD_HOME_CHANNEL,           value: "1511262544629858374" }
+            - { name: DISCORD_HOME_CHANNEL_THREAD_ID, value: "" }
           volumeMounts:
             - { name: data, mountPath: /opt/data }
           resources:

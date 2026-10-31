@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: hermes-discord
+    namespace: hermes
+type: Opaque
+stringData:
+    DISCORD_BOT_TOKEN: ENC[AES256_GCM,data:PdaDbQduj5mXLTOkWRjkVgw+96/bzLn6/IUXRb387bdIswbk8HKEHQgKY+H5HqpVQ4DQS+FrlXe7b1gREP+/EMaA6oJO8hs9,iv:Q7wl/tc86mnBaeBbb29GpJVh9jSm4NOEAdmG+EX4owc=,tag:McgnPNYQm3nA6q2AomAY2g==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA1cXRxSGVYNWRrSlJ3QjQ1
+            NGVUVmNVckNUMGNSZFdXc3l5akFNRHBzWEh3CmVGZDREbWVaTldIL2pyNjh6OHZT
+            YnlKN3FOUyt3RnZRYWlodzVDZ1Rsbm8KLS0tIE5hQU1pT3BlWkd6SWptTHBKTVpN
+            MTczbzZoaWU2MUlHNVVVditsc3FJSTAKK69DXLr8I3dfAYGoTz4ErVcRyChJzmeJ
+            Fc0IkG0hGaswss1iYJIw2EXSa9y9ELJcLREjdM8VuRQpllSV4bhM7Q==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1u8tfm7scg35csrnam9ntnppne5728593yw7fk3p9sz7ecl06dpgs958ncm
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAwRisya0s1KzBtb29jZlI3
+            NjNxdXhXUUZ0UHhONTB1ZUlJYVVNSWZPVWdRCloxdTU2OXZ2TE1acldIU29JNjN1
+            T2xqRkpwVVNTbjhNVnhmMzUyVWNoZnMKLS0tIFVSVC9CWUN6N21JcUdQMkxjdjZO
+            MXBHTTVVaHJ5a1U5eFhnUHBuTkFTTzAKuLWaKlR9SZUIfquutmErjZzEv/l/zzLK
+            d0arOkuG7B2nDMoxlhi7LNZklt2H1TflRqcDjmk5C93PR8Ck3GB4BA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1wjvfq7kt5z04q3r04k9l2exjxuql0y8n0tq7qxylrjs5vn8ss5pqkv9x59
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-31T05:35:01Z"
+    mac: ENC[AES256_GCM,data:c4l6M/2SkJ/GuujIw66/GoBJHBZwCqF6eqL1FIu5BmrO27bHhSrWt16VQweRq5WmebKloV8+U7ciX4lAVxhfVnfIffhwou5XY1rmLAF4+IAIkw8LM1vbRpnBdIQlDpD/OZOuXoF+RroYfRapdmVHzF4700PD/PpYnHxbFj2ujuo=,iv:rQQtQChxL8bR231NsG4rm9FanDVZ5dc4Lgx3W4xoBnA=,tag:Ch1M8n+cgH4A+taW+WBi9w==,type:str]
+    version: 3.13.3
