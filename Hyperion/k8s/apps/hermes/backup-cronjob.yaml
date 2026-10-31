@@ -61,7 +61,7 @@ spec:
                     --exclude='./home/.npm-global' \
                     .
 
-                  ( cd "$OUT" && find . -type f -exec sha256sum {} \; | sort -k2 > SHA256SUMS )
+                  ( cd "$OUT" && find . -type f ! -name SHA256SUMS -exec sha256sum {} \; | sort -k2 > SHA256SUMS )
 
                   du -sh "$OUT"/* | sed "s|^|  |"
                   date -u +%s > /backups/hermes/last-success
