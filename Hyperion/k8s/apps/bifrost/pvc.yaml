@@ -5,9 +5,13 @@ kind: PersistentVolumeClaim
 metadata: { name: bifrost-data, namespace: bifrost }
 spec:
   accessModes: [ReadWriteOnce]
-  # Bound to the static PV in pv.yaml. volumeName + storageClassName "" make the
-  # binding explicit and keep local-path's provisioner away from the tainted
-  # control plane, where its helper pod cannot schedule.
+  # Bound by name to the PV that already holds the ledger. The file is the record
+  # of every request and its cost, so a re-provisioned empty volume silently
+  # restarts the month's totals.
+  #
+  # See README.md: the gateway does NOT run on Heimdall — pods on the
+  # containerised control plane are unreachable from the workers
+  # (docs/design/adr-0002-containerized-control-plane-networking.md).
   storageClassName: ""
-  volumeName: bifrost-data
+  volumeName: pvc-9063d387-549a-4176-9b76-9141db9c3647
   resources: { requests: { storage: 1Gi } }
