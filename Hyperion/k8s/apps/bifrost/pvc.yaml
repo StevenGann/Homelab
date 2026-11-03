@@ -5,5 +5,9 @@ kind: PersistentVolumeClaim
 metadata: { name: bifrost-data, namespace: bifrost }
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  # Bound to the static PV in pv.yaml. volumeName + storageClassName "" make the
+  # binding explicit and keep local-path's provisioner away from the tainted
+  # control plane, where its helper pod cannot schedule.
+  storageClassName: ""
+  volumeName: bifrost-data
   resources: { requests: { storage: 1Gi } }

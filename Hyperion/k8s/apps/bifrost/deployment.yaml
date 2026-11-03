@@ -11,7 +11,15 @@ spec:
   template:
     metadata: { labels: { app: bifrost } }
     spec:
-      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      # Heimdall — the edge host that already serves DNS (Technitium) and the
+      # reverse proxy. Bifrost is the cluster's single routing point for model
+      # backends, so it lives with the other always-on routing services rather
+      # than on a worker that can be drained for a rebuild. The toleration is
+      # per-pod and deliberate: this is the one workload allowed past the
+      # control-plane taint, and the exception does not extend to anything else.
+      nodeSelector: { kubernetes.io/hostname: heimdall-control-plane }
+      tolerations:
+        - { key: node.homelab/control-plane-only, operator: Equal, value: "true", effect: NoExecute }
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -19,6 +27,22 @@ spec:
         fsGroup: 65534                    # ledger PVC writable by nobody (65534)
         seccompProfile: { type: RuntimeDefault }
       terminationGracePeriodSeconds: 30
+      initContainers:
+        # The PV is a hostPath: kubelet creates it as root and fsGroup does not
+        # apply to hostPath volumes, so ownership is fixed here. This also makes
+        # a rebuilt node self-healing — bifrost otherwise fails to write its
+        # ledger, which is silent until the month's spend numbers go missing.
+        - name: prepare-data
+          image: busybox:1.36
+          command: ["sh", "-c", "chown -R 65534:65534 /data && chmod 0770 /data"]
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"], add: ["CHOWN"] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
       containers:
         - name: bifrost
           image: ghcr.io/stevengann/bifrost:d31aab3e71bfc7f08d5d2a7d1afa6b4efbb975d5
