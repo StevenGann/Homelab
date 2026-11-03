@@ -7,4 +7,5 @@ resources:
   - configmap.yaml
   - secret.sops.yaml
   - deployment.yaml
+  - embeddings.yaml
   - service.yaml

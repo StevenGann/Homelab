@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embeddings
+  namespace: bifrost
+  labels: { app: embeddings }
+  annotations:
+    # Replaces the Epsilon worker (RTX 4080 on the house subnet) as the local
+    # embedder. ARM-only cluster, no GPU: a 137M-parameter embedding model is
+    # the largest thing that runs usefully here. See
+    # Hyperion/docs/runbooks/embeddings-service.md.
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: embeddings } }
+  template:
+    metadata: { labels: { app: embeddings } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        # Weights are pulled at pod start (274 MB, ~10 s) rather than baked into
+        # an image or held on a PVC. The pull needs egress to registry.ollama.ai.
+        - name: pull-model
+          image: ollama/ollama:0.40.14
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              ollama serve & pid=$!
+              i=0
+              until ollama list >/dev/null 2>&1; do
+                i=$((i+1)); [ "$i" -gt 60 ] && echo "server did not start" >&2 && exit 1
+                sleep 1
+              done
+              ollama pull nomic-embed-text
+              kill "$pid"; wait "$pid" 2>/dev/null || true
+          env:
+            - { name: OLLAMA_MODELS, value: /models }
+            - { name: HOME, value: /tmp }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: models, mountPath: /models }
+            - { name: tmp, mountPath: /tmp }
+      containers:
+        - name: embeddings
+          image: ollama/ollama:0.40.14
+          imagePullPolicy: IfNotPresent
+          command: ["ollama", "serve"]
+          env:
+            - { name: OLLAMA_MODELS, value: /models }
+            - { name: HOME, value: /tmp }
+            - { name: OLLAMA_HOST, value: "0.0.0.0:11434" }
+            # Keep the model resident: a cold load costs ~2 s, a warm call ~70 ms.
+            - { name: OLLAMA_KEEP_ALIVE, value: "-1" }
+            - { name: OLLAMA_NUM_PARALLEL, value: "2" }
+          ports:
+            - { name: http, containerPort: 11434 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: models, mountPath: /models }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits:   { cpu: "2000m", memory: "2Gi" }
+          startupProbe:
+            httpGet: { path: /api/version, port: http }
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /api/tags, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/version, port: http }
+            periodSeconds: 30
+      volumes:
+        - { name: models, emptyDir: { sizeLimit: 4Gi } }
+        - { name: tmp, emptyDir: { sizeLimit: 512Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: embeddings
+  namespace: bifrost
+  labels: { app: embeddings }
+spec:
+  type: ClusterIP
+  selector: { app: embeddings }
+  ports:
+    - { name: http, port: 11434, targetPort: http }
