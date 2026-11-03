@@ -12,6 +12,6 @@ spec:
   # See README.md: the gateway does NOT run on Heimdall — pods on the
   # containerised control plane are unreachable from the workers
   # (docs/design/adr-0002-containerized-control-plane-networking.md).
-  storageClassName: ""
+  storageClassName: local-path   # must match the PV it is bound to by name
   volumeName: pvc-9063d387-549a-4176-9b76-9141db9c3647
   resources: { requests: { storage: 1Gi } }
