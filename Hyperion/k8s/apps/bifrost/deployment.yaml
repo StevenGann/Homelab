@@ -40,7 +40,7 @@ spec:
             runAsUser: 0
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            capabilities: { drop: ["ALL"], add: ["CHOWN"] }
+            capabilities: { drop: ["ALL"], add: ["CHOWN", "FOWNER"] }
           volumeMounts:
             - { name: data, mountPath: /data }
       containers:
