@@ -39,6 +39,34 @@ The other path is the one ADR-0002 already plans: relocate the control plane off
 the bridge-networked container (`network_mode: host`, its own host, or the
 Heimdall host OS). Until that happens, Heimdall is not a workload host.
 
+## Anthropic routes and prompt caching
+
+The `claude*` routes are secondary: DeepSeek is the default every agent uses,
+and a Claude route runs only when something names one. What makes naming one
+affordable is the prompt cache.
+
+Bifrost marks three `cache_control` prefixes on each translated request — the
+last tool definition, the last system block, and the newest message — so
+Anthropic keeps the agent's stable prefix for five minutes. Later hits bill at
+0.1x the input rate; writes cost 1.25x. The gateway prices both and records
+them per ledger line as `cache_read` / `cache_write`.
+
+Measured 2026-11-03 on `claude-haiku-5-5` with a 5,179-token prompt:
+
+| call | cache write | cache read | cost |
+|---|---|---|---|
+| cold | 5,175 | 0 | $0.000649 |
+| repeat | 0 | 5,175 | $0.000054 |
+
+The switch is the ConfigMap's `ANTHROPIC_PROMPT_CACHE` (default on; `0`
+disables the markers without a rebuild).
+
+`/v1/models` advertises `context_length: 200000` for every `claude*` route.
+That is load-bearing: Hermes probes for it, and without an answer it falls back
+to its own table, which matched `claude-opus-5` and claimed 1,000,000 tokens.
+It then never compacted before Anthropic's real 200k limit, and every long
+session ended in a context-length 400 that read like a model fault.
+
 ## Storage
 
 `bifrost-data` is a 1 Gi `local-path` claim, bound **by name** to the PV that
@@ -47,7 +75,8 @@ every request cost, and a re-provisioned empty volume would silently restart the
 month's totals — the gateway would keep serving and only the accounting would be
 gone.
 
-- `spend.jsonl` — one JSON line per request: app, route, backend, tokens, cost.
+- `spend.jsonl` — one JSON line per request: app, route, backend, tokens, cost,
+  and for cached traffic the `cache_read` / `cache_write` split.
   The monthly budget, the spend dashboard, and any future rotation policy read
   from this file.
 - `keys.json` — upstream key pool state.
