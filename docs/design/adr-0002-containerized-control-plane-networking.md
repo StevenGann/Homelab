@@ -55,3 +55,14 @@ Heimdall Docker services (Caddy/Technitium/Komodo). The operator has confirmed
 the control plane will **move off Heimdall** as the next architectural step;
 this ADR records why the interim workarounds exist so they can be removed at
 relocation.
+
+## Confirmation — 2026-11-03
+
+The constraint was reproduced deliberately while trying to place Bifrost on
+Heimdall. The pod scheduled onto `heimdall-control-plane` and reached `Ready`
+(its probes are served in-pod), but from a worker on `hyperion-eta` the pod IP
+(`10.42.0.53:11434`), the ClusterIP (`10.43.171.192:11434`) and the MetalLB VIP
+(`192.168.10.20:11434`) all timed out. A per-pod `NoExecute` toleration is
+therefore worse than useless as a workaround: it produces a healthy-looking
+workload that serves no one. Any future attempt to run a *networked* workload on
+that node should be treated as blocked on relocation, not on scheduling.
