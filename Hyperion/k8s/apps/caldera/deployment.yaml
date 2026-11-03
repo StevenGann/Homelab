@@ -39,6 +39,17 @@ spec:
             - { name: CALDERA_SYNC_INTERVAL,  value: "60" }
             - { name: CALDERA_COMMIT_DEBOUNCE, value: "10" }
             - { name: CALDERA_COMMIT_MAX_WAIT, value: "30" }
+            # Tier 2 semantic search. Vectors come from Bifrost, whose `embed`
+            # route resolves to the in-cluster nomic-embed-text model — the
+            # endpoint is a gateway, so a model swap or a move to different
+            # hardware is a Bifrost config edit, not a Caldera redeploy.
+            # CALDERA_EMBEDDING_API_KEY is a tenant key minted for this service
+            # and arrives with the rest of caldera-secrets via envFrom.
+            - { name: CALDERA_SEMANTIC_SEARCH,    value: "true" }
+            - { name: CALDERA_EMBEDDING_BACKEND,  value: "remote" }
+            - { name: CALDERA_EMBEDDING_BASE_URL, value: "http://bifrost.bifrost.svc.cluster.local:11434/v1" }
+            - { name: CALDERA_EMBEDDING_ROUTE,    value: "embed" }
+            - { name: CALDERA_EMBEDDING_BATCH,    value: "16" }
             # Webhook: notifies Hermes when external vault changes arrive (git pull).
             # URL is the Hermes webhook endpoint; secret must be added to
             # caldera-secrets as CALDERA_WEBHOOK_SECRET (SOPS-encrypted).
