@@ -38,6 +38,7 @@ TOKEN_FILE="${TOKEN_FILE:-/tmp/heimdall-technitium-token}"
 RECORDS=(
     # ─── Hosts ───────────────────────────────────────────────────────────────
     "komodo.lab|A|192.168.10.4"       # Komodo Core UI (also fronted by Caddy)
+    "alfred.lab|A|192.168.10.4"           # chat UI + hermes-api /v1/* (NodePort 31646) via Caddy
     "heimdall.lab|A|192.168.10.4"     # edge host: Caddy, Technitium, Komodo, k3s control plane
     "auth.lab|A|192.168.10.4"         # Authentik SSO (Caddy-fronted; LDAP outpost on :389/:636)
     "akasha.lab|A|192.168.10.247"     # TrueNAS Scale (also hosts Jellyfin :30013)
@@ -124,11 +125,6 @@ RECORDS=(
 
 # ─── Known gaps as of the 2026-09-05 live sweep (NOT seeded — decide first) ──────────
 #
-#   alfred.lab      — the Caddyfile serves an `alfred.lab` site (chat UI + /v1/*
-#                     proxied to the hermes-api NodePort 31646), but NO A record
-#                     exists in Technitium, so the route is unreachable by name.
-#                     Add `"alfred.lab|A|192.168.10.4"` above if the site is meant
-#                     to be live; delete the Caddy block if it is not.
 #   cassandra.lab   — cassandra-dashboard is a live LoadBalancer on 192.168.10.93
 #                     with no name and no Caddy route.
 #
