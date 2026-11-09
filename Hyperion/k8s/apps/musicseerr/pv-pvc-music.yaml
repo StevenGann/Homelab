@@ -1,0 +1,37 @@
+# Music library for DroppedNeedle, exposed in its own namespace.
+#
+# The media namespace already has this export as `media-music`, bound to
+# `akasha-music-nfs`. A PV binds to exactly one claim, so a second PV over the
+# same NFS export is what lets another namespace mount it. NFS has no
+# exclusivity, so two PVs over one export is safe; a block device would not be.
+#
+# Mounted READ-ONLY in the deployment. DroppedNeedle only needs to read the
+# library to scan, match and serve it. Lidarr still owns writes to this tree,
+# and Library Management (which moves and rewrites files) should not be switched
+# on until that ownership is settled.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-music-nfs-musicseerr
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 1Ti }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: musicseerr, name: musicseerr-music }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Music }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: musicseerr-music
+  namespace: musicseerr
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-music-nfs-musicseerr
+  resources: { requests: { storage: 1Ti } }
