@@ -67,6 +67,28 @@ to its own table, which matched `claude-opus-5` and claimed 1,000,000 tokens.
 It then never compacted before Anthropic's real 200k limit, and every long
 session ended in a context-length 400 that read like a model fault.
 
+## Anthropic key pool
+
+The `anthropic` backend carries **two** credentials via `KEYPOOL` in
+`secret.sops.yaml`, with pool ids `primary` and `secondary`. `ANTHROPIC_API_KEY`
+is still present and holds the same value as `primary`; the pool is what the
+gateway actually rotates across, and the single-key variable is only a fallback
+if `KEYPOOL` is ever removed.
+
+The point is rate limits, not load balancing. On a rate-limit or auth rejection
+the serving key cools down for 30 seconds and the retry picks the other one
+before backend failover is ever considered. A 429 from one credential therefore
+looks like a brief retry to the caller instead of a 502.
+
+Ledger lines and metrics attribute the request to the pool id (`upstream_key:
+primary` / `secondary`), never to key material. Both keys are per-request
+round-robin, so ordinary traffic spreads across them.
+
+To add or replace a key: `sops set` the `KEYPOOL` entry, push, then bounce the
+Deployment — `envFrom` is read at container start, so a Flux reconcile alone
+leaves the running process on the old pool. Verify on the ledger, not on a 200:
+the row's `upstream_key` names the credential that answered.
+
 ## Storage
 
 `bifrost-data` is a 1 Gi `local-path` claim, bound **by name** to the PV that
