@@ -27,6 +27,18 @@ spec:
           volumeMounts:
             - { name: app,  mountPath: /app }
             - { name: seed, mountPath: /seed, readOnly: true }
+        # Runs as 568 on purpose: the downloads tree is NFS, and a root process
+        # creating directories there is squashed to nobody, which would leave the
+        # app unable to write into its own download folders.
+        - name: prepare-downloads
+          image: slskd/slskd:0.25.1
+          securityContext: { runAsUser: 568, runAsGroup: 568 }
+          command:
+            - sh
+            - -c
+            - 'mkdir -p /data/downloads/slskd/complete /data/downloads/slskd/incomplete && ls -ld /data/downloads/slskd/complete'
+          volumeMounts:
+            - { name: downloads, mountPath: /data/downloads }
       containers:
         - name: slskd
           image: slskd/slskd:0.25.1
