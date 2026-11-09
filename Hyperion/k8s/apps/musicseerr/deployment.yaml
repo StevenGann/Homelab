@@ -24,6 +24,7 @@ spec:
             - { name: config, mountPath: /app/config }
             - { name: cache, mountPath: /app/cache }
             - { name: music, mountPath: /data/media/music, readOnly: true }   # Akasha Music (NFS, RO)
+            - { name: downloads, mountPath: /data/downloads }                 # Akasha Downloads (NFS, RW)
           startupProbe:    { tcpSocket: { port: 8688 }, failureThreshold: 30, periodSeconds: 5 }
           readinessProbe:  { httpGet: { path: /health, port: 8688 }, periodSeconds: 15 }
           resources:
@@ -33,3 +34,4 @@ spec:
         - { name: config, persistentVolumeClaim: { claimName: musicseerr-config } }
         - { name: cache, persistentVolumeClaim: { claimName: musicseerr-cache } }
         - { name: music, persistentVolumeClaim: { claimName: musicseerr-music } }
+        - { name: downloads, persistentVolumeClaim: { claimName: musicseerr-downloads } }

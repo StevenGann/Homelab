@@ -1,0 +1,34 @@
+# Downloads tree for DroppedNeedle, exposed in its own namespace.
+#
+# Same reasoning as pv-pvc-music.yaml: `media-downloads` is bound to a PV that
+# names the media namespace in its claimRef, so this namespace needs its own PV
+# over the same NFS export. NFS has no exclusivity, so this is safe.
+#
+# Read-WRITE: DroppedNeedle moves completed files out of the slskd download
+# folder into the library. It never writes into the music tree itself.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: akasha-downloads-nfs-musicseerr
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 1Ti }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: musicseerr, name: musicseerr-downloads }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4, rsize=1048576, wsize=1048576]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Media/Downloads }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: musicseerr-downloads
+  namespace: musicseerr
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: akasha-downloads-nfs-musicseerr
+  resources: { requests: { storage: 1Ti } }

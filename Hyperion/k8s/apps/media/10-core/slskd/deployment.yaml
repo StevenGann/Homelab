@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slskd
+  namespace: media
+  labels: { app: slskd }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: slskd } }
+  template:
+    metadata:
+      labels: { app: slskd }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      initContainers:
+        # slskd reads AND writes slskd.yml at run time (it can be edited from the
+        # UI and is reloaded on change), so the config cannot be a read-only
+        # Secret mount. Seed it onto the PVC once, then leave it writable. To
+        # re-seed after a change in the Secret, delete the file and restart.
+        - name: seed-config
+          image: slskd/slskd:0.25.1
+          command:
+            - sh
+            - -c
+            - 'if [ ! -s /app/slskd.yml ]; then cp /seed/slskd.yml /app/slskd.yml; echo seeded; else echo "config exists, leaving it"; fi; chown -R 568:568 /app'
+          volumeMounts:
+            - { name: app,  mountPath: /app }
+            - { name: seed, mountPath: /seed, readOnly: true }
+      containers:
+        - name: slskd
+          image: slskd/slskd:0.25.1
+          env:
+            - { name: PUID, value: "568" }
+            - { name: PGID, value: "568" }
+            - { name: SLSKD_UMASK, value: "002" }
+            - { name: SLSKD_REMOTE_CONFIGURATION, value: "true" }
+          ports:
+            - { name: http,     containerPort: 5030 }
+            - { name: soulseek, containerPort: 50300, protocol: TCP }
+            - { name: soulseek-udp, containerPort: 50300, protocol: UDP }
+          volumeMounts:
+            - { name: app,       mountPath: /app }                      # config + state, writable
+            - { name: downloads, mountPath: /data/downloads }           # complete + incomplete share one mount
+            - { name: music,     mountPath: /music, readOnly: true }    # the share Soulseek announces
+          startupProbe:   { tcpSocket: { port: 5030 }, failureThreshold: 40, periodSeconds: 5 }
+          readinessProbe: { httpGet: { path: /health, port: 5030 }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+      volumes:
+        - { name: app,       persistentVolumeClaim: { claimName: slskd-config } }
+        - { name: downloads, persistentVolumeClaim: { claimName: media-downloads } }
+        - { name: music,     persistentVolumeClaim: { claimName: media-music } }
+        - name: seed
+          secret:
+            secretName: slskd-config
+            items: [{ key: slskd.yml, path: slskd.yml }]
