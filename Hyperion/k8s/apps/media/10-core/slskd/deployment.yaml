@@ -55,7 +55,7 @@ spec:
             - { name: app,       mountPath: /app }                      # config + state, writable
             - { name: downloads, mountPath: /data/downloads }           # complete + incomplete share one mount
             - { name: music,     mountPath: /music, readOnly: true }    # the share Soulseek announces
-          startupProbe:   { tcpSocket: { port: 5030 }, failureThreshold: 40, periodSeconds: 5 }
+          startupProbe:   { tcpSocket: { port: 5030 }, failureThreshold: 180, periodSeconds: 10 }   # first boot scans ~12k files over NFS
           readinessProbe: { httpGet: { path: /health, port: 5030 }, periodSeconds: 15 }
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
