@@ -11,7 +11,7 @@ spec:
       nodeSelector: { topology.kubernetes.io/zone: hyperion }
       containers:
         - name: musicseerr
-          image: ghcr.io/habirabbu/musicseerr:latest
+          image: ghcr.io/droppedneedle/droppedneedle:v2.15.0
           imagePullPolicy: Always
           env:
             - { name: PUID, value: "568" }
