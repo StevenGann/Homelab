@@ -14,7 +14,12 @@ data:
   # Claude list prices, USD per 1M tokens. Haiku's rate is the under-100k-token
   # tier; above it Anthropic charges 0.50/2.50 and this understates the cost.
   PRICING: '{"claude-haiku-5-5":{"input":0.10,"output":0.50},"claude-sonnet-5-5":{"input":2,"output":10},"claude-opus-5-5":{"input":4,"output":20}}'
-  FALLBACKS: '{"deepseek-v4-pro":"deepseek-v4-flash"}'
+  # A fallback must leave the vendor, or it is not a fallback. The chain used to be
+  # deepseek-v4-pro -> deepseek-v4-flash, which is one account: when that account ran
+  # out of credit on 2026-11-18 every route on it failed together and three agents
+  # died mid-task. Each chain now ends on Anthropic. Cost stays bounded by BUDGET and
+  # every fallback request is booked in the ledger under this gateway like any other.
+  FALLBACKS: '{"deepseek-v4-pro":"claude-sonnet","deepseek-v4-flash":"claude-haiku","coach":"claude-haiku"}'
   # Speech. Audio routes stay out of ROUTES so they are never advertised as
   # chat models. TTS_COST_PER_CHAR is the blended rate of the ElevenLabs
   # Creator annual plan: $220/year for 100k characters a month, i.e.
