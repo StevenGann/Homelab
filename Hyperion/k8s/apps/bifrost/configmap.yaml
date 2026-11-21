@@ -33,7 +33,10 @@ data:
   LEDGER_FILE: /data/spend.jsonl
   # Monthly spend ceiling, USD. Raised from 20 on 2026-10-29 after the gateway
   # legitimately hit it mid-session; 0 disables the limit entirely.
-  BUDGET: "500"
+  # Set to 0 on 2026-11-21 at the operator's request so OpenCode could run again
+  # after the $500 ceiling was reached mid-month. Restore 500 when the agents are
+  # done: 0 means the ledger still books spend but nothing stops it.
+  BUDGET: "0"
   # Tenant keys are minted into the same PVC as the ledger. ANON=closed since
   # 2026-10-29: every caller holds a key and anonymous traffic is refused.
   KEYS_FILE: /data/keys.json
