@@ -30,10 +30,14 @@ spec:
             runAsUser: 1001
           containers:
             - name: kubectl
-              # Needs kubectl + a shell (the loop). bitnami/kubectl is multi-arch
-              # (incl. linux/arm64 for the Pi 5 workers). If this image is ever
-              # unavailable, swap for any kubectl image that includes /bin/sh.
-              image: docker.io/bitnami/kubectl:1.34
+              # Needs kubectl + a shell (the loop). Must be multi-arch
+              # (incl. linux/arm64 for the Pi 5 workers) and within one minor of
+              # the k3s server (v1.34.5). Never a bare `:latest` — bitnami
+              # removed its versioned tags, which is why this was pinned to a
+              # tag that 404s and silently idled out its deadline every night.
+              # If this image is ever unavailable, swap for any kubectl image
+              # that includes /bin/sh.
+              image: docker.io/alpine/kubectl:1.34.2
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c"]
               args:
