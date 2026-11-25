@@ -1,0 +1,10 @@
+# shelfmark-data: the SQLite database, the migration ledger and any generated
+# job packages. RWO local-path because the app runs a single replica and a
+# single writer; a shared filesystem would be a lie about how SQLite behaves.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: shelfmark-data, namespace: shelfmark }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 2Gi } }

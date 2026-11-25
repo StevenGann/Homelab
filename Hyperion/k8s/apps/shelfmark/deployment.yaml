@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shelfmark
+  namespace: shelfmark
+  labels: { app: shelfmark }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }        # one process owns the SQLite file
+  selector: { matchLabels: { app: shelfmark } }
+  template:
+    metadata: { labels: { app: shelfmark } }
+    spec:
+      nodeSelector: { topology.kubernetes.io/zone: hyperion }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: shelfmark
+          image: ghcr.io/stevengann/shelfmark:main
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: SHELFMARK_DATA_DIR, value: /data }
+            - { name: HOME, value: /tmp }
+            - { name: SHELFMARK_LOG_LEVEL, value: info }
+          ports:
+            - { name: http, containerPort: 8080 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: "20m", memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+          startupProbe:
+            httpGet: { path: /api/health, port: http }
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 30
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: shelfmark-data } }
+        - { name: tmp, emptyDir: {} }

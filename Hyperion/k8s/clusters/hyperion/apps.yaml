@@ -538,3 +538,19 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+
+---
+# Shelfmark: parts inventory and BOM management. Single process, SQLite on a
+# local-path volume, published on a MetalLB address rather than an ingress
+# because it is LAN-only for now.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: shelfmark, namespace: flux-system }
+spec:
+  interval: 10m
+  path: ./Hyperion/k8s/apps/shelfmark
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn: [ { name: metallb-config } ]   # LoadBalancer IP :96
+  sourceRef: { kind: GitRepository, name: flux-system }
