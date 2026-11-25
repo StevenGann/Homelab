@@ -19,7 +19,12 @@ data:
   # out of credit on 2026-11-18 every route on it failed together and three agents
   # died mid-task. Each chain now ends on Anthropic. Cost stays bounded by BUDGET and
   # every fallback request is booked in the ledger under this gateway like any other.
-  FALLBACKS: '{"deepseek-v4-pro":"claude-sonnet","deepseek-v4-flash":"claude-haiku","coach":"claude-haiku"}'
+  # Both directions, because either vendor can be the one that is out: the
+  # Anthropic account hit its usage ceiling on 2026-11-25 (restored 2026-12-01)
+  # and every Claude route failed while DeepSeek was fine; the reverse was
+  # true on 2026-11-18. A one-way chain only protects the half you already
+  # lost.
+  FALLBACKS: '{"deepseek-v4-pro":"claude-sonnet","deepseek-v4-flash":"claude-haiku","coach":"claude-haiku","claude":"deepseek-v4-pro","claude-sonnet":"deepseek-v4-pro","claude-opus":"deepseek-v4-pro","claude-haiku":"deepseek-v4-flash"}'
   # Speech. Audio routes stay out of ROUTES so they are never advertised as
   # chat models. TTS_COST_PER_CHAR is the blended rate of the ElevenLabs
   # Creator annual plan: $220/year for 100k characters a month, i.e.
