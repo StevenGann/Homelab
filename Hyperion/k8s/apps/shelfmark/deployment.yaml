@@ -25,7 +25,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: shelfmark
-          image: ghcr.io/stevengann/shelfmark:sha-de7bae94fbdcafeee43387a4768de27e908c05b8
+          image: ghcr.io/stevengann/shelfmark:sha-b893c4d1954e14cdb195ab1698981f9dfa96fc81
           imagePullPolicy: IfNotPresent
           env:
             - { name: SHELFMARK_DATA_DIR, value: /data }
