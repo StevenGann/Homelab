@@ -21,7 +21,7 @@ spec:
       terminationGracePeriodSeconds: 20
       containers:
         - name: shelfmark
-          image: ghcr.io/stevengann/shelfmark:main
+          image: ghcr.io/stevengann/shelfmark:sha-a4221a77cc5efbd9f3153897f943e92f73eda3f1
           imagePullPolicy: IfNotPresent
           env:
             - { name: SHELFMARK_DATA_DIR, value: /data }
