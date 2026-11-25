@@ -31,6 +31,11 @@ spec:
             - { name: SHELFMARK_DATA_DIR, value: /data }
             - { name: HOME, value: /tmp }
             - { name: SHELFMARK_LOG_LEVEL, value: info }
+            - { name: SHELFMARK_ASSET_DIR, value: /data/assets }
+          # DigiKey API credentials for part enrichment. optional: the app must
+          # still start (and say "credentials not configured") without them.
+          envFrom:
+            - secretRef: { name: shelfmark-digikey, optional: true }
           ports:
             - { name: http, containerPort: 8080 }
           securityContext:
