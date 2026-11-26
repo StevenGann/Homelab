@@ -1,0 +1,102 @@
+# Nightly export, weekly offer refresh. Both run as jobs rather than an in-app
+# timer: a timer inside the app stops when the app is unhealthy, and the
+# retention window would restart from nothing after every crash loop.
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: shelfmark-backup, namespace: shelfmark }
+spec:
+  schedule: "17 3 * * *"
+  timeZone: "Etc/UTC"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        metadata: { labels: { app: shelfmark, job: backup } }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { topology.kubernetes.io/zone: hyperion }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: backup
+              image: ghcr.io/stevengann/shelfmark:sha-190002830227d1e92e32347cf8c9794fb8dd5fd1
+              imagePullPolicy: IfNotPresent
+              command: ["shelfmark", "backup", "--dir", "/backups", "--keep", "14"]
+              env:
+                - { name: SHELFMARK_DATA_DIR, value: /data }
+                - { name: SHELFMARK_ASSET_DIR, value: /data/assets }
+                - { name: HOME, value: /tmp }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: data, mountPath: /data }
+                - { name: backups, mountPath: /backups }
+                - { name: tmp, mountPath: /tmp }
+              resources:
+                requests: { cpu: "10m", memory: "64Mi" }
+                limits: { cpu: "500m", memory: "256Mi" }
+          volumes:
+            - { name: data, persistentVolumeClaim: { claimName: shelfmark-data } }
+            - { name: backups, persistentVolumeClaim: { claimName: shelfmark-backups } }
+            - { name: tmp, emptyDir: {} }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: shelfmark-offers, namespace: shelfmark }
+spec:
+  schedule: "5 4 * * 1"
+  timeZone: "Etc/UTC"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata: { labels: { app: shelfmark, job: offers } }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { topology.kubernetes.io/zone: hyperion }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: offers
+              image: ghcr.io/stevengann/shelfmark:sha-190002830227d1e92e32347cf8c9794fb8dd5fd1
+              imagePullPolicy: IfNotPresent
+              command: ["shelfmark", "offers", "refresh", "--all", "--stale-days", "30"]
+              env:
+                - { name: SHELFMARK_DATA_DIR, value: /data }
+                - { name: SHELFMARK_ASSET_DIR, value: /data/assets }
+                - { name: HOME, value: /tmp }
+              envFrom:
+                - secretRef: { name: shelfmark-digikey, optional: true }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: data, mountPath: /data }
+                - { name: tmp, mountPath: /tmp }
+              resources:
+                requests: { cpu: "10m", memory: "64Mi" }
+                limits: { cpu: "500m", memory: "256Mi" }
+          volumes:
+            - { name: data, persistentVolumeClaim: { claimName: shelfmark-data } }
+            - { name: tmp, emptyDir: {} }

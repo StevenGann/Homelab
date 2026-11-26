@@ -1,0 +1,30 @@
+# shelfmark-backups: nightly export bundles, kept on Akasha rather than on the
+# node's local-path volume. A backup that shares a disk with the thing it backs
+# up is not a backup, so this is a separate NFS share on the NAS.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: shelfmark-backups-nfs
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  capacity: { storage: 20Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  claimRef: { namespace: shelfmark, name: shelfmark-backups }
+  mountOptions: [nfsvers=4.1, hard, noatime, nconnect=4]
+  nfs: { server: 192.168.10.247, path: /mnt/Media-Storage/Application-Storage/shelfmark-backups }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shelfmark-backups
+  namespace: shelfmark
+  annotations: { kustomize.toolkit.fluxcd.io/prune: disabled }
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: shelfmark-backups-nfs
+  resources: { requests: { storage: 20Gi } }

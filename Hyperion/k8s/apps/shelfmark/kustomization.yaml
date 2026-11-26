@@ -4,6 +4,8 @@ namespace: shelfmark
 resources:
   - namespace.yaml
   - pvc.yaml
+  - backups-pv-pvc.yaml
   - deployment.yaml
+  - cronjobs.yaml
   - service.yaml
   - secret.sops.yaml
