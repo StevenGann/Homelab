@@ -28,7 +28,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: backup
-              image: ghcr.io/stevengann/shelfmark:sha-fdb5c3485370b53c3fed60ddad20d58bd63fe61c
+              image: ghcr.io/stevengann/shelfmark:sha-0cfcd7936e044fbf5f12faa8e2a2c6015d7fb44e
               imagePullPolicy: IfNotPresent
               command: ["shelfmark", "backup", "--dir", "/backups", "--keep", "14"]
               env:
@@ -78,7 +78,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: offers
-              image: ghcr.io/stevengann/shelfmark:sha-fdb5c3485370b53c3fed60ddad20d58bd63fe61c
+              image: ghcr.io/stevengann/shelfmark:sha-0cfcd7936e044fbf5f12faa8e2a2c6015d7fb44e
               imagePullPolicy: IfNotPresent
               command: ["shelfmark", "offers", "refresh", "--all", "--stale-days", "30"]
               env:
